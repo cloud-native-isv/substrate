@@ -1,7 +1,23 @@
 {
   "scope": "knowledge",
-  "updated": "2026-08-06T06:42:09Z",
+  "updated": "2026-08-06T07:22:00Z",
   "entries": [
+    {
+      "id": "agents-md-is-a-symlink-to-instructions-md-user-decision",
+      "file": "agents-md-is-a-symlink-to-instructions-md-user-decision.md",
+      "scope": "knowledge",
+      "source": "/speckit.instructions",
+      "feature": "",
+      "tags": [
+        "convention",
+        "symlink",
+        "agents-md",
+        "fork"
+      ],
+      "title": "AGENTS.md is a symlink to instructions.md (user decision)",
+      "created": "2026-08-06T07:22:00Z",
+      "summary": "User decision 2026-08-06: upstream AGENTS.md content was merged into .specify/instructions.md ('Repository Guide' section), and AGENTS.md is now a compatibility symlink like CLAUDE.md/QODER.md/QWEN.md"
+    },
     {
       "id": "agents-md-is-a-real-upstream-file-in-this-fork",
       "file": "agents-md-is-a-real-upstream-file-in-this-fork.md",

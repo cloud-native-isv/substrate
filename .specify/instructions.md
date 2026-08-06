@@ -26,7 +26,7 @@ This project documentation is distributed across several key files. You MUST ref
 | **Glossary** | `.specify/memory/glossary.md` | Project vocabulary anchor & domain dictionary | Canonical terms, homophone/confusable variants, meanings; voice-input correction source (see `.specify/shared/workflow/glossary.md`) |
 | **Development** | `CONTRIBUTING.md` | Setup and Guidelines | Setup, testing, and pull request guidelines |
 | **Readme** | `README.md` | basic information of project | Product overview, kind/GKE quickstart, demos, component tour |
-| **Agent Guide** | `AGENTS.md` | Repo layout & build rules | Where to put new Go code, `make` targets, security notes (real upstream file — NOT a symlink) |
+| **Agent Guide** | `AGENTS.md` | Repo layout & build rules | Symlink to this file — content lives in the "Repository Guide" section below |
 | **Project Documents** | `docs/` | High-level architecture | Architecture and design documentation |
 | **Architecture** | `docs/architecture.md` | System design | Control plane, node supervisor, networking stack |
 | **Code Layout** | `docs/dev/code-layout.md` | Go code placement | Rationale for cmd/ vs internal/ vs pkg/ |
@@ -127,6 +127,50 @@ The test of a healthy loop is simple: do team members rely on the product for re
   - `make fmt` — format all Go files
   - Local dev: `hack/create-kind-cluster.sh` + `hack/install-ate-kind.sh`; GCP: `go run ./tools/setup-gcp bootstrap` + `./hack/install-ate.sh`
 
+## Repository Guide (merged from upstream AGENTS.md)
+
+Agent Substrate manages agent-like workloads on Kubernetes for higher scale,
+efficiency, and lower latency than Kubernetes alone: it takes the Kubernetes
+control plane out of the critical path by mapping a larger set of "actors"
+(applications such as agents) onto a smaller set of ready "workers" (Pods),
+exploiting the fact that agent-like applications are idle most of the time to
+achieve heavy multiplexing. Provisioning/deployment helpers: `hack/install-ate.sh`,
+`tools/setup-gcp`.
+
+**Where to put new Go code — quick rules:**
+
+| Situation | Location |
+|---|---|
+| Only used by one binary | `cmd/<binary>/internal/<pkg>` |
+| Shared across binaries, not for external import | `internal/<pkg>` |
+| Public API for external consumers | `pkg/<pkg>` |
+| Public proto (control-plane gRPC API) | `pkg/proto/<name>` |
+| Internal proto (atelet / ateom) | `internal/proto/<name>` |
+| Dev/CI scripts | `hack/` |
+| Standalone Go dev/CI tools | `tools/<name>` with its own `go.mod` |
+
+Full rationale and per-directory details: `docs/dev/code-layout.md`.
+
+**Code style** (all enforced by `make verify`):
+- Go code MUST be gofmt-formatted — run `make fmt` before submitting.
+- All files MUST carry copyright/license headers (templates in `hack/boilerplate/`).
+- Keep `go.mod` clean (`go mod tidy` when adding/removing dependencies).
+- Submit small, focused PRs touching a limited part of the codebase.
+
+**Testing rules:**
+- Write tests for ALL new code — code lacking tests will not be merged.
+- Changes MUST NOT break existing tests.
+- Run `make verify` locally before requesting review (catches missing headers,
+  formatting drift, module issues).
+- E2E tests need a running cluster: `hack/ate-dev-env.sh.example` +
+  `go run ./tools/setup-gcp bootstrap`.
+
+**Security considerations:** the security story is early and many features are
+missing. Workload isolation uses gVisor (`runsc`) sandboxing (a temporary gVisor
+patch may be required — see README). Respect security best practices in all new
+code; future security plans live in `docs/roadmap.md`. Keep these security notes
+current whenever security-relevant capabilities change.
+
 # Tool And Skills Usage Guide
 > **Note**: Tool and Skills details are injected into prompts by the agent when needed. This section is guidance only.
 
@@ -169,7 +213,7 @@ This file is a **map, not a manual**: it tells you *what* exists and *where* it 
 > Agent layer taxonomy (Template → Instance → Execution) is defined once in `.specify/shared/definitions/agent-definitions.md` — consult it before creating/refining/running agents.
 
 ## Spec Kit Runtime & Symlink Model
-- **Canonical instructions file**: `.specify/instructions.md` is the single source of truth for project-level AI instructions. Compatibility files such as `.github/copilot-instructions.md`, `QWEN.md`, `CLAUDE.md`, and `QODER.md` are symlinks to this file. **Exception in this repo**: the root `AGENTS.md` is the upstream Agent Substrate project guide — a real, git-tracked file (repo layout/build rules), NOT a symlink; do not symlink or overwrite it (it is upstream-owned and must survive rebases). **Consumer note**: Qoder **CLI** (`qodercli`) loads the root `AGENTS.md` (plus `.qoder/rules/**/*.md`, additively — no documented override priority); `.qoder/project_rules.md` is the Qoder **IDE**'s old format, kept only for IDE compatibility and never read by the CLI.
+- **Canonical instructions file**: `.specify/instructions.md` is the single source of truth for project-level AI instructions. Compatibility files such as `.github/copilot-instructions.md`, `QWEN.md`, `CLAUDE.md`, `QODER.md`, and `AGENTS.md` are symlinks to this file (upstream AGENTS.md content was merged into the "Repository Guide" section). All aliases point at the same canonical file, so no divergence is possible. Note: `AGENTS.md` is git-tracked upstream, so this symlink is an intentional xuanji-branch delta. **Consumer note**: Qoder **CLI** (`qodercli`) loads the root `AGENTS.md` (plus `.qoder/rules/**/*.md`, additively — no documented override priority); `.qoder/project_rules.md` is the Qoder **IDE**'s old format, kept only for IDE compatibility and never read by the CLI.
 - **Canonical skills directory**: `.specify/skills/` is the primary location for installed Spec Kit skills. `.github/skills` is a compatibility symlink to `.specify/skills/` for tools that discover skills under `.github/skills`.
 - **Do not duplicate symlink targets**: Treat these compatibility paths as aliases, not independent source files or directories. When reading or editing instructions and skills, prefer the canonical `.specify/...` paths and avoid applying the same change separately through each symlink.
 - **Do NOT break the symlinks (applies to both users and AI agents)**: The compatibility files/directories above are symbolic links, NOT copies — this is easy to miss because they *look* like ordinary files. Editing their content is safe: changes write through to the canonical `.specify/...` target and stay consistent across every tool. But **deleting, renaming, moving, or replacing** a link (e.g. an editor's "save as new file", or a manual `rm` + recreate) SEVERS it; the affected tool then silently reads stale or independent content and updates diverge across tools. Never delete-and-recreate these paths by hand.
