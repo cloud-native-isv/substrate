@@ -295,6 +295,7 @@ spec:
                 enum:
                 - gvisor
                 - microvm
+                - wasm
                 type: string
               snapshotsConfig:
                 description: Snapshots configuration for the actor.
@@ -461,12 +462,12 @@ spec:
             - message: Spec is immutable
               rule: self == oldSelf
             - message: Only one DurableDir-typed volume is supported when sandboxClass
-                is 'gvisor'
+                is not 'microvm'
               rule: (has(self.sandboxClass) && self.sandboxClass == 'microvm') ||
                 !has(self.volumes) || self.volumes.filter(v, has(v.durableDir)).size()
                 <= 1
             - message: A container may mount only one DurableDir-typed volume when
-                sandboxClass is 'gvisor'
+                sandboxClass is not 'microvm'
               rule: (has(self.sandboxClass) && self.sandboxClass == 'microvm') ||
                 !has(self.containers) || self.containers.all(c, !has(c.volumeMounts)
                 || c.volumeMounts.filter(vm, has(self.volumes) && self.volumes.exists(v,
@@ -480,7 +481,7 @@ spec:
               rule: '!has(self.sandboxClass) || self.sandboxClass != ''microvm'' ||
                 !has(self.volumes) || !self.volumes.exists(v, has(v.externalVolumeTemplate))'
             - message: 'onResume.fromData: Golden is not supported when sandboxClass
-                is ''gvisor'''
+                is not ''microvm'''
               rule: '(has(self.sandboxClass) && self.sandboxClass == ''microvm'')
                 || !has(self.snapshotsConfig.onResume) || (has(self.snapshotsConfig.onResume.fromData)
                 ? self.snapshotsConfig.onResume.fromData : ''ColdBoot'') != ''Golden'''

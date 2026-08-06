@@ -1,0 +1,74 @@
+<!-- AUTO-GENERATED from templates/commands/feature.md — do not edit; edit the source template, then run scripts/python/regen-command-copies.py -->
+## User Input
+
+```text
+$ARGUMENTS
+```
+
+Process `$ARGUMENTS` per the [User Input Protocol](.specify/shared/workflow/user-input-protocol.md). Interpret scope: empty → full-registry reconcile; concrete context (commit/PR/branch) → context mining; description → locate-and-converge.
+
+## Outline
+
+You manage feature metadata across:
+1. **Feature detail files**: `.specify/memory/features/<ID>.md` (from `.specify/templates/feature-details-template.md`)
+2. **Feature index**: `.specify/memory/features.md`
+
+Features are classified: **functional** (user-facing) vs **non-functional** (quality attributes), and **current** (existing) vs **future** (gap-identified, status `Draft`).
+
+**Reconcile model** (see `.specify/shared/patterns/reconcile-pattern.md`): the registry is a durable artifact space. **Desired state** = what the repo actually delivers (current features) + credible gaps (future features) + registry format rules; **current state** = the existing index + detail files. Each run observes, diffs through a tolerance band, and converges:
+
+| Input | Scope | Behavior |
+|-------|-------|----------|
+| No args | **Full-registry reconcile** | Diff every registry row against repo reality; empty registry → bootstrap from scratch |
+| Concrete context (commit/PR/branch) | **Fan-out mining** | Extract feature-relevant facts from the context, triage each to its owning feature row (or a new one) |
+| Description | **Single-target convergence** | Locate the matching feature and converge only it |
+
+- **Tolerance band**: rows whose Name/Description/Status still match repo reality are left untouched — do not rewrite descriptions for cosmetic wording, do not touch `Last Updated` on unchanged rows.
+- **Archive-not-delete**: never remove a feature row or detail file because the capability disappeared from the code — keep the row and mark its status/description accordingly (history is part of the registry's value).
+- **Never regress status**: registry convergence must not move a feature's status backward (e.g. Implemented → Draft) without explicit user confirmation.
+
+## Actions
+
+0. **Determine PROJECT_TYPE and DELIVERY_MODEL** (MUST do first):
+   - Infer from repo structure, README/docs, build config
+   - DELIVERY_MODEL: `runtime code` | `document/prompt artifacts` | `hybrid`
+   - This constrains which DFX categories and future features are relevant
+
+1. **Determine scope**: No args → full-registry reconcile. Concrete context → fan-out mining. Description → single-target convergence.
+
+2. **Generate/refresh current features** (functional + non-functional):
+   - Functional: tailor to PROJECT_TYPE (CLI: commands/IO/config; Library: APIs/extension; Framework: abstractions/scaffolding; Microservice: domain/interfaces/workflows)
+   - Non-functional: derive from repo's current state
+
+3. **Discover future features** via gap analysis:
+   - Prioritize project-intrinsic features first (what improves core value delivery)
+   - For document artifacts: content quality, cross-consumer compatibility, lifecycle, authoring experience
+   - For runtime code: apply DFX Catalog from `.specify/shared/constants/dfx-catalog.md`
+   - Avoid over-design: don't propose runtime DFX for document-only projects
+   - Future features: status `Draft`, max 8–12 per run
+
+4. **Apply updates** per scope, honoring the tolerance band (unchanged rows stay byte-identical) and never-regress-status rule.
+
+5. **Allocate IDs**: Sequential three-digit FEATURE_ID from scanning `.specify/memory/features/*.md`.
+
+6. **Instantiate/update detail files**: From template, replace all placeholders, remove unused ones. Dates ISO format.
+
+7. **Update `.specify/memory/features.md`**: Table with `ID | Name | Description | Status | Feature Details | Last Updated`. Auto-derive FEATURE_COUNT from table row count.
+
+8. **Sync README**: Generate/replace "Feature List" section split into Functional and Non-functional.
+
+9. **Validate & report residuals**: No leftover placeholders, unique sequential IDs, valid dates, correct markdown tables. Close with a brief residual report: rows converged / rows tolerated (unchanged) / new rows added / items needing user decision. If nothing changed, say so plainly.
+
+### Formatting Requirements
+
+- Feature names: 2–5 words
+- Index table: single header row, all columns, aligned pipes
+- Status: Draft | Planned | Implemented | Ready for Review | Completed
+- Feature detail links: `.specify/memory/features/[FEATURE_ID].md`
+- Do NOT modify templates; only instantiate copies
+
+## Handoffs
+
+**Before**: `/speckit.constitution` if governance rules change. Ensure repo context (README/docs) available.
+
+**After**: Proceed to `/speckit.requirements` for a chosen feature.

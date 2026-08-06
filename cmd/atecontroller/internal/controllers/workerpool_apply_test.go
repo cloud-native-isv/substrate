@@ -221,6 +221,7 @@ func TestMicroVMPodShape(t *testing.T) {
 		{"gvisor default", "", false},
 		{"gvisor explicit", atev1alpha1.SandboxClassGvisor, false},
 		{"microvm", atev1alpha1.SandboxClassMicroVM, true},
+		{"wasm", atev1alpha1.SandboxClassWasm, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,6 +275,7 @@ func TestAteomSecurityContextByClass(t *testing.T) {
 		{"gvisor default", "", false, true},
 		{"gvisor explicit", atev1alpha1.SandboxClassGvisor, false, true},
 		{"microvm", atev1alpha1.SandboxClassMicroVM, true, false},
+		{"wasm", atev1alpha1.SandboxClassWasm, false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -75,7 +75,7 @@ type WorkerPoolSpec struct {
 	// See Also: TODOs in ActorTemplate SandboxClass
 	//
 	// +optional
-	// +kubebuilder:validation:Enum=gvisor;microvm
+	// +kubebuilder:validation:Enum=gvisor;microvm;wasm
 	// +kubebuilder:default=gvisor
 	SandboxClass SandboxClass `json:"sandboxClass,omitempty"`
 

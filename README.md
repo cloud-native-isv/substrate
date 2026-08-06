@@ -56,6 +56,40 @@ everything in this project may be changed.
 
 Currently we aim to support the [latest stable release](https://kubernetes.io/releases/) of Kubernetes, and the previous minor release.
 
+## Feature List
+
+Registry maintained by Spec Kit (`/speckit.feature`); authoritative source is
+[.specify/memory/features.md](.specify/memory/features.md) with per-feature
+details under `.specify/memory/features/`.
+
+### Functional
+
+| ID  | Name                         | Description                                                                          | Status      |
+|-----|------------------------------|--------------------------------------------------------------------------------------|-------------|
+| 001 | Actor Lifecycle Management   | Create, delete, suspend, pause, and resume actors with sub-second activation.        | Implemented |
+| 002 | Actor Scheduling & Assignment | Real-time actor-to-worker assignment with caching, bypassing the K8s critical path. | Implemented |
+| 003 | Actor Snapshot Persistence   | Full-state snapshots (RAM + filesystem) in GCS/S3 with tag-based management.         | Implemented |
+| 004 | Request Routing & Parking    | Envoy xDS routing, actor DNS, and request parking during pool saturation.            | Implemented |
+| 005 | Worker Pool & CRD Controller | ActorTemplate/WorkerPool/SandboxConfig CRDs with /scale subresource autoscaling.     | Implemented |
+| 006 | Multi-Sandbox Runtimes       | gVisor and microVM (Kata/Cloud Hypervisor) herders with checkpoint/restore.          | Implemented |
+| 007 | Workload Identity & Authentication | SPIFFE identity, JWT/cert minting, pod certificate signers, mTLS verification. | Implemented |
+| 008 | kubectl-ate CLI              | kubectl plugin for actor/atespace/worker CRUD, lifecycle, logs, snapshots, admin.    | Implemented |
+| 009 | GCP Provisioning & Install   | Idempotent GCP bootstrap plus install scripts and kind-based dev flow.               | Implemented |
+| 010 | Control Plane State Store    | Redis/Valkey-backed store for actor and scheduling metadata.                         | Implemented |
+| 013 | E2B Protocol Plane           | E2B-compatible protocol surface for sandbox lifecycle and interaction. (xuanji)      | Draft       |
+| 014 | Wasm Sandbox Runtime         | WebAssembly sandbox backend in the atelet/ateom lifecycle contract. (xuanji)         | Draft       |
+
+### Non-Functional
+
+| ID  | Name                           | Description                                                              | Status      |
+|-----|--------------------------------|--------------------------------------------------------------------------|-------------|
+| 011 | OpenTelemetry Observability    | OTel metrics/traces and Prometheus across components, GCP dashboards.    | Implemented |
+| 012 | E2E & Load Test Suites         | In-cluster e2e suites plus Locust-based scale benchmarking harness.      | Implemented |
+| 015 | Workload Security Hardening    | Authz policies, dependency scanning/SBOM, threat-model hardening.        | Draft       |
+| 016 | Upstream Sync Automation       | Scripted upstream tracking and rebase of the custom branch onto main.    | Draft       |
+| 017 | Snapshot Storage Extensibility | Pluggable snapshot storage backends beyond GCS/S3.                       | Draft       |
+| 018 | API Compatibility Policy       | Stability/versioning policy for v1alpha1 CRDs and the control-plane API. | Draft       |
+
 ## Community
 
 For announcements, technical discussions, and community support, please join

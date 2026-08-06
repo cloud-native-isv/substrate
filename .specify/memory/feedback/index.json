@@ -1,0 +1,20 @@
+{
+  "store": "feedback",
+  "updated": "2026-08-06T06:42:22Z",
+  "threshold": 10,
+  "count_since_submission": 1,
+  "submitted_at": null,
+  "entries": [
+    {
+      "id": "20260806T064222Z-speckit-instructions",
+      "file": "20260806T064222Z-speckit-instructions.md",
+      "unit_id": "/speckit.instructions",
+      "unit_type": "command",
+      "run_id": "speckit-instructions-20260806T1437",
+      "feature": "",
+      "partial": false,
+      "created": "2026-08-06T06:42:22Z",
+      "summary": "Bootstrap run: setup script succeeded (success-with-warnings) — it converted the tracked upstream AGENTS.md into a symlink, which I restored from git HEAD and documented as an exception in the symlink"
+    }
+  ]
+}

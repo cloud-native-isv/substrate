@@ -560,6 +560,21 @@ func TestActorTemplateValidation(t *testing.T) {
 		},
 		wantErr: false,
 	}, {
+		name: "valid SandboxClass wasm",
+		mutate: func(at *ActorTemplate) {
+			at.Spec.SandboxClass = SandboxClassWasm
+		},
+		wantErr: false,
+	}, {
+		name: "SnapshotsConfig: onResume.fromData=Golden, wasm (invalid)",
+		mutate: func(at *ActorTemplate) {
+			at.Spec.SandboxClass = SandboxClassWasm
+			at.Spec.SnapshotsConfig.OnCommit = SnapshotScopeData
+			at.Spec.SnapshotsConfig.OnResume = OnResumeConfig{FromData: ResumeSourceGolden}
+		},
+		wantErr: true,
+		errMsg:  "onResume.fromData: Golden is not supported when sandboxClass is not 'microvm'",
+	}, {
 		name: "invalid SandboxClass",
 		mutate: func(at *ActorTemplate) {
 			at.Spec.SandboxClass = "kvm"
@@ -652,7 +667,7 @@ func TestActorTemplateValidation(t *testing.T) {
 			at.Spec.SnapshotsConfig.OnResume = OnResumeConfig{FromData: ResumeSourceGolden}
 		},
 		wantErr: true,
-		errMsg:  "onResume.fromData: Golden is not supported when sandboxClass is 'gvisor'",
+		errMsg:  "onResume.fromData: Golden is not supported when sandboxClass is not 'microvm'",
 	}, {
 		name: "SnapshotsConfig: onResume.fromData=Golden, SandboxClass unset (defaults to gvisor, invalid)",
 		mutate: func(at *ActorTemplate) {
@@ -660,7 +675,7 @@ func TestActorTemplateValidation(t *testing.T) {
 			at.Spec.SnapshotsConfig.OnResume = OnResumeConfig{FromData: ResumeSourceGolden}
 		},
 		wantErr: true,
-		errMsg:  "onResume.fromData: Golden is not supported when sandboxClass is 'gvisor'",
+		errMsg:  "onResume.fromData: Golden is not supported when sandboxClass is not 'microvm'",
 	}, {
 		name: "Volumes: 1 DurableDir mount is valid",
 		mutate: func(at *ActorTemplate) {
@@ -685,7 +700,7 @@ func TestActorTemplateValidation(t *testing.T) {
 			}
 		},
 		wantErr: true,
-		errMsg:  "Only one DurableDir-typed volume is supported when sandboxClass is 'gvisor'",
+		errMsg:  "Only one DurableDir-typed volume is supported when sandboxClass is not 'microvm'",
 	}, {
 		name: "Volumes: 2 DurableDir volumes spread across containers is invalid for gvisor",
 		mutate: func(at *ActorTemplate) {
@@ -705,7 +720,7 @@ func TestActorTemplateValidation(t *testing.T) {
 			}
 		},
 		wantErr: true,
-		errMsg:  "Only one DurableDir-typed volume is supported when sandboxClass is 'gvisor'",
+		errMsg:  "Only one DurableDir-typed volume is supported when sandboxClass is not 'microvm'",
 	}, {
 		name: "Volumes: same DurableDir volume mounted twice in one container is invalid for gvisor",
 		mutate: func(at *ActorTemplate) {
@@ -718,7 +733,7 @@ func TestActorTemplateValidation(t *testing.T) {
 			}
 		},
 		wantErr: true,
-		errMsg:  "A container may mount only one DurableDir-typed volume when sandboxClass is 'gvisor'",
+		errMsg:  "A container may mount only one DurableDir-typed volume when sandboxClass is not 'microvm'",
 	}, {
 		name: "Volumes: same DurableDir volume mounted across two containers is valid",
 		mutate: func(at *ActorTemplate) {

@@ -1,0 +1,22 @@
+{
+  "scope": "knowledge",
+  "updated": "2026-08-06T06:42:09Z",
+  "entries": [
+    {
+      "id": "agents-md-is-a-real-upstream-file-in-this-fork",
+      "file": "agents-md-is-a-real-upstream-file-in-this-fork.md",
+      "scope": "knowledge",
+      "source": "/speckit.instructions",
+      "feature": "",
+      "tags": [
+        "convention",
+        "symlink",
+        "agents-md",
+        "fork"
+      ],
+      "title": "AGENTS.md is a real upstream file in this fork",
+      "created": "2026-08-06T06:42:09Z",
+      "summary": "In this repo the root AGENTS.md is the upstream Agent Substrate project guide — git-tracked real file, NOT a symlink to .specify/instructions.md. generate-instructions.sh will try to convert it (ln -s"
+    }
+  ]
+}

@@ -119,6 +119,7 @@ spec:
                 enum:
                 - gvisor
                 - microvm
+                - wasm
                 type: string
             required:
             - sandboxClass

@@ -51,6 +51,10 @@ func gvisorAsset() AssetFile {
 	return AssetFile{URL: "gs://bucket/gvisor.tar.bz2", SHA256: validSHA256}
 }
 
+func pythonWasmAsset() AssetFile {
+	return AssetFile{URL: "gs://bucket/python-3.12.0.wasm", SHA256: validSHA256}
+}
+
 // microVMAssets returns a full, valid micro-VM asset set for one architecture:
 // the five assets the policy requires. The overlay rootfs serves the OCI image
 // over virtio-fs, so virtiofsd is part of the set.
@@ -136,6 +140,20 @@ func TestSandboxConfigValidation(t *testing.T) {
 		name:    "valid microvm arm64 asset set",
 		sc:      sandboxConfig("ok-microvm-arm64", "microvm", map[string]map[string]AssetFile{"arm64": microVMAssets()}),
 		wantErr: false,
+	}, {
+		name:    "valid wasm with python-wasm module",
+		sc:      sandboxConfig("ok-wasm", SandboxClassWasm, map[string]map[string]AssetFile{"amd64": {"python-wasm": pythonWasmAsset()}, "arm64": {"python-wasm": pythonWasmAsset()}}),
+		wantErr: false,
+	}, {
+		name:    "wasm arch missing python-wasm",
+		sc:      sandboxConfig("bad-wasm-noasset", SandboxClassWasm, map[string]map[string]AssetFile{"amd64": {"notpython": pythonWasmAsset()}}),
+		wantErr: true,
+		errMsg:  "python-wasm",
+	}, {
+		name:    "wasm with no assets",
+		sc:      sandboxConfig("bad-wasm-empty", SandboxClassWasm, nil),
+		wantErr: true,
+		errMsg:  "python-wasm",
 	}, {
 		name: "microvm missing an asset",
 		sc: sandboxConfig("bad-microvm", "microvm", map[string]map[string]AssetFile{"amd64": func() map[string]AssetFile {

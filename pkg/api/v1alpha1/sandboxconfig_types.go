@@ -28,6 +28,10 @@ const (
 	// SandboxClassMicroVM is the micro-VM runtime (cmd/ateom-microvm); needs
 	// /dev/kvm and vhost devices.
 	SandboxClassMicroVM SandboxClass = "microvm"
+	// SandboxClassWasm is the WebAssembly runtime (ateom-wasmd, external image);
+	// runs workloads as wasmtime instances in-process, needs no KVM or kernel
+	// sandbox features.
+	SandboxClassWasm SandboxClass = "wasm"
 )
 
 // AssetFile is one content-addressed file that atelet fetches for a sandbox
@@ -55,7 +59,7 @@ type SandboxConfigSpec struct {
 	// WorkerPool only uses SandboxConfigs whose SandboxClass matches its own.
 	//
 	// +required
-	// +kubebuilder:validation:Enum=gvisor;microvm
+	// +kubebuilder:validation:Enum=gvisor;microvm;wasm
 	// +kubebuilder:default=gvisor
 	SandboxClass SandboxClass `json:"sandboxClass"`
 

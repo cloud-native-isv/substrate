@@ -1,0 +1,21 @@
+{
+  "scope": "session",
+  "updated": "2026-08-06T06:42:09Z",
+  "entries": [
+    {
+      "id": "20260806T064209Z-speckit-instructions-bootstrap-2026-08-06",
+      "file": "20260806T064209Z-speckit-instructions-bootstrap-2026-08-06.md",
+      "scope": "session",
+      "source": "/speckit.instructions",
+      "feature": "",
+      "tags": [
+        "speckit",
+        "instructions",
+        "reconcile-report"
+      ],
+      "title": "speckit.instructions bootstrap 2026-08-06",
+      "created": "2026-08-06T06:42:09Z",
+      "summary": "Full-reconcile bootstrap (no prior base). Converged: Project Overview, Documentation Map (README cell fixed, 6 real doc rows), Tech Stack & Resources (Go 1.26.3, ko, make targets, kind/GCP flows), Spe"
+    }
+  ]
+}
