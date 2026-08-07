@@ -1,0 +1,45 @@
+@startuml golden-snapshot
+title Golden Snapshot 生成（atecontroller ActorTemplate 状态机）
+skinparam shadowing false
+autonumber
+
+participant "Substrate Admin" as admin
+participant "kube-apiserver" as kube
+participant "atecontroller\nActorTemplate Reconciler" as atc
+participant "ate-api-server" as api
+participant "atelet / ateom\n(临时 golden worker)" as node
+database "对象存储" as gcs
+
+admin -> kube : "创建 ActorTemplate\n(image 必须 pinned，spec 不可变)"
+kube -> atc : watch 事件
+
+== Phase: Initial ==
+atc -> api : "CreateAtespace(\"ate-golden\")（幂等）"
+atc -> api : "CreateActor(name = AT.UID,\natespace = ate-golden)"
+note right : golden actor 以模板 UID 为名，天然唯一
+atc -> kube : "status.phase = ResumeGoldenActor"
+
+== Phase: ResumeGoldenActor ==
+atc -> api : ResumeActor(golden actor)
+api -> node : "Run（冷启动 golden 副本）\n拉镜像 / 沙箱资产"
+atc -> kube : "phase = WaitGoldenActor\nTakeGoldenSnapshotAt = now + warmup"
+note right
+  warmup 默认 20s；
+  若所有容器声明 readyz 探针则为 0
+  （ResumeActor 阻塞至探针通过）
+end note
+
+== Phase: WaitGoldenActor ==
+atc -> atc : "RequeueAfter 剩余时间"
+atc -> api : SuspendActor(golden actor)
+api -> node : "Checkpoint(scope 强制 Full)\n上传"
+node -> gcs : "golden 快照\n(内存 + rootfs 增量)"
+api --> atc : "actor.LatestSnapshot = <snapshot>"
+atc -> kube : "status.GoldenSnapshot = <snapshot>\nphase = Ready, Condition Ready=True"
+
+note over atc, gcs
+  此后该模板的每个新 actor 首次 Resume 默认
+  从这份共享 golden 快照恢复（快速冷启动替代品）；
+  golden 只读共享，actor 私有状态由 Last Snapshot 承载
+end note
+@enduml

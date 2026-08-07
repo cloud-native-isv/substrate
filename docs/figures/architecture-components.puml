@@ -1,0 +1,83 @@
+@startuml architecture-components
+title Agent Substrate — 组件架构图（upstream 基线）
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontSize 12
+
+actor "Agent 用户 / 上层系统" as user
+actor "kubectl-ate\n(kubectl 插件 CLI)" as cli
+
+package "atenet 网络栈" {
+  component "CoreDNS\n(template 插件)" as coredns
+  component "atenet dns\n(Corefile 调和)" as dnsctl
+  package "atenet-router Pod" {
+    component "Envoy\n(HTTP/HTTPS 入口)" as envoy
+    component "ext_proc 处理器\n(actor 解析 / 唤醒 / 停车)" as extproc
+    component "xDS server\n(go-control-plane)" as xds
+  }
+}
+
+package "控制面 ate-api-server (Deployment ×2)" {
+  component "Control gRPC :443\n17 RPC：生命周期/快照/标签/Atespace" as control
+  component "Workflow 引擎\nresume/suspend/pause/delete\n(前向恢复, 无补偿事务)" as wf
+  component "Scheduler\n约束过滤 + 均匀随机\n(本地快照亲和)" as sched
+  component "WorkerPoolSyncer\nworker Pod → store 投影" as syncer
+  component "ActorIdentity\nMintJWT / MintCert" as ident
+}
+
+database "Valkey/Redis Cluster\n(6 副本, mTLS)" as valkey {
+}
+cloud "对象存储\nGCS / S3 (rustfs)" as gcs
+
+package "Kubernetes 控制面" {
+  component "kube-apiserver\nCRD: ActorTemplate / WorkerPool / SandboxConfig" as kubeapi
+}
+
+package "atecontroller (Deployment ×1)" {
+  component "WorkerPool Reconciler\n→ Deployment + NetworkPolicy" as wpc
+  component "ActorTemplate Reconciler\nGolden Snapshot 状态机" as atc
+}
+
+component "podcertcontroller\nservicedns / podidentity 签名者\n→ ClusterTrustBundle" as podcert
+
+package "每个节点" {
+  component "atelet (DaemonSet)\n镜像拉取 / OCI bundle\n快照搬运 :8085" as atelet
+  package "Worker Pod（预热沙箱）" {
+    component "ateom\ngVisor(runsc) 或 microVM\n(Kata + cloud-hypervisor)" as ateom
+    component "atunnel\n入向 :443 / 出向 :15001" as tunnel
+  }
+}
+
+user --> envoy : "HTTP\nHost: <actor>.<atespace>.actors...\n"
+user ..> coredns : DNS 解析
+cli --> control : gRPC mTLS + SA Bearer
+
+coredns ..> envoy : "actor 名 → router ClusterIP"
+dnsctl --> coredns : Corefile / SIGUSR1
+envoy --> extproc : RequestHeaders
+xds --> envoy : ADS 配置下发
+extproc --> control : "ResumeActor (parking 重试)"
+envoy --> tunnel : "mTLS 隧道\nx-ate-original-dst"
+
+control --> wf
+wf --> sched
+control --> valkey : "Actor/Worker/Snapshot 记录\n锁 / pubsub / CAS"
+syncer --> valkey
+kubeapi --> syncer : "watch worker Pod / atelet Pod"
+wf --> atelet : "Run / Checkpoint / Restore\nmTLS + PodUID 校验"
+atelet --> ateom : "unix socket gRPC"
+ateom --> tunnel
+atelet <--> gcs : "sparse zstd\n快照流式上传/下载"
+atelet ..> gcs : "sandbox 资产(内容寻址)"
+
+atc --> kubeapi : reconcile CRD
+atc --> control : "golden actor\ncreate/resume/suspend"
+wpc --> kubeapi : "SSA apply Deployment"
+podcert ..> kubeapi : "PCR 签发 / TrustBundle"
+
+note right of valkey
+  双层资源模型：
+  CRD（etcd）= 慢速声明式配置
+  Valkey = 高频 actor/worker 动态状态
+end note
+@enduml

@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+title: atenet 聚合网络守护进程 CLI
+scope:
+    - cmd/atenet/
+source_files: []
+depends_on: []
+related_to:
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/0fb52610-beb8-44c1-ad5e-32a5d623391d
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/4b4900de-88f6-424b-a117-73ff0319464f
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/5b910ab4-90d4-4d99-83f3-9a20c20817f9
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556
+    - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3

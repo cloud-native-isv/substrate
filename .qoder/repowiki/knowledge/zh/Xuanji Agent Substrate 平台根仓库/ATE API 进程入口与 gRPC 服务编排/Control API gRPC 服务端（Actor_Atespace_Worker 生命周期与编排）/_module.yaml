@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+title: Control API gRPC 服务端（Actor/Atespace/Worker 生命周期与编排）
+scope:
+    - cmd/ateapi/internal/controlapi/
+source_files: []
+depends_on: []
+related_to:
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/5b910ab4-90d4-4d99-83f3-9a20c20817f9
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257
+    - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/c1a1e973-28a5-43ac-841a-47f82d039ac1
+    - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+    - path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/b2e4de15-bac9-4fea-a75f-530ed851629b

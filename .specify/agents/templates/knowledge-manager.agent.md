@@ -7,7 +7,7 @@ supervisor: true
 capacity-scope: knowledge-manager
 model: auto
 tools: [Read, Grep, Glob, Write, Edit]
-skills: [document-utils, memory-record, memory-recall, draw-plantuml, draw-d3js, draw-echarts]
+skills: [document-utils, memory-record, memory-recall, draw-plantuml, draw-mermaid, draw-d3js, draw-echarts]
 maxTurns: 10
 color: teal
 ---
@@ -130,5 +130,6 @@ Framework skills and agent definitions install together, so every skill I declar
 | memory-record | Capture decisions and knowledge into project memory |
 | memory-recall | Retrieve prior knowledge and decision records when updating docs |
 | draw-plantuml | Create UML / architecture diagrams for documentation |
+| draw-mermaid | Create UML / architecture diagrams for documentation (Mermaid) |
 | draw-d3js | Build interactive D3.js data visualizations for docs |
 | draw-echarts | Build ECharts data visualizations for docs |

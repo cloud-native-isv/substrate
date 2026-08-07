@@ -1,0 +1,44 @@
+@startuml suspend-sequence
+title Actor 休眠（Suspend）与 Pause 的差异
+skinparam shadowing false
+autonumber
+
+actor "用户 / 上层系统" as user
+participant "ate-api-server" as api
+participant "Valkey" as store
+participant "atelet" as atelet
+participant "ateom" as ateom
+database "对象存储\nGCS/S3" as gcs
+
+user -> api : SuspendActor(actor)
+api -> store : 取 actor 锁
+api -> store : "LoadActor（记录 SourceVersion）"
+api -> store : "MarkSuspending：status=SUSPENDING\n预生成 InProgressSnapshot URI\n(golden atespace 强制 scope=Full)"
+api -> atelet : "Checkpoint(Type=EXTERNAL,\nscope=onCommit, SnapshotUriPrefix)"
+atelet -> ateom : "CheckpointWorkload(scope)"
+activate ateom
+note over ateom
+  gVisor: runsc checkpoint（内存+rootfs 增量）
+          DATA scope 走 runsc fscheckpoint
+  microVM: vm.pause → vm.snapshot（稀疏 memfd）
+          → MergeDeltaIntoBase 补齐缺页
+          → DurableDir 打 tar
+  返回 snapshot_files 清单
+end note
+ateom --> atelet : snapshot_files
+deactivate ateom
+atelet -> gcs : "并发上传 sparse zstd\n(SEEK_DATA/SEEK_HOLE 只写驻留页)\n+ manifest.json（钉住沙箱二进制版本）"
+atelet --> api : checkpoint 完成
+api -> api : DetachVolumes（外部卷）
+api -> store : "Finalize：释放 worker、CreateActorSnapshot、\nactor.LatestSnapshot 指向新快照、\nstatus=SUSPENDED"
+api --> user : "actor SUSPENDED，worker 归还暖池"
+
+== Pause：同一骨架，四处不同 ==
+note over api, gcs
+  ① Checkpoint Type=LOCAL（快照留在节点本地，不上传）
+  ② scope 取 onPause（onCommit ⊆ onPause）
+  ③ Finalize 记录 LocalSnapshotInfo（节点亲和），
+     下次 Resume 由 Scheduler.RequiredNodes 钉回同节点
+  ④ 不在 store 注册 ActorSnapshot 记录
+end note
+@enduml

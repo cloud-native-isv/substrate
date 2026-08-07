@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/0d458b96-efb5-41e3-a86b-d697b2073aff
+title: 节点本地 OCI 镜像层缓存与 OverlayFS 根文件系统组装
+scope:
+    - internal/imagecache/
+source_files: []
+depends_on: []
+related_to:
+    - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c

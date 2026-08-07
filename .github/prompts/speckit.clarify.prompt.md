@@ -44,9 +44,11 @@ If spec contains `Feature ID: Need clarification` or `Feature Name: Need clarifi
 
 ### Question Generation & Interactive Loop
 
-This loop is a **bounded instance** of the interview pattern (`.specify/shared/patterns/interview-pattern.md`): its question format, fact-vs-decision split (never ask the user for anything the repo can answer), and write-through discipline come from that pattern. What this command narrows is the **budget** — a capped pass over a fixed taxonomy, not an open design tree.
+This loop is **clarification (澄清), not interviewing (采访)** — a distinction worth keeping straight because both ask the user questions. Here the answer space is **already bounded** by the target artifact and the mode's taxonomy, so questions are **closed**: an options table plus a **Recommended** pick that the user ratifies or corrects. That is why this command may propose answers at all.
 
-**Escalation**: when the coverage scan shows the decision space is *branching* rather than merely underspecified — answers keep unlocking new questions, or the cap is reached with critical ambiguities still open — stop and recommend `/speckit.interview` on the same target artifact (unbounded rounds, durable ledger). Do not silently exceed the cap, and do not fabricate the remainder.
+From `.specify/shared/patterns/interview-pattern.md` it borrows only the **context discipline** (every question states why it arises and what the answer will change) and the **fact-vs-decision split** (never ask the user for anything the repo can answer). It deliberately does **not** adopt that pattern's open-question rule — presenting options is correct when the possibilities really are known.
+
+**Escalation**: when the coverage scan shows the answer space is not actually bounded — the decisions *branch*, answers keep unlocking questions nobody anticipated, or the cap is reached with critical ambiguities still open — stop and recommend `/speckit.interview` on the same target artifact (open questions, unbounded rounds, durable ledger). Do not silently exceed the cap, do not fabricate the remainder, and do not force an options table onto a decision whose options you are guessing.
 
 1. **Integrate user-provided decisions first**: when `$ARGUMENTS` contains explicit decisions (not open questions — e.g. a naming choice, a chosen option), integrate them into the target artifact BEFORE generating the question queue; the queue then covers only residual ambiguities. When residuals are few and independent, group them into one prompt instead of a per-question loop.
 

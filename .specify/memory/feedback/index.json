@@ -1,10 +1,43 @@
 {
   "store": "feedback",
-  "updated": "2026-08-06T06:42:22Z",
+  "updated": "2026-08-07T06:51:03Z",
   "threshold": 10,
-  "count_since_submission": 1,
+  "count_since_submission": 4,
   "submitted_at": null,
   "entries": [
+    {
+      "id": "20260807T065103Z-skill-draw-plantuml",
+      "file": "20260807T065103Z-skill-draw-plantuml.md",
+      "unit_id": "skill:draw-plantuml",
+      "unit_type": "skill",
+      "run_id": "draw-plantuml-20260807T135500",
+      "feature": "",
+      "partial": false,
+      "created": "2026-08-07T06:51:03Z",
+      "summary": "为 study-project 交付渲染 8 张 UML 图（组件/部署/4 时序/状态机/类图），PNG+SVG+puml 齐全。本地 jar 因容器缺 fontconfig/字体失败，切换技能内置远端服务器（xuanji-plantuml）全部成功；deployment.puml 一次语法错误经修复后通过。Catalyst：应把远端渲染作为容器环境首选路径。"
+    },
+    {
+      "id": "20260807T065046Z-skill-study-project",
+      "file": "20260807T065046Z-skill-study-project.md",
+      "unit_id": "skill:study-project",
+      "unit_type": "skill",
+      "run_id": "study-upstream-20260807T135500",
+      "feature": "",
+      "partial": false,
+      "created": "2026-08-07T06:50:46Z",
+      "summary": "对 upstream Agent Substrate（约 59k LOC）执行 Standard 模式深度研究：业务语境→6 个并行子代理分域深挖（控制面/节点监督/网络/资源模型/身份CLI观测/部署形态）→三项关键结论代码交叉验证→8 张 PlantUML 图（远端渲染）→三份文档落入项目六型 taxonomy 并更新索引与 xuanji 登记。子代理证据密度高，交叉验证全部通过；本地 jar"
+    },
+    {
+      "id": "20260807T061129Z-speckit-docs",
+      "file": "20260807T061129Z-speckit-docs.md",
+      "unit_id": "/speckit.docs",
+      "unit_type": "command",
+      "run_id": "full-20260807T135035",
+      "feature": "",
+      "partial": false,
+      "created": "2026-08-07T06:11:29Z",
+      "summary": "Full-sweep reconcile on a fork repo whose docs space is mostly upstream-owned. Converged the one actionable violation (XUANJI.md -> xuanji.md rename with reference updates) and built the desired-state"
+    },
     {
       "id": "20260806T064222Z-speckit-instructions",
       "file": "20260806T064222Z-speckit-instructions.md",

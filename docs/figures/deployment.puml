@@ -1,0 +1,71 @@
+@startuml deployment
+title Agent Substrate — 部署图（GKE 生产形态；kind 开发形态差异见注释）
+skinparam shadowing false
+skinparam defaultFontSize 12
+allowmixing
+
+node "Kubernetes 集群" {
+
+  namespace "ate-system" as atesys {
+    node "ate-api-server\nDeployment ×2" as api {
+      artifact "gRPC :443\nmetrics :9090"
+    }
+    node "ate-controller\nDeployment ×1" as ctrl
+    node "atenet-router\nDeployment ×1" as router {
+      artifact "atenet: xDS :18000\next_proc :50051\nstatusz :4040"
+      artifact "envoy sidecar\n:8080 / :8443"
+    }
+    node "dns\nDeployment ×1" as dns {
+      artifact "CoreDNS :53\n+ dns 调和容器"
+    }
+    node "atelet\nDaemonSet（每节点 1 个）" as atelet {
+      artifact "gRPC :8085 (hostPort)\nmetrics :9090"
+    }
+    node "valkey-cluster\nStatefulSet ×6" as valkey {
+      artifact ":6379 TLS + 1Gi PVC/副本"
+    }
+    node "Worker Pod ×N（atecontroller 生成的 Deployment）" as worker {
+      artifact "ateom 容器（唯一容器）\natunnel :443 / :15001"
+    }
+  }
+
+  namespace "podcertificate-controller-system" as pcs {
+    node "podcertificate-controller\nDeployment ×1" as podcert
+  }
+
+  database "hostPath\n/var/lib/ateom-gvisor\n(atelet ↔ ateom 共享)" as hostpath
+}
+
+cloud "对象存储\nGKE: GCS bucket\nkind: rustfs Deployment" as store
+database "容器镜像仓库\nGKE: 远端 / kind: localhost:5001" as registry
+node "可观测\nGKE: Managed OTel\nkind: otel-system\n(collector+jaeger+prometheus)" as otel
+
+actor "客户端流量 / kubectl-ate" as client
+
+client --> router : "HTTP(S)\n<actor>.<atespace>.actors.resources.substrate.ate.dev"
+client --> api : "gRPC :443\n(headless svc api)"
+router --> api : "ResumeActor gRPC"
+router --> worker : "mTLS :443 (atunnel)"
+api --> valkey : ":6379 mTLS"
+api --> atelet : ":8085 mTLS（按 Pod 直连）"
+atelet --> worker : "unix socket\n/var/lib/ateom-gvisor/ateoms/<podUID>"
+atelet <--> store : "快照 + sandbox 资产"
+atelet <--> hostpath
+worker <--> hostpath
+ctrl --> api : "golden snapshot 编排"
+podcert ..> atesys : "ClusterTrustBundle →\nprojected 证书卷"
+api ..> registry : "watch / 拉取（atelet 经 WI）"
+atesys ..> otel : "OTLP :4317"
+
+note bottom of worker
+  worker Pod 形状由 sandboxClass 决定：
+  gvisor = 非特权 + 13 项 capabilities + AppArmor Unconfined
+  microvm = privileged + /dev/kvm + 节点标签/污点
+  terminationGracePeriod = 3600s
+end note
+
+note bottom of valkey
+  upstream 不使用 Memorystore：
+  生产同样跑集群内 valkey StatefulSet
+end note
+@enduml

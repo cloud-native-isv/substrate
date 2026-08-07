@@ -7,7 +7,7 @@ supervisor: true
 capacity-scope: system-designer
 model: auto
 tools: [Read, Grep, Glob, Write, Edit]
-skills: [draw-plantuml, study-project, memory-recall, memory-record, think-skills]
+skills: [draw-plantuml, draw-mermaid, study-project, memory-recall, memory-record, think-skills]
 maxTurns: 12
 color: purple
 ---
@@ -112,6 +112,7 @@ Framework skills and agent definitions install together, so every skill I declar
 | Skill | When to use |
 |-------|-------------|
 | draw-plantuml | Produce architecture, component, sequence, and deployment diagrams |
+| draw-mermaid | Produce architecture, component, sequence, and deployment diagrams (Mermaid; prefer when the user requests Mermaid or PlantUML rendering is unavailable) |
 | study-project | Analyze the existing architecture and codebase before proposing a design |
 | memory-recall | Recall prior design decisions and constraints relevant to the change |
 | memory-record | Record architectural rationale and interface contracts |

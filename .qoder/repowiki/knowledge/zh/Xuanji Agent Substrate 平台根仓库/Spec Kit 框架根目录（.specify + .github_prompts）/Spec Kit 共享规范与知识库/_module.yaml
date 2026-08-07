@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: specify_framework/shared_resources
+title: Spec Kit 共享规范与知识库
+scope:
+    - .specify/shared/
+    - .specify/docs/
+source_files: []
+depends_on: []
+related_to: []

@@ -1,7 +1,24 @@
 {
   "scope": "knowledge",
-  "updated": "2026-08-06T07:22:00Z",
+  "updated": "2026-08-07T06:11:53Z",
   "entries": [
+    {
+      "id": "docs-upstream-i-taxonomy-xuanji-d6cfa7a7",
+      "file": "docs-upstream-i-taxonomy-xuanji-d6cfa7a7.md",
+      "scope": "knowledge",
+      "source": "/speckit.docs",
+      "feature": "",
+      "tags": [
+        "docs",
+        "reconcile",
+        "principle-i",
+        "tolerance",
+        "xuanji"
+      ],
+      "title": "Docs 空间收敛约定：upstream 文件容忍原则 I，taxonomy 仅约束 xuanji 增量",
+      "created": "2026-08-07T06:11:53Z",
+      "summary": "Decision（/speckit.docs full-sweep, run 20260807T135035）：本 fork 的 docs 空间期望态收敛受宪法原则 I（rebase 存活）约束——upstream 所有的根文件（README.md / CONTRIBUTING.md 超屏，COLLABORATING.md / GOVERNANCE.md 大写名）与 docs/ 扁平布局对 Des"
+    },
     {
       "id": "agents-md-is-a-symlink-to-instructions-md-user-decision",
       "file": "agents-md-is-a-symlink-to-instructions-md-user-decision.md",

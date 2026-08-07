@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: specify_framework/agent_definitions
+title: Agent 角色定义与模板库
+scope:
+    - .specify/agents/
+source_files: []
+depends_on: []
+related_to: []

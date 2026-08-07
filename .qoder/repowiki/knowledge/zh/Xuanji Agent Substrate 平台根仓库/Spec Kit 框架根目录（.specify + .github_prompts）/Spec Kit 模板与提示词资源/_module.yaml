@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: specify_framework/templates_and_prompts
+title: Spec Kit 模板与提示词资源
+scope:
+    - .specify/templates/
+    - .github/prompts/
+source_files: []
+depends_on: []
+related_to: []

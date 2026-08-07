@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/72cd1533-b10a-4cc1-a21c-e6e3d83d17f8
+title: Ateom gVisor 工作负载运行时
+scope:
+    - cmd/ateom-gvisor/
+source_files: []
+depends_on: []
+related_to:
+    - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+    - path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/66cc950b-e9aa-49dd-8434-f4619ceb2fbb

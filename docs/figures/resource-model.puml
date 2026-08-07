@@ -1,0 +1,79 @@
+@startuml resource-model
+title 双层资源模型 — CRD（声明式配置）vs Valkey（动态状态）
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+package "kube-apiserver (etcd) — 低频声明式配置" {
+  class ActorTemplate <<CRD>> {
+    pauseImage (pinned)
+    containers[] ≤10 (image pinned)
+    snapshotsConfig: location /
+      onPause / onCommit / onResume
+    sandboxClass: gvisor|microvm
+    volumes[] (durableDir / external)
+    workerSelector
+    spec 整体不可变
+    --
+    status: phase / goldenSnapshot
+  }
+  class WorkerPool <<CRD>> {
+    replicas
+    ateomImage
+    sandboxClass
+    sandboxConfigName?
+    template (nodeSelector /
+      tolerations / affinity / resources)
+    --
+    /scale 子资源（HPA 可驱动）
+    status.replicas + selector
+  }
+  class SandboxConfig <<CRD, Cluster>> {
+    sandboxClass
+    default: bool
+    assets: arch → name → {url, sha256}
+  }
+  class Deployment <<apps/v1>>
+  class WorkerPod <<Pod>> {
+    单容器 ateom
+    hostPath /var/lib/ateom-gvisor
+  }
+}
+
+package "ate-api-server — Valkey/Redis Cluster（高频动态状态）" {
+  class Atespace <<record>> {
+    全局隔离边界
+    actor 寻址 = (atespace, name)
+    空才可删
+  }
+  class Actor <<record>> {
+    status / workerAssignment
+    latestSnapshot / localSnapshotInfo
+    inProgressSnapshot
+    actorVolumes
+  }
+  class Worker <<record>> {
+    podIP / nodeName
+    state: ACTIVE|DRAINING
+    assignment → Actor
+  }
+  class ActorSnapshot <<record>> {
+    scope: Full|Data
+    location (gs://… URI)
+  }
+  class ActorSnapshotTag <<record>> {
+    scope: atespace|published
+    不可变别名 + 保留钉
+  }
+}
+
+ActorTemplate "N" --> "1" WorkerPool : workerSelector 匹配池
+WorkerPool ..> Deployment : "atecontroller SSA 调和"
+Deployment "1" *-- "*" WorkerPod
+WorkerPool "N" ..> "0..1" SandboxConfig : "显式引用或 class 默认"
+Atespace "1" *-- "*" Actor
+Actor "0..1" --> "0..1" Worker : 运行于
+Worker "1" --> "1" WorkerPod : 映射
+Actor --> ActorTemplate : 派生自（template ns/name）
+Actor "1" --> "0..1" ActorSnapshot : latestSnapshot
+ActorSnapshot "0..*" <-- "0..*" ActorSnapshotTag : 标签引用
+@enduml

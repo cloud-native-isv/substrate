@@ -1,0 +1,427 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: xuanji
+nodes_managed: true
+exported_at: "2026-08-07T06:12:46Z"
+modules:
+    "":
+        dir_name: Xuanji Agent Substrate 平台根仓库
+        title: Xuanji Agent Substrate 平台根仓库
+        scope: []
+        source_files: []
+        children:
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973
+            - 28fdf37f-91d1-484e-9a1f-0d79dae76ddf
+            - 45720847-7ea6-4426-8983-5258a35814fe
+            - eccb848a-52cf-4319-a246-565bfab9d79c
+            - specify_framework
+        depends_on: []
+        related_to: []
+    28fdf37f-91d1-484e-9a1f-0d79dae76ddf:
+        dir_name: ATE API 进程入口与 gRPC 服务编排
+        title: ATE API 进程入口与 gRPC 服务编排
+        scope:
+            - cmd/ateapi/
+        source_files: []
+        children:
+            - 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/01b50274-20da-403f-89b4-c7c2e8255358
+            - 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+            - 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/c1a1e973-28a5-43ac-841a-47f82d039ac1
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556
+    28fdf37f-91d1-484e-9a1f-0d79dae76ddf/01b50274-20da-403f-89b4-c7c2e8255358:
+        dir_name: Actor 身份凭证签发服务（JWT 与 X.509 证书）
+        title: Actor 身份凭证签发服务（JWT 与 X.509 证书）
+        scope:
+            - cmd/ateapi/internal/actoridentity/
+            - cmd/ateapi/internal/actoridjwt/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3:
+        dir_name: Control API gRPC 服务端（Actor_Atespace_Worker 生命周期与编排）
+        title: Control API gRPC 服务端（Actor/Atespace/Worker 生命周期与编排）
+        scope:
+            - cmd/ateapi/internal/controlapi/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/5b910ab4-90d4-4d99-83f3-9a20c20817f9
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/c1a1e973-28a5-43ac-841a-47f82d039ac1
+            - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+            - path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/b2e4de15-bac9-4fea-a75f-530ed851629b
+    28fdf37f-91d1-484e-9a1f-0d79dae76ddf/c1a1e973-28a5-43ac-841a-47f82d039ac1:
+        dir_name: 持久化存储抽象与 Redis 实现
+        title: 持久化存储抽象与 Redis 实现
+        scope:
+            - cmd/ateapi/internal/store/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973:
+        dir_name: 项目文档与架构规范
+        title: 项目文档与架构规范
+        scope:
+            - docs/
+        source_files: []
+        children:
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d
+        depends_on: []
+        related_to: []
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d:
+        dir_name: Agent Substrate 单模块根项目
+        title: Agent Substrate 单模块根项目
+        scope:
+            - README.md
+            - CONTRIBUTING.md
+            - go.mod
+            - go.sum
+            - .golangci.yaml
+            - .ko.yaml
+            - Makefile
+            - AGENTS.md
+            - COLLABORATING.md
+            - GOVERNANCE.md
+            - code-of-conduct.md
+            - .gitignore
+            - LICENSE
+        source_files: []
+        children:
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/0fb52610-beb8-44c1-ad5e-32a5d623391d
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/4b4900de-88f6-424b-a117-73ff0319464f
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/5b910ab4-90d4-4d99-83f3-9a20c20817f9
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/72cd1533-b10a-4cc1-a21c-e6e3d83d17f8
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/8784d561-593d-4ed6-a1d5-c4d45c001f06
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/a577565d-5ee9-4fc1-9ab5-fa06baba1afe
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/efe08c1c-6e37-499e-8735-95c76b789e28
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f0415fae-86ab-4f4e-884c-f47f0ba8eca9
+            - 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257
+        depends_on: []
+        related_to: []
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/0fb52610-beb8-44c1-ad5e-32a5d623391d:
+        dir_name: Agent Substrate 演示集（Demos）
+        title: Agent Substrate 演示集（Demos）
+        scope:
+            - demos/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/4b4900de-88f6-424b-a117-73ff0319464f:
+        dir_name: Pod 证书控制器（Pod Certificate Controller）
+        title: Pod 证书控制器（Pod Certificate Controller）
+        scope:
+            - cmd/podcertcontroller/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556
+            - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/5b910ab4-90d4-4d99-83f3-9a20c20817f9:
+        dir_name: ATE 控制器（WorkerPool _ ActorTemplate _ NetworkPolicy）
+        title: ATE 控制器（WorkerPool / ActorTemplate / NetworkPolicy）
+        scope:
+            - cmd/atecontroller/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2:
+        dir_name: atenet 聚合网络守护进程 CLI
+        title: atenet 聚合网络守护进程 CLI
+        scope:
+            - cmd/atenet/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/0fb52610-beb8-44c1-ad5e-32a5d623391d
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/4b4900de-88f6-424b-a117-73ff0319464f
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/5b910ab4-90d4-4d99-83f3-9a20c20817f9
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556:
+        dir_name: ATE 系统 Kustomize 部署清单
+        title: ATE 系统 Kustomize 部署清单
+        scope:
+            - manifests/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/4b4900de-88f6-424b-a117-73ff0319464f
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/5b910ab4-90d4-4d99-83f3-9a20c20817f9
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf
+            - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/72cd1533-b10a-4cc1-a21c-e6e3d83d17f8:
+        dir_name: Ateom gVisor 工作负载运行时
+        title: Ateom gVisor 工作负载运行时
+        scope:
+            - cmd/ateom-gvisor/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+            - path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/66cc950b-e9aa-49dd-8434-f4619ceb2fbb
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/8784d561-593d-4ed6-a1d5-c4d45c001f06:
+        dir_name: Substrate 基准测试与压测框架
+        title: Substrate 基准测试与压测框架
+        scope:
+            - benchmarking/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/a577565d-5ee9-4fc1-9ab5-fa06baba1afe:
+        dir_name: Kubernetes CRD 定义与客户端生成
+        title: Kubernetes CRD 定义与客户端生成
+        scope:
+            - pkg/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/efe08c1c-6e37-499e-8735-95c76b789e28:
+        dir_name: 开发工具与辅助脚本集
+        title: 开发工具与辅助脚本集
+        scope:
+            - tools/
+            - hack/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f0415fae-86ab-4f4e-884c-f47f0ba8eca9:
+        dir_name: Ateom MicroVM（Cloud-Hypervisor + Kata 沙箱实现）
+        title: Ateom MicroVM（Cloud-Hypervisor + Kata 沙箱实现）
+        scope:
+            - cmd/ateom-microvm/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+            - path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/66cc950b-e9aa-49dd-8434-f4619ceb2fbb
+    27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257:
+        dir_name: kubectl-ate CLI 插件（Agent Substrate 管理命令行）
+        title: kubectl-ate CLI 插件（Agent Substrate 管理命令行）
+        scope:
+            - cmd/kubectl-ate/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/0fb52610-beb8-44c1-ad5e-32a5d623391d
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+            - path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/a8007d7b-d9e5-4eaa-b0c0-3a10ce6b0053
+    45720847-7ea6-4426-8983-5258a35814fe:
+        dir_name: Agent Substrate 多组件编排平台
+        title: Agent Substrate 多组件编排平台
+        scope: []
+        source_files: []
+        children:
+            - 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+        depends_on: []
+        related_to: []
+    45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c:
+        dir_name: ATE 节点代理 atelet
+        title: ATE 节点代理 atelet
+        scope:
+            - cmd/atelet/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/4b4900de-88f6-424b-a117-73ff0319464f
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/72cd1533-b10a-4cc1-a21c-e6e3d83d17f8
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f0415fae-86ab-4f4e-884c-f47f0ba8eca9
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+            - path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/0d458b96-efb5-41e3-a86b-d697b2073aff
+    eccb848a-52cf-4319-a246-565bfab9d79c:
+        dir_name: 认证与身份标识库（mTLS、JWT、X.509扩展、凭据包）
+        title: 认证与身份标识库（mTLS、JWT、X.509扩展、凭据包）
+        scope:
+            - internal/ateapiauth/
+            - internal/localjwtauthority/
+            - internal/substratex509/
+            - internal/credbundle/
+            - internal/principal/
+        source_files: []
+        children:
+            - eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822
+        depends_on: []
+        related_to: []
+    eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822:
+        dir_name: Substrate 内部共享库集合（internal_）
+        title: Substrate 内部共享库集合（internal/）
+        scope:
+            - internal/
+        source_files: []
+        children:
+            - eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/0d458b96-efb5-41e3-a86b-d697b2073aff
+            - eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/1deb5ae5-d82e-4d1e-b7f0-afb92b2021ed
+            - eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/66cc950b-e9aa-49dd-8434-f4619ceb2fbb
+            - eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/a8007d7b-d9e5-4eaa-b0c0-3a10ce6b0053
+            - eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/b2e4de15-bac9-4fea-a75f-530ed851629b
+        depends_on: []
+        related_to: []
+    eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/0d458b96-efb5-41e3-a86b-d697b2073aff:
+        dir_name: 节点本地 OCI 镜像层缓存与 OverlayFS 根文件系统组装
+        title: 节点本地 OCI 镜像层缓存与 OverlayFS 根文件系统组装
+        scope:
+            - internal/imagecache/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 45720847-7ea6-4426-8983-5258a35814fe/49516b4b-85fe-4fb8-8f92-3a5503e65a2c
+    eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/1deb5ae5-d82e-4d1e-b7f0-afb92b2021ed:
+        dir_name: substrate 长进程共享内部能力库
+        title: substrate 长进程共享内部能力库
+        scope:
+            - internal/actorlog/
+            - internal/ateattr/
+            - internal/ateclient/
+            - internal/ateerrors/
+            - internal/ateinterceptors/
+            - internal/ateompath/
+            - internal/resources/
+            - internal/serverboot/
+            - internal/readyz/
+            - internal/version/
+            - internal/volume/
+            - internal/contextlogging/
+            - internal/localca/
+            - internal/envtestbins/
+            - internal/roottest/
+            - internal/benchmarking/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/66cc950b-e9aa-49dd-8434-f4619ceb2fbb:
+        dir_name: Actor 网络与隧道基础设施（ateomnet_atunnel_portforward）
+        title: Actor 网络与隧道基础设施（ateomnet/atunnel/portforward）
+        scope:
+            - internal/ateomnet/
+            - internal/atunnel/
+            - internal/portforward/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/72cd1533-b10a-4cc1-a21c-e6e3d83d17f8
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f0415fae-86ab-4f4e-884c-f47f0ba8eca9
+    eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/a8007d7b-d9e5-4eaa-b0c0-3a10ce6b0053:
+        dir_name: E2E 测试框架与套件基础设施
+        title: E2E 测试框架与套件基础设施
+        scope:
+            - internal/e2e/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257
+    eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/b2e4de15-bac9-4fea-a75f-530ed851629b:
+        dir_name: gRPC Proto 定义与代码生成
+        title: gRPC Proto 定义与代码生成
+        scope:
+            - internal/proto/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3
+    specify_framework:
+        dir_name: Spec Kit 框架根目录（.specify + .github_prompts）
+        title: Spec Kit 框架根目录（.specify + .github/prompts）
+        scope:
+            - .specify/
+            - .github/prompts/
+            - .claudeignore
+        source_files: []
+        children:
+            - specify_framework/agent_definitions
+            - specify_framework/memory_state
+            - specify_framework/scripts_runtime
+            - specify_framework/shared_resources
+            - specify_framework/skills_library
+            - specify_framework/templates_and_prompts
+        depends_on: []
+        related_to: []
+    specify_framework/agent_definitions:
+        dir_name: Agent 角色定义与模板库
+        title: Agent 角色定义与模板库
+        scope:
+            - .specify/agents/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    specify_framework/memory_state:
+        dir_name: Spec Kit 项目记忆区（特性、宪法与知识索引）
+        title: Spec Kit 项目记忆区（特性、宪法与知识索引）
+        scope:
+            - .specify/memory/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    specify_framework/scripts_runtime:
+        dir_name: Spec Kit 脚本运行时（Bash_Python_Node.js 工具集）
+        title: Spec Kit 脚本运行时（Bash/Python/Node.js 工具集）
+        scope:
+            - .specify/scripts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    specify_framework/shared_resources:
+        dir_name: Spec Kit 共享规范与知识库
+        title: Spec Kit 共享规范与知识库
+        scope:
+            - .specify/shared/
+            - .specify/docs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    specify_framework/skills_library:
+        dir_name: Spec Kit 技能库（Skills Library）
+        title: Spec Kit 技能库（Skills Library）
+        scope:
+            - .specify/skills/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    specify_framework/templates_and_prompts:
+        dir_name: Spec Kit 模板与提示词资源
+        title: Spec Kit 模板与提示词资源
+        scope:
+            - .specify/templates/
+            - .github/prompts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

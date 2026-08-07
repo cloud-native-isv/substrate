@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/a577565d-5ee9-4fc1-9ab5-fa06baba1afe
+title: Kubernetes CRD 定义与客户端生成
+scope:
+    - pkg/
+source_files: []
+depends_on: []
+related_to: []

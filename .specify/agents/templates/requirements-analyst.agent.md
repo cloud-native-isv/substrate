@@ -7,7 +7,7 @@ supervisor: true
 capacity-scope: requirements-analyst
 model: auto
 tools: [Read, Grep, Glob, Bash, Write, Edit]
-skills: [draw-plantuml, memory-recall, memory-record, think-skills, browser-utils]
+skills: [draw-plantuml, draw-mermaid, memory-recall, memory-record, think-skills, browser-utils]
 maxTurns: 25
 color: blue
 ---
@@ -42,7 +42,7 @@ When the requirement details live in the stakeholder's head rather than in a wri
 
 **Authoritative detail lives in the shared sub-documents — I always follow them:**
 
-- `.specify/shared/patterns/interview-pattern.md` — the **generic interview mode**: design tree, frontier, rounds, question format (numbered + recommended answer), fact-vs-decision split, write-through, ledger, and the user-confirmation exit gate. This is the authority for the mode's mechanics.
+- `.specify/shared/patterns/interview-pattern.md` — the **generic interview mode**: design tree, frontier, rounds, question format (**open** questions with mandatory context — no option menus, no recommended answers, because the answer space is what the interview discovers), fact-vs-decision split, write-through, ledger, and the user-confirmation exit gate. This is the authority for the mode's mechanics.
 - `.specify/shared/workflow/interview-walkthrough.md` — the **requirements-domain instance** of that pattern: mode selection & loop coupling, Phase 0 setup, per-unit three-stage loop, decision cards, verification levels (L1/L2/L3), delivery-loop coordination, closing, **ledger & unit-doc templates**, long-walkthrough operations, lessons & calibration.
 
 Skeleton (details in the shared doc):
@@ -119,6 +119,7 @@ Framework skills and agent definitions install together, so every skill I declar
 | Skill | When to use |
 |-------|-------------|
 | draw-plantuml | Draw UML use-case / requirement diagrams to visualize actors, flows, and scope |
+| draw-mermaid | Draw UML use-case / requirement diagrams to visualize actors, flows, and scope (Mermaid flowchart approximation) |
 | memory-recall | Recall prior requirements, clarifications, and decisions before analyzing a new request |
 | memory-record | Persist clarifications, assumptions, and requirement decisions for later reuse |
 | think-skills | Mentally simulate requirement logic and edge cases before finalizing the spec |

@@ -1,0 +1,46 @@
+@startuml parking-sequence
+title Request Parking — 池饱和时的请求暂存
+skinparam shadowing false
+autonumber
+
+actor Client
+participant "Envoy + ext_proc\n(atenet-router)" as gw
+participant "ActorResumer\n(singleflight)" as res
+participant "ate-api-server" as api
+
+Client -> gw : "HTTP（目标 actor 处于 SUSPENDED）"
+gw -> res : ResumeActor
+note over res
+  parking lot 准入：active < max(默认 1024)
+  超限 → 立即 503 "router at capacity"
+  同一 actor 的并发请求 singleflight 合并，
+  共享一次控制面调用与剩余 budget
+end note
+res -> api : ResumeActor
+api --> res : "FailedPrecondition:\nno free workers available"
+note over res
+  可停车条件：FailedPrecondition /
+  Unavailable / Aborted
+  指数退避 100ms × 1.1（无 cap，budget 封顶）
+end note
+loop "budget 内（默认 5s）"
+  res -> api : 重试 ResumeActor
+  api --> res : 仍无空闲 worker
+end
+
+alt "其他 actor 挂起，worker 释放"
+  res -> api : ResumeActor
+  api --> res : "RUNNING + worker 分配"
+  res --> gw : 唤醒成功
+  gw --> Client : "请求正常转发至 worker"
+else "budget 耗尽"
+  res --> gw : budgetExhausted（保留原始错误）
+  gw --> Client : "503: no free workers available"
+end
+
+note over gw
+  配套预算同步：ext_proc MessageTimeout = budget + 5s；
+  ext_proc cluster 熔断 max_requests = 2×max（下限 1024），
+  保证停车池永不挤占快路径（已 RUNNING actor 的请求）
+end note
+@enduml

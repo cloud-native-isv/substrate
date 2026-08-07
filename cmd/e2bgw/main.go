@@ -18,7 +18,7 @@
 // (/execute, /files) are answered with a redirect to the actor's atenet
 // domain (wired up in migration milestone M4).
 //
-// Part of the xuanji branch additions (see XUANJI.md); acceptance assets in
+// Part of the xuanji branch additions (see xuanji.md); acceptance assets in
 // contrib/e2b-e2e/.
 package main
 

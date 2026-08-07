@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf
+title: ATE API 进程入口与 gRPC 服务编排
+scope:
+    - cmd/ateapi/
+source_files: []
+depends_on: []
+related_to:
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/7de08d7a-70d4-4ec0-bf93-6f1ae812a556

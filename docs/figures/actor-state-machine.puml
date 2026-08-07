@@ -1,0 +1,31 @@
+@startuml actor-state-machine
+title Actor 状态机（ateapipb.Actor.Status）
+skinparam shadowing false
+
+[*] --> SUSPENDED : "CreateActor\n(初始即 SUSPENDED，\n携带 Golden/Tag 快照引用)"
+
+SUSPENDED --> RESUMING : "ResumeActor\n(网关请求触发或显式调用)"
+RESUMING --> RUNNING : "atelet Restore 完成\n(worker IP 生效)"
+RUNNING --> SUSPENDING : SuspendActor
+SUSPENDING --> SUSPENDED : "checkpoint 上传完成\n快照入库，worker 释放"
+
+RUNNING --> PAUSING : PauseActor
+PAUSING --> PAUSED : "本地 checkpoint 完成\n(LocalSnapshotInfo 记录节点)"
+PAUSED --> RESUMING : "ResumeActor\n(Scheduler 钉回快照所在节点)"
+
+RESUMING --> CRASHED : "worker Pod 消失 /\nrestore 失败 / 前提校验失败"
+RUNNING --> CRASHED : "worker Pod 被删\n(Syncer 检测)"
+SUSPENDING --> CRASHED : "checkpoint 期间\nworker Pod 消失"
+PAUSING --> CRASHED : "Finalize 时缺失\nworker NodeName"
+
+CRASHED --> DELETING : DeleteActor
+SUSPENDED --> DELETING : DeleteActor
+DELETING --> [*] : "记录删除\n(快照 GC 尚未实现)"
+
+note right of CRASHED
+  CRASHED 为人工介入态：
+  无自动恢复，需显式 DeleteActor；
+  失败语义 = 前向恢复 + 客户端重试，
+  没有补偿事务
+end note
+@enduml

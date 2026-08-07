@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/0fb52610-beb8-44c1-ad5e-32a5d623391d
+title: Agent Substrate 演示集（Demos）
+scope:
+    - demos/
+source_files: []
+depends_on: []
+related_to:
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/6d9d0468-f565-4627-ac55-506ed6e925d2
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257

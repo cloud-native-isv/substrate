@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: eccb848a-52cf-4319-a246-565bfab9d79c/e00d8094-e72f-4450-b8cb-4f85c5838822/a8007d7b-d9e5-4eaa-b0c0-3a10ce6b0053
+title: E2E 测试框架与套件基础设施
+scope:
+    - internal/e2e/
+source_files: []
+depends_on: []
+related_to:
+    - path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/f761dcbf-68a1-4fdb-aae2-cf05a1e2c257

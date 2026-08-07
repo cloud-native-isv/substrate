@@ -53,7 +53,7 @@ Mode is inferred from `$ARGUMENTS` and **confirmed with the user before any writ
 
    Exit codes: `0` ok · `2` input error (rejection) · `3` not found · `4` validation failed. A non-zero exit is a **verdict**: report it, never argue around it.
 
-5. **Interview for `create`** — collect exactly three things, and nothing else. Ask them per the interview pattern (`.specify/shared/patterns/interview-pattern.md`): numbered questions with a recommended answer, facts looked up rather than asked, each answer written through before the next round.
+5. **Interview for `create`** — collect exactly three things, and nothing else. Ask them per the interview pattern (`.specify/shared/patterns/interview-pattern.md`): **open** questions carrying their context, no option menus and no recommended answers (the objective is the user's to state, not yours to propose), facts looked up rather than asked, each answer written through before the next round.
    - the **objective**: the desired end *outcome*. If the user describes steps, say so and ask for the outcome instead (the engine rejects task lists as GD-2).
    - **success criteria**: zero or more verifiable conditions. Zero is legal — the archive records `None provided.` and consumers declare the absence rather than inventing criteria.
    - the **identity**: a slug that is also the directory name. Reuse `goal_slug` semantics; do not invent a second identifier.

@@ -23,7 +23,9 @@
 
 | 路径 | 内容 |
 |---|---|
-| `XUANJI.md` | 本登记文件 |
+| `xuanji.md` | 本登记文件（原名 `XUANJI.md`，2026-08-07 按命名规范改小写） |
+| `ARCHITECTURE.md`、`CHANGELOG.md`、`docs/{decisions,notes,concepts,tutorials,tasks,reference,contribute}/` | xuanji 文档空间骨架（/speckit.docs reconcile 建立；薄根入口 + ADR/notes 生命周期 + 六型索引） |
+| `docs/overview.md`、`docs/concepts/core-concepts.md`、`docs/reference/actor-lifecycle-flows.md`、`docs/figures/`（8 图 ×puml/png/svg） | upstream 架构深度研究（study-project）：组件架构图/部署图/Resume/Suspend/停车时序图/状态机/资源模型/golden 流程 + 概念与流程文档；`ARCHITECTURE.md` 详细文档表同步更新 |
 | `manifests/xuanji/wasm-example.yaml` | wasm 类示例：SandboxConfig(wasm-default, python-wasm 资产) + WorkerPool(sandboxClass=wasm, 外部 ateom-wasmd 镜像) + ActorTemplate(python-interpreter) |
 | `contrib/e2b-e2e/` | E2B 协议验收资产（自 sandbox 仓 `scripts/` 原样迁入）：官方 SDK e2e、files e2e、smolagents、MCP server、TLS relay 等；作为 `cmd/e2bgw` 的验收基线，M3 改指新网关 |
 | `cmd/e2bgw/` | E2B REST → `ateapipb.Control` 翻译网关（Go）：HS256 API-Key 鉴权（atespace/tenant claim）、POST /sandboxes→CreateActor+ResumeActor(boot)（失败回滚 DeleteActor）、pause/resume→Suspend/Resume、gRPC↔HTTP 错误映射、数据面 /execute /files 307 跳转 atenet 域名（M4 接通）；handler 单测全绿 |

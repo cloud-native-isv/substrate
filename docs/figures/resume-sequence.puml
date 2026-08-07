@@ -1,0 +1,56 @@
+@startuml resume-sequence
+title Actor 唤醒全流程（Resume）— 请求驱动的亚秒级恢复
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+autonumber
+
+actor Client
+participant "CoreDNS" as dns
+participant "Envoy + ext_proc\n(atenet-router)" as gw
+participant "ate-api-server" as api
+participant "Valkey" as store
+participant "atelet\n(目标节点)" as atelet
+participant "ateom\n(worker Pod 内)" as ateom
+database "对象存储\nGCS/S3" as gcs
+
+Client -> dns : "<actor>.<atespace>.actors.resources.substrate.ate.dev"
+dns --> Client : router ClusterIP（template 插件恒定应答）
+Client -> gw : "HTTP 请求（Host = actor DNS 名）"
+gw -> gw : "解析 ActorRef；singleflight 去重并发唤醒"
+gw -> api : "ResumeActor(atespace, actor)"
+
+== 控制面编排（WorkflowStep 前向恢复） ==
+api -> store : "取 actor 锁 lock:actor:<ns>:<name>（TTL 30s, 自动续期）"
+api -> store : "LoadActor → 源快照定位\n(LatestSnapshot / Golden / Boot)"
+api -> api : "Scheduler：class 匹配 + label 选择器\n+ 本地快照节点亲和 → 均匀随机"
+api -> store : "UpdateWorker(claim Assignment) — CAS"
+api -> store : "UpdateActor(status=RESUMING) — CAS\n(跨 key 两步走：Redis 集群事务不跨 slot)"
+
+== 节点侧恢复 ==
+api -> atelet : "Restore (mTLS, 校验 SPIFFE + PodUID)"
+alt 外部快照恢复
+  atelet -> gcs : "按 manifest 拉快照\nsparse zstd → 稀疏文件"
+else 本地恢复（Pause 亲和）
+  atelet -> atelet : "直接读 LocalCheckpointsDir"
+else 冷启动（无快照 / --boot）
+  atelet -> gcs : "按 SandboxConfig 拉沙箱资产（内容寻址）"
+end
+atelet -> ateom : "RestoreWorkload / RunWorkload\n(unix socket gRPC)"
+activate ateom
+note over ateom
+  gVisor: runsc restore -direct -background
+  microVM: vm.restore + userfaultfd OnDemand
+  （~75ms 恢复 vs eager ~1.8s）
+  随后 atunnel.Activate(actor)
+end note
+ateom --> atelet : ready（actor 网络激活）
+deactivate ateom
+atelet --> api : worker pod IP
+
+api -> store : "UpdateActor(status=RUNNING)"
+api --> gw : "worker 分配（pod IP）"
+
+== 数据面转发 ==
+gw -> ateom : "mTLS 隧道 → worker:443\nx-ate-original-dst / X-Ate-Original-Host"
+ateom -> Client : "经 veth(169.254.17.2) 转发至 actor :80\n响应原路返回"
+@enduml

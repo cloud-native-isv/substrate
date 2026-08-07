@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: specify_framework/skills_library
+title: Spec Kit 技能库（Skills Library）
+scope:
+    - .specify/skills/
+source_files: []
+depends_on: []
+related_to: []
