@@ -263,19 +263,22 @@ func TestMicroVMPodShape(t *testing.T) {
 }
 
 // TestAteomSecurityContextByClass asserts the gVisor worker runs unprivileged
-// with the explicit capability set while the micro-VM worker stays privileged,
-// and that an empty class defaults to gVisor.
+// with the explicit capability set, the micro-VM worker stays privileged, the
+// wasm worker drops every capability without adding any, and that an empty
+// class defaults to gVisor.
 func TestAteomSecurityContextByClass(t *testing.T) {
 	tests := []struct {
 		name           string
 		class          atev1alpha1.SandboxClass
 		wantPrivileged bool
-		wantCaps       bool
+		wantDropAll    bool
+		wantGvisorCaps bool
+		wantUnconfined bool
 	}{
-		{"gvisor default", "", false, true},
-		{"gvisor explicit", atev1alpha1.SandboxClassGvisor, false, true},
-		{"microvm", atev1alpha1.SandboxClassMicroVM, true, false},
-		{"wasm", atev1alpha1.SandboxClassWasm, false, true},
+		{"gvisor default", "", false, true, true, true},
+		{"gvisor explicit", atev1alpha1.SandboxClassGvisor, false, true, true, true},
+		{"microvm", atev1alpha1.SandboxClassMicroVM, true, false, false, false},
+		{"wasm", atev1alpha1.SandboxClassWasm, false, true, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -286,26 +289,40 @@ func TestAteomSecurityContextByClass(t *testing.T) {
 			if sc.RunAsUser == nil || *sc.RunAsUser != 0 || sc.RunAsGroup == nil || *sc.RunAsGroup != 0 {
 				t.Errorf("RunAsUser/Group = %v/%v, want 0/0", sc.RunAsUser, sc.RunAsGroup)
 			}
-			hasCaps := sc.Capabilities != nil && len(sc.Capabilities.Add) > 0
-			if hasCaps != tt.wantCaps {
-				t.Errorf("has capabilities = %v, want %v", hasCaps, tt.wantCaps)
-			}
-			if tt.wantCaps {
-				if len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
-					t.Errorf("capabilities drop = %v, want [ALL]", sc.Capabilities.Drop)
+
+			gotDropAll := sc.Capabilities != nil &&
+				len(sc.Capabilities.Drop) == 1 &&
+				sc.Capabilities.Drop[0] == "ALL"
+			if gotDropAll != tt.wantDropAll {
+				drop := []corev1.Capability(nil)
+				if sc.Capabilities != nil {
+					drop = sc.Capabilities.Drop
 				}
-				if diff := cmp.Diff(ateomGvisorCapabilities, sc.Capabilities.Add); diff != "" {
+				t.Errorf("capabilities drop = %v, want drop-ALL = %v", drop, tt.wantDropAll)
+			}
+
+			var gotAdd []corev1.Capability
+			if sc.Capabilities != nil {
+				gotAdd = sc.Capabilities.Add
+			}
+			if tt.wantGvisorCaps {
+				if diff := cmp.Diff(ateomGvisorCapabilities, gotAdd); diff != "" {
 					t.Errorf("capabilities add mismatch (-want +got):\n%s", diff)
 				}
+			} else if len(gotAdd) != 0 {
+				// The wasm worker must not inherit the gVisor set: wasmtime runs
+				// in-process and needs none of it.
+				t.Errorf("capabilities add = %v, want none", gotAdd)
 			}
-			// The gVisor worker runs AppArmor-unconfined (runsc + cgroup remount
-			// need mount); the privileged micro-VM worker leaves it unset.
-			wantAppArmor := tt.wantCaps
+
+			// Only the gVisor worker runs AppArmor-unconfined (runsc + cgroup
+			// remount need mount). The privileged micro-VM worker and the
+			// mount-free wasm worker both leave it unset.
 			hasAppArmor := sc.AppArmorProfile != nil &&
 				sc.AppArmorProfile.Type != nil &&
 				*sc.AppArmorProfile.Type == corev1.AppArmorProfileTypeUnconfined
-			if hasAppArmor != wantAppArmor {
-				t.Errorf("AppArmor Unconfined = %v, want %v", hasAppArmor, wantAppArmor)
+			if hasAppArmor != tt.wantUnconfined {
+				t.Errorf("AppArmor Unconfined = %v, want %v", hasAppArmor, tt.wantUnconfined)
 			}
 		})
 	}

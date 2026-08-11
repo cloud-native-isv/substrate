@@ -55,9 +55,18 @@ spec:
 
 # Python code-interpreter template on the wasm class. The workload container
 # command is interpreted by ateom-wasmd: it boots the python-wasm interpreter
-# asset as a wasmtime instance with a persistent kernel; the container image is
-# only used for the OCI filesystem layers projected into the sandbox (WASI
-# preopens), not for a native process.
+# asset as a wasmtime instance with a persistent kernel.
+#
+# The container image is NOT projected into the sandbox. ateom-wasmd never calls
+# SetupBundleRootfs — the wasm sandbox filesystem is a plain host directory
+# preopened via WASI, not an OCI overlay. The images below still matter for a
+# different reason: atelet runs prepareOCIBundles unconditionally before every
+# RunWorkload/RestoreWorkload, so a pull failure fails the actor *before* the
+# ateom RPC is issued, leaving nothing in the ateom-wasmd logs to explain it.
+# Both images must therefore be pinned by digest and reachable from the cluster.
+#
+# The pause image below is the ACK-hosted mirror: registry.k8s.io redirects its
+# blobs to us-west2-docker.pkg.dev, which is unreachable from cn-hangzhou.
 apiVersion: ate.dev/v1alpha1
 kind: ActorTemplate
 metadata:
@@ -65,10 +74,10 @@ metadata:
   namespace: ate-wasm
 spec:
   sandboxClass: wasm
-  pauseImage: "registry.k8s.io/pause:3.10.2@sha256:f548e0e8e3dc1896ca956272154dde3314e8cc4fde0a57577ee9fa1c63f5baf4"
+  pauseImage: "registry-cn-hangzhou-vpc.ack.aliyuncs.com/acs/pause:3.10@sha256:0ca1162b75bf9fc55c4cac99a1ff06f7095c881d5c07acfa07c853e72225c36f"
   containers:
   - name: kernel
-    image: "registry.k8s.io/pause:3.10.2@sha256:f548e0e8e3dc1896ca956272154dde3314e8cc4fde0a57577ee9fa1c63f5baf4"
+    image: "registry-cn-hangzhou-vpc.ack.aliyuncs.com/acs/pause:3.10@sha256:0ca1162b75bf9fc55c4cac99a1ff06f7095c881d5c07acfa07c853e72225c36f"
     command: ["python-kernel"]
     readyz:
       httpGet:

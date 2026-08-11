@@ -52,7 +52,8 @@
 | `pkg/api/v1alpha1/workerpool_types.go` | Enum 同上 | wasm 沙箱类 |
 | `pkg/api/v1alpha1/sandboxconfig_validation_test.go` | 新增 `pythonWasmAsset` helper + 3 个 wasm 用例 | 测试覆盖 |
 | `pkg/api/v1alpha1/actortemplate_validation_test.go` | 新增 wasm 合法类 + wasm Golden 拒绝用例；同步 5 处 errMsg 断言文案 | 测试覆盖 |
-| `cmd/atecontroller/internal/controllers/workerpool_apply_test.go` | TestMicroVMPodShape / TestAteomSecurityContextByClass 各加 wasm 行（非特权、无 KVM 形状） | 测试覆盖 |
+| `cmd/atecontroller/internal/controllers/workerpool_apply.go` | `ateomSecurityContext` 新增 wasm 分支：`drop ALL`、不 add 任何 capability、不设 AppArmor Unconfined | wasm worker 原先落进 gvisor 分支，白拿 13 个 Linux capability + Unconfined；ateom-wasmd 进程内跑 wasmtime，不 exec runsc / 不 pivot root / 不 ptrace / 不编程 veth-nftables / 不解 OCI rootfs，一个都用不到 |
+| `cmd/atecontroller/internal/controllers/workerpool_apply_test.go` | TestMicroVMPodShape 加 wasm 行（非特权、无 KVM 形状）；TestAteomSecurityContextByClass 重构断言表——原表把「有 capability」「drop ALL」「AppArmor Unconfined」并成一个标志位，无法表达 wasm 形状，拆成 4 个独立期望 | 测试覆盖 |
 | `manifests/ate-install/sandboxconfig-validation.yaml` | VAP 新增 wasm 规则：每 arch 必须有 `python-wasm` 资产 | wasm 资产校验 |
 | `manifests/ate-install/generated/*` | controller-gen 再生成（枚举/文案变化） | 生成物 |
 

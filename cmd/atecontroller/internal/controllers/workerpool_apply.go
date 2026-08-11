@@ -231,13 +231,27 @@ var ateomGvisorCapabilities = []corev1.Capability{
 // ateomSecurityContext returns the ateom container security context for a sandbox
 // class. The gVisor worker runs unprivileged with an explicit capability set; the
 // micro-VM worker stays privileged because kata + cloud-hypervisor needs broad
-// host access (vhost devices, mounts). An empty class defaults to gVisor.
+// host access (vhost devices, mounts); the wasm worker drops every capability.
+// An empty class defaults to gVisor.
 func ateomSecurityContext(class atev1alpha1.SandboxClass) *corev1ac.SecurityContextApplyConfiguration {
 	sc := corev1ac.SecurityContext().
 		WithRunAsUser(0).
 		WithRunAsGroup(0)
 	if class == atev1alpha1.SandboxClassMicroVM {
 		return sc.WithPrivileged(true)
+	}
+	if class == atev1alpha1.SandboxClassWasm {
+		// ateom-wasmd embeds a wasmtime interpreter in its own process: it never
+		// execs runsc, pivots root, traces the workload, programs veth/nftables
+		// or unpacks an OCI rootfs, so none of ateomGvisorCapabilities applies.
+		// It only creates directories under the shared hostPath and binds a unix
+		// socket, both as uid 0 over root-owned trees, so it needs no
+		// DAC_OVERRIDE either. It performs no mounts, so the default AppArmor
+		// profile is sufficient (no Unconfined).
+		return sc.
+			WithPrivileged(false).
+			WithCapabilities(corev1ac.Capabilities().
+				WithDrop("ALL"))
 	}
 	// runsc mounts and pivots root inside the sandbox, and the worker remounts
 	// /sys/fs/cgroup read-write to nest per-actor cgroups; the default AppArmor
