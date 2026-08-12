@@ -36,3 +36,8 @@
 | Wasm Sandbox | WebAssembly sandbox | Planned xuanji feature 014: WebAssembly sandbox backend in the atelet/ateom lifecycle. | auto | proposed |
 | request parking | - | Router behavior of holding inbound requests until a worker frees up instead of returning 503. | auto | proposed |
 | snapshot | - | Full-state (RAM + filesystem) actor capture stored in GCS/S3; basis of suspend/resume. | auto | proposed |
+| e2bgw | - | Xuanji-only gateway binary (cmd/e2bgw) translating the E2B REST surface into ateapi Control gRPC calls. | auto | proposed |
+| golden snapshot | - | Shared pre-warmed snapshot of an ActorTemplate's first boot, used as the restore source for new actors. | auto | proposed |
+| DurableDir | - | Actor-scoped persistent directory whose contents survive suspend/resume cycles. | auto | proposed |
+| AgentENV | - | Kimi/kvcache-ai open-source Firecracker microVM sandbox platform; primary public comparison target with E2B-compatible API. | auto | proposed |
+| three-stage roadmap | - | Constitution's exploration model: (1) absorb upstream, (2) customize, (3) redefine; currently Stage 1. | auto | proposed |

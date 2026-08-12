@@ -23,18 +23,18 @@ references/
 | # | 文档 | 对应步骤 | 内容说明 |
 |---|------|---------|---------|
 | 0 | [00-semantic-analysis.md](howto/00-semantic-analysis.md) | Step 1 | 语义分析与意图理解——分类输入类型（直接描述/图片复刻/模糊/代码可视化）、提取内容、差距分析、交互式确认 |
-| 1 | [01-choose-diagram-type.md](howto/01-choose-diagram-type.md) | Step 2 | 选择图表类型——快速匹配表、按开发阶段/系统类型推荐、常见组合模式 |
+| 1 | [01-choose-diagram-type.md](howto/01-choose-diagram-type.md) | Step 2 | 选择图表类型——快速匹配表、按开发阶段/系统类型推荐、常见组合模式、**需求清单覆盖检查**（点名多类图时逐项核对独立图表交付） |
 | 2 | [02-class-diagram.md](howto/02-class-diagram.md) | Step 3/6 | 类图——类定义、6 种关系类型、GRASP 设计原则 |
 | 3 | [03-component-diagram.md](howto/03-component-diagram.md) | Step 3/6 | 组件图——分层架构、微服务模式、接口和依赖建模 |
-| 4 | [04-deployment-diagram.md](howto/04-deployment-diagram.md) | Step 3/6 | 部署图——物理拓扑、Kubernetes、云服务、节点间通信 |
-| 5 | [05-sequence-diagram.md](howto/05-sequence-diagram.md) | Step 3/6 | 时序图——消息类型、组合片段（alt/loop/par）、激活条、交互流程 |
-| 6 | [06-package-diagram.md](howto/06-package-diagram.md) | Step 3/6 | 包图——模块组织、命名空间层次、分层架构、依赖管理 |
+| 4 | [04-deployment-diagram.md](howto/04-deployment-diagram.md) | Step 3/6 | 部署图——物理拓扑、Kubernetes、云服务、节点间通信；**note 预算治理（端口+职责两行）**、控制面/工作节点密则拆分、namespace 名作 frame 标签 |
+| 5 | [05-sequence-diagram.md](howto/05-sequence-diagram.md) | Step 3/6 | 时序图——消息类型、组合片段（alt/loop/par）、激活条、交互流程；**组合片段着色与关键路径高亮** |
+| 6 | [06-package-diagram.md](howto/06-package-diagram.md) | Step 3/6 | 包图——模块组织、命名空间层次、分层架构、依赖管理；**双层资源模型（声明层 ↔ 动态层）模式** |
 | 7 | [07-usecase-diagram.md](howto/07-usecase-diagram.md) | Step 3/6 | 用例图——角色、用例、系统边界、include/extend/generalization |
 | 8 | [08-activity-diagram.md](howto/08-activity-diagram.md) | Step 3/6 | 活动图——业务流程建模、泳道、fork/join 并发、决策节点 |
-| 9 | [09-state-machine-diagram.md](howto/09-state-machine-diagram.md) | Step 3/6 | 状态机图——对象生命周期、状态转换、事件/守卫/动作、组合状态 |
+| 9 | [09-state-machine-diagram.md](howto/09-state-machine-diagram.md) | Step 3/6 | 状态机图——对象生命周期、状态转换、事件/守卫/动作、组合状态；**点名状态机时必须交付独立状态机图（note 摘要不算）** |
 | 10 | [10-layout-planning.md](howto/10-layout-planning.md) | Step 4 | 布局规划——多区域复杂布局、布局故障排除、CJK 渲染问题 |
 | 11 | [11-code-generation.md](howto/11-code-generation.md) | Step 6 | 代码生成——草拟流程、标签与注释规则（≤10 字符 + note）、配套文字准备 |
-| 12 | [12-rendering-and-output.md](howto/12-rendering-and-output.md) | Step 8 | 渲染、匹配验证与输出——SVG/PNG 渲染、HTML 组装、质量检查清单 |
+| 12 | [12-rendering-and-output.md](howto/12-rendering-and-output.md) | Step 8 | 渲染、匹配验证与输出——SVG/PNG 渲染、HTML 组装、质量检查清单；**复现性附录（渲染命令 + puml 源码 + 依赖说明）** |
 | 13 | [13-wbs-diagram.md](howto/13-wbs-diagram.md) | 专项 | WBS 工作分解结构——层级分解、左右方向、无框节点、算术记法、`<style>` 配色；状态色 + `\n【责任人】` + `◆Mn` 里程碑锚点的信息编码、内联「有效字号」分档规则 |
 | 14 | [14-gantt-diagram.md](howto/14-gantt-diagram.md) | 专项 | 甘特图——任务/工期/依赖、里程碑、完成度、颜色、分隔符、工作日历、今日标记、时间刻度；刻度/zoom 实测决策矩阵、里程碑视图写法、`on {}` 与依赖箭头对排期的实测影响、量测自检三判据 |
 | 15 | [15-mindmap-diagram.md](howto/15-mindmap-diagram.md) | 专项 | 思维导图——OrgMode/Markdown/算术三套写法、左右分支、无框节点、`<style>` 与命名样式类 |

@@ -28,7 +28,7 @@ The word is overloaded in this project. Keep them distinct:
 | Term | Meaning | Where it lives |
 |------|---------|----------------|
 | **Tool** / **Tool record** (this document) | A pre-verified reusable capability definition, owned by `/speckit.tools` | `.specify/memory/tools/<name>.md`; ID form `<TOOL:...>` |
-| **AI agent CLI tool** | A supported coding agent — Claude Code, Codex CLI, Qoder CLI, Copilot, opencode, Qwen Code, Hermes, iFlow | `AGENT_CONFIG` in `src/specify_cli/`; `docs/reference/cli/` |
+| **AI agent CLI tool** | A supported coding agent — Claude Code, Codex CLI, Qoder CLI, Copilot, opencode, Hermes | `AGENT_CONFIG` in `src/specify_cli/`; `docs/reference/cli/` |
 | **Agent tool-call list** | The `tools:` frontmatter key on an agent (`Read`, `Grep`, `Bash`, …) — the LLM's callable surface | `.specify/agents/{templates,instances}/<slug>.agent.md` frontmatter |
 
 Unqualified "Tool" in the tools domain always means the first. The second is best written "AI agent CLI" / "agent tool"; the third, "tool-call list".

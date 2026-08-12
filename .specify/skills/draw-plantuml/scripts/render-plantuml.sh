@@ -9,27 +9,33 @@
 # internal rendering buffer exceeds this, it silently returns a blank image.
 # This script targets PNG_MAX (4095) to stay safely below the cap.
 #
-# Two rendering backends (auto-selected):
+# Two rendering backends (REMOTE-FIRST policy):
 #   • server — GET encoded source from a PlantUML server (PLANTUML_SERVER).
 #              Uses the official PlantUML server protocol: the source is
 #              deflate + base64 encoded (via python3) and fetched from
-#              /svg/{enc} or /png/{enc}. Preferred when reachable.
+#              /svg/{enc} or /png/{enc}. THE DEFAULT — no local tooling needed.
 #   • local  — a local PlantUML jar (PLANTUML_JAR or a well-known path) via `java`.
-#             Works fully offline. Required diagram types that need Graphviz
-#             (class/component/deployment/sequence/state/usecase/activity/package/ER)
-#             still need `dot` on PATH; WBS/Gantt/MindMap/JSON/YAML/Salt do not.
-# Backend selection: PLANTUML_BACKEND=server|local|auto (default auto).
-#   auto → probe the server; on failure fall back to the local jar if present.
+#              ONLY with explicit user consent (remote-first policy): when the
+#              server is unreachable the script asks the user (TTY) or exits
+#              with instructions for the agent to ask the user — it NEVER falls
+#              back to local silently. Requires `dot` for UML types needing
+#              Graphviz (class/component/deployment/sequence/state/usecase/
+#              activity/package/ER); WBS/Gantt/MindMap/JSON/YAML/Salt do not.
+# Backend selection: PLANTUML_BACKEND=server|local|auto (default server).
+#   server → remote only; local only after user consent (prompt or error).
+#   auto   → probe server, then fallbacks; local still requires user consent.
+#   local  → explicit opt-in (user already consented).
 #
 # Usage: render-plantuml.sh <input.puml> [output_dir] [output_prefix]
 
 set -euo pipefail
 
 PLANTUML_SERVER="${PLANTUML_SERVER:-http://xuanji-plantuml.aliyun-inc.com:9696/plantuml}"
-# Extra servers tried in order when PLANTUML_SERVER is unreachable (auto mode).
+# Extra servers tried in order when PLANTUML_SERVER is unreachable (server/auto mode).
 # plantuml.com is the public fallback; note it rejects default urllib UAs (403).
-PLANTUML_SERVER_FALLBACKS="${PLANTUML_SERVER_FALLBACKS:-https://www.plantuml.com/plantuml}"
-PLANTUML_BACKEND="${PLANTUML_BACKEND:-auto}"   # server | local | auto
+# Empty string DISABLES the public fallback (`-` not `:-`: unset → default, empty → none).
+PLANTUML_SERVER_FALLBACKS="${PLANTUML_SERVER_FALLBACKS-https://www.plantuml.com/plantuml}"
+PLANTUML_BACKEND="${PLANTUML_BACKEND:-server}"   # server | local | auto (remote-first)
 HTTP_UA="render-plantuml.sh/1.0 (spec-kit draw-plantuml)"
 SVG_SCALE=4        # SVG: maximum quality (vector, no size limit)
 SVG_DPI=300
@@ -97,17 +103,39 @@ server_reachable() {
     -o /dev/null 2>/dev/null
 }
 
-# Decide which backend to use. Echoes "server <url>" or "local <jar>" (the
-# caller runs this in a subshell via $(...), so state must be returned, not
-# assigned here). Exits when neither is usable.
+# Remote-first consent gate for local rendering. Returns 0 only when the user
+# explicitly agrees to fall back to the local jar. Interactive when stdin is a
+# TTY; otherwise (agent-driven Bash) exits with instructions so the agent asks
+# the user — local rendering is NEVER chosen silently.
+local_consent_gate() {
+  local jar="${1:-}"
+  if [[ -z "$jar" ]]; then
+    warn "本地渲染需要 plantuml.jar，但未找到（可用 PLANTUML_JAR 指定）。"
+    warn "请先询问用户是否接受本地渲染；获确认并准备好 jar 后再以 PLANTUML_BACKEND=local 重试。"
+    return 1
+  fi
+  if [[ -t 0 ]]; then
+    local ans
+    read -r -p "[render-plantuml] 远端渲染不可用，是否改用本地渲染（plantuml.jar）？[y/N] " ans
+    [[ "$ans" =~ ^[yY] ]]
+  else
+    warn "远端渲染不可用（${PLANTUML_SERVER} 及备选均不可达）。"
+    warn "本地渲染需用户确认：请先询问用户是否接受本地渲染（需要 plantuml.jar + 可选 graphviz）；"
+    warn "获确认后以 PLANTUML_BACKEND=local 重新执行。"
+    return 1
+  fi
+}
+
+# Decide which backend to use. Echoes "server <url>" or "local <jar>".
+# Remote-first: server is tried first; local is used ONLY after user consent.
+# Exits when neither a reachable server nor a consented local jar is available.
 select_backend() {
   local jar; jar="$(resolve_jar || true)"
   case "$PLANTUML_BACKEND" in
-    server) echo "server $PLANTUML_SERVER" ;;
     local)
       [[ -n "$jar" ]] || { warn "PLANTUML_BACKEND=local but no jar found"; exit 1; }
       echo "local $jar" ;;
-    auto|*)
+    server|auto|*)
       if server_reachable; then
         echo "server $PLANTUML_SERVER"
         return
@@ -120,12 +148,10 @@ select_backend() {
           return
         fi
       done
-      if [[ -n "$jar" ]]; then
-        warn "All servers unreachable; using local jar: ${jar}"
+      warn "PlantUML servers unreachable (${PLANTUML_SERVER} + fallbacks)."
+      if local_consent_gate "$jar"; then
         echo "local $jar"
       else
-        warn "PlantUML servers unreachable (${PLANTUML_SERVER} + fallbacks) and no local jar found."
-        warn "Set PLANTUML_JAR=/path/to/plantuml.jar or start a server."
         exit 1
       fi ;;
   esac
@@ -175,6 +201,7 @@ strip_style() {
     -e '/^[[:space:]]*skinparam[[:space:]]+monochrome[[:space:]]+true[[:space:]]*$/d' \
     -e '/^[[:space:]]*skinparam[[:space:]]+(shadowing|roundCorner|dpi|defaultFontSize|defaultFontName|padding|ArrowThickness|BorderThickness|svgDimensionStyle|svgLinkTarget|actorStyle)[[:space:]]/d' \
     -e '/^[[:space:]]*scale[[:space:]]/d' \
+    -e '/^[[:space:]]*FontSize[[:space:]]+[0-9.]+[[:space:]]*$/d' \
     "$input"
 }
 
@@ -205,7 +232,10 @@ inject_style() {
   if [[ -n "$specialty" ]]; then
     # Specialty diagrams (WBS/Gantt/MindMap/JSON/YAML/Salt) rely on native
     # coloring and their own <style> blocks. Inject only scale + dpi (so the
-    # image is rendered large & crisp instead of raw 1:1) + a CJK-capable font.
+    # image is rendered large & crisp instead of raw 1:1) + a CJK-capable font
+    # + the unified 16px font size (MUST match the UML branch below — a missing
+    # defaultFontSize here silently falls back to PlantUML's default 12 and
+    # makes specialty diagrams look smaller than UML diagrams).
     # Do NOT force monochrome or UML skinparams here.
     log "Specialty diagram (${start_tag}) — minimal style: scale=${scale}, dpi=${dpi}"
     cat <<EOF > "$style_tmp"
@@ -213,6 +243,7 @@ skinparam dpi ${dpi}
 scale ${scale}
 skinparam shadowing false
 skinparam defaultFontName "Noto Sans CJK SC"
+skinparam defaultFontSize 16
 EOF
   else
     cat <<EOF > "$style_tmp"
@@ -221,19 +252,91 @@ skinparam shadowing false
 skinparam roundCorner 20
 skinparam dpi ${dpi}
 scale ${scale}
-skinparam defaultFontSize 14
+skinparam defaultFontSize 16
 skinparam defaultFontName "Noto Sans CJK SC"
 skinparam padding 8
 skinparam ArrowThickness 2
 skinparam BorderThickness 2
 skinparam svgDimensionStyle false
 skinparam svgLinkTarget _blank
+' === 统一字号 16px（PlantUML 各元素字号参数默认值各异，不跟随 defaultFontSize） ===
+skinparam titleFontSize 16
+skinparam captionFontSize 16
+skinparam noteFontSize 16
+skinparam stereotypeFontSize 16
+skinparam legendFontSize 16
+skinparam packageTitleFontSize 16
+skinparam sequenceMessageFontSize 16
+skinparam sequenceActorFontSize 16
+skinparam sequenceGroupTitleFontSize 16
 EOF
   fi
 
   # Insert the style block after the (single) @start line, whatever its type.
   strip_style "$input" | sed "/^[[:space:]]*@start[a-zA-Z]/r ${style_tmp}" > "$output"
   rm -f "$style_tmp"
+}
+
+# ── SVG aspect-ratio fix ─────────────────────────────────────────────────────
+
+# PlantUML servers emit <svg preserveAspectRatio="none" viewBox="0 0 W H">
+# with no width/height. Browsers then stretch the drawing to fill the viewport,
+# distorting the diagram. After rendering we pin explicit width/height that
+# preserve the viewBox aspect ratio (max edge ≤ SVG_MAX_EDGE) and switch
+# preserveAspectRatio to "xMidYMid meet" so the diagram never distorts whether
+# opened standalone or embedded.
+SVG_MAX_EDGE="${SVG_MAX_EDGE:-2400}"
+
+fix_svg_aspect() {
+  local svg_file="$1"
+  [[ -f "$svg_file" ]] || { warn "fix_svg_aspect: no SVG file at ${svg_file}"; return 0; }
+
+  local viewbox vb_w vb_h
+  viewbox=$(grep -oE 'viewBox="[0-9.]+ [0-9.]+ [0-9.]+ [0-9.]+"' "$svg_file" 2>/dev/null | head -1)
+  if [[ -z "$viewbox" ]]; then
+    warn "fix_svg_aspect: no viewBox found; skipping"
+    return 0
+  fi
+
+  vb_w=$(echo "$viewbox" | grep -oE '[0-9.]+' | sed -n '3p')
+  vb_h=$(echo "$viewbox" | grep -oE '[0-9.]+' | sed -n '4p')
+  if [[ -z "$vb_w" ]] || [[ -z "$vb_h" ]] || awk -v w="$vb_w" 'BEGIN{exit !(w<=0)}'; then
+    warn "fix_svg_aspect: invalid viewBox ${viewbox}; skipping"
+    return 0
+  fi
+
+  # Scale to keep the aspect ratio, capping the longer edge.
+  local disp_w disp_h
+  read -r disp_w disp_h < <(awk -v w="$vb_w" -v h="$vb_h" -v max="$SVG_MAX_EDGE" 'BEGIN{
+    if (w >= h) { s = (w > max) ? max / w : 1; }
+    else        { s = (h > max) ? max / h : 1; }
+    printf "%d %d\n", int(w * s + 0.5), int(h * s + 0.5);
+  }')
+
+  python3 - "$svg_file" "$disp_w" "$disp_h" <<'PY'
+import re, sys
+path, dw, dh = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path, encoding="utf-8") as fh:
+    text = fh.read()
+
+# Replace preserveAspectRatio="none" (or any value) with meet on the root <svg>.
+text = re.sub(r'(<svg[^>]*?)preserveAspectRatio="[^"]*"',
+              r'\1preserveAspectRatio="xMidYMid meet"', text, count=1)
+
+# Insert width/height right after the <svg> root tag if absent, else replace.
+if re.search(r'<svg[^>]*\swidth=', text):
+    text = re.sub(r'(<svg[^>]*?)width="[^"]*"', r'\1width="%s"' % dw, text, count=1)
+    text = re.sub(r'(<svg[^>]*?)height="[^"]*"', r'\1height="%s"' % dh, text, count=1)
+else:
+    text = re.sub(r'(<svg[^>]*?)(/?)>',
+                  lambda m: ('%s width="%s" height="%s"%s>' % (m.group(1), dw, dh, m.group(2)))
+                  if m.group(2) == "" else ('%s%s width="%s" height="%s">' % (m.group(1), m.group(2), dw, dh)),
+                  text, count=1)
+
+with open(path, "w", encoding="utf-8") as fh:
+    fh.write(text)
+PY
+  log "SVG aspect fixed: viewBox ${vb_w}x${vb_h} → ${disp_w}x${disp_h}px (preserveAspectRatio=meet)"
 }
 
 # ── PNG adaptive rendering ────────────────────────────────────────────────────
@@ -385,6 +488,11 @@ main() {
     rm -f "$png_puml"
     exit 1
   fi
+
+  # ── Step 1.5: Fix SVG aspect ratio ──
+  # PlantUML emits preserveAspectRatio="none" with no width/height; pin the
+  # viewBox aspect ratio so the diagram never stretches in the browser.
+  fix_svg_aspect "$svg"
 
   # ── Step 2: Calculate optimal PNG parameters ──
   local png_params png_scale png_dpi

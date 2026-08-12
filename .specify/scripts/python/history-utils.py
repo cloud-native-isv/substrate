@@ -76,9 +76,7 @@ UNSUPPORTED_TOOL_HINTS: Dict[str, str] = {
     "copilot": "VS Code Copilot Chat history is stored in the editor workspace state (not a plain-text local store) — not yet adapted.",
     "qoder": "~/.qoder or the Qoder app data dir — format not yet adapted.",
     "opencode": "opencode local session store — format not yet adapted.",
-    "qwen": "~/.qwen session store — format not yet adapted.",
     "hermes": "~/.hermes session store — format not yet adapted.",
-    "iflow": "~/.iflow session store — format not yet adapted.",
 }
 
 STORE_RESOLVERS: Dict[str, Callable[[Path], Dict[str, object]]] = {
@@ -91,10 +89,8 @@ _TOOL_DIR_SIGNALS = {
     "copilot": ".github",
     "qoder": ".qoder",
     "opencode": ".opencode",
-    "qwen": ".qwen",
     "codex": ".codex",
     "hermes": ".hermes",
-    "iflow": ".iflow",
 }
 
 

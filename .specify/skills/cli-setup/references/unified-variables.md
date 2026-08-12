@@ -14,7 +14,7 @@ names and persists the result into each tool's own config file.
 |----------|----------|------|-------|
 | `AGENT_API_KEY` | Yes | Non-empty after trim. | All six tools. |
 | `AGENT_MODEL` | Yes | Non-empty after trim. | All six tools. |
-| `AGENT_BASE_URL` | Yes | Non-empty; must match `^https?://`. | The five OpenAI-compatible tools (codex, qwen, qoder, iflow, opencode). |
+| `AGENT_BASE_URL` | Yes | Non-empty; must match `^https?://`. | The three OpenAI-compatible tools (codex, qoder, opencode). |
 | `AGENT_ANTHROPIC_BASE_URL` | Conditional | Required when `claude` is **explicitly** targeted; must match `^https?://`. | claude (Anthropic-compatible endpoint). |
 
 ### Why a separate Anthropic URL
@@ -62,9 +62,7 @@ exact per-tool mapping.
 |------|----------|------------|-------------|
 | claude | anthropic | `AGENT_ANTHROPIC_BASE_URL` | `~/.claude/settings.json` |
 | codex | openai | `AGENT_BASE_URL` | `~/.codex/config.toml` (+ `~/.codex/auth.json` for the key) |
-| qwen | openai | `AGENT_BASE_URL` | `~/.qwen/.env` |
 | qoder | openai | `AGENT_BASE_URL` | `~/.qoder/config.json` |
-| iflow | openai | `AGENT_BASE_URL` | `~/.iflow/settings.json` |
 | opencode | openai | `AGENT_BASE_URL` | `~/.config/opencode/config.json` |
 
 ## Example

@@ -25,12 +25,6 @@ Permission mode flags per tool for `config_agent_start <tool> [dev|yolo]`.
 | dev | `--approval-mode suggest` |
 | yolo | `--approval-mode full-auto` |
 
-### qwen (Qwen Code)
-
-| Mode | Primary Flag | Fallback Flag |
-|---|---|---|
-| dev | `--permission-mode acceptEdits` | — |
-| yolo | `--dangerously-skip-permissions` | `--permission-mode bypassPermissions` |
 
 ### qoder (Qoder CLI)
 
@@ -39,12 +33,6 @@ Permission mode flags per tool for `config_agent_start <tool> [dev|yolo]`.
 | dev | `--permission-mode acceptEdits` | — |
 | yolo | `--dangerously-skip-permissions` | `--permission-mode bypassPermissions` |
 
-### iflow (iFlow CLI)
-
-| Mode | Primary Flag | Fallback Flag |
-|---|---|---|
-| dev | `--permission-mode acceptEdits` | — |
-| yolo | `--dangerously-skip-permissions` | `--permission-mode bypassPermissions` |
 
 ### opencode (OpenCode)
 
@@ -58,8 +46,8 @@ Permission mode flags per tool for `config_agent_start <tool> [dev|yolo]`.
 For tools with a fallback flag (`||` operator), the primary flag is tried first. If the CLI exits with a non-zero status (indicating the flag is unsupported in the current version), the fallback flag is used automatically.
 
 ```bash
-# Example: qwen_yolo fallback pattern
-qwen --dangerously-skip-permissions "$@" || qwen --permission-mode bypassPermissions "$@"
+# Example: fallback pattern
+qoder --dangerously-skip-permissions "$@" || qoder --permission-mode bypassPermissions "$@"
 ```
 
 ## Related Scripts
@@ -67,7 +55,5 @@ qwen --dangerously-skip-permissions "$@" || qwen --permission-mode bypassPermiss
 The wrapper functions are defined in `cws-lib-bash/scripts/<tool>.sh`:
 - `claude.sh` — `claude_dev`, `claude_yolo`
 - `codex.sh` — `codex_dev`, `codex_yolo`
-- `qwen.sh` — `qwen_dev`, `qwen_yolo`
 - `qoder_cli.sh` — `qoder_cli_dev`, `qoder_cli_yolo`
-- `iflow.sh` — `iflow_dev`, `iflow_yolo`
 - `opencode.sh` — `opencode_dev`, `opencode_yolo`

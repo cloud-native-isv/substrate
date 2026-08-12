@@ -39,7 +39,7 @@ Step 1: Identify your agent type
     |-- Agent has browser-use MCP server available (navigate_page, take_snapshot, click, etc.)
     |   --> TIER 2: Use MCP connector (see § Tier 2 below)
     |
-    |-- All other agents (Claude Code, Copilot, opencode, Qwen, Codex, etc.)
+    |-- All other agents (Claude Code, Copilot, opencode, Codex, Hermes, etc.)
     |   --> TIER 3: Use Playwright headless automation (see § Tier 3 below)
 ```
 
@@ -49,7 +49,7 @@ Step 1: Identify your agent type
 |------|-----------------|----------|
 | **Tier 1** | System prompt mentions built-in browser capabilities; agent has native `navigate`/`click`/`screenshot` tools without requiring MCP or scripts | Wukong (悟空), Real |
 | **Tier 2** | `browser-use` MCP server is available; tools like `navigate_page`, `take_snapshot`, `click`, `fill` are present in the tool list | QoderWork, Qoder IDE |
-| **Tier 3** | No built-in browser, no `browser-use` MCP; agent has `Bash`/`Write`/`Read` tools only | Claude Code, Copilot, opencode, Qwen, Codex |
+| **Tier 3** | No built-in browser, no `browser-use` MCP; agent has `Bash`/`Write`/`Read` tools only | Claude Code, Copilot, opencode, Codex, Hermes |
 
 > **If you cannot determine your agent type, default to Tier 3 (Playwright).**
 
@@ -259,10 +259,8 @@ Before executing this skill's workflow, identify which AI agent you are:
 | **GitHub Copilot** | Running in VS Code Copilot Chat context; `.github/copilot-instructions.md` loaded; tools include `workspace edit`, `@terminal` |
 | **Qoder CLI** | `.qoder/` directory exists; `AGENTS.md` instructions loaded |
 | **opencode** | `.opencode/` directory exists |
-| **Qwen Code** | `QWEN.md` instructions loaded; `.qwen/` directory exists |
 | **Codex CLI** | `.codex/` directory exists |
 | **Hermes Agent** | `.hermes/` directory exists |
-| **iFlow** | `.iflow/` directory exists |
 
 If you cannot identify your agent, skip Step 2 and proceed with the standard workflow.
 
@@ -274,7 +272,7 @@ If you identified your agent in Step 1, check if a guide exists at:
 ${SKILL_HOME}/references/<agent-slug>-guide.md
 ```
 
-Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `qwen`, `codex`, `hermes`, or `iflow`.
+Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `codex`, `hermes`.
 
 If the guide exists, read it and apply the agent-specific tool mappings, best practices, and pitfall avoidances during execution. If no guide exists for your agent, proceed with the standard workflow.
 

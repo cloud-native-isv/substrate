@@ -116,7 +116,7 @@ for deprecated_dir in .clinerules .lingma .trae; do
     log info "Removed deprecated $deprecated_dir directory"
   fi
 done
-for deprecated_file in IFLOW.md .cursorrules; do
+for deprecated_file in .cursorrules; do
   if [ -L "$deprecated_file" ] || [ -f "$deprecated_file" ]; then
     rm -f "$deprecated_file"
     log info "Removed deprecated $deprecated_file"
@@ -146,7 +146,6 @@ ln -sf ../.specify/instructions.md project_rules.md
 popd >/dev/null
 
 # Root level links
-ln -sf .specify/instructions.md QWEN.md
 ln -sf .specify/instructions.md CLAUDE.md
 ln -sf .specify/instructions.md QODER.md
 ln -sf .specify/instructions.md AGENTS.md

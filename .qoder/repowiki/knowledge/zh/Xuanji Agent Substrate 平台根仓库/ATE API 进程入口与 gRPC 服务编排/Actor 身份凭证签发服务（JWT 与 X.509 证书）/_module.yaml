@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/01b50274-20da-403f-89b4-c7c2e8255358
-title: Actor 身份凭证签发服务（JWT 与 X.509 证书）
-scope:
-    - cmd/ateapi/internal/actoridentity/
-    - cmd/ateapi/internal/actoridjwt/
-source_files: []
-depends_on: []
-related_to: []

@@ -86,7 +86,7 @@ For organizing or running a **team** of agents (multiple agents collaborating), 
 - Concise, explicit instructions over narrative
 - Single responsibility per agent
 - Least-privilege tool set
-- Approved providers: Claude Code, GitHub Copilot, Qwen Code, opencode, Qoder — reject anything else
+- Approved providers: Claude Code, opencode, Qoder, Codex CLI, Hermes Agent, GitHub Copilot — reject anything else
 
 ### Frontmatter Baseline
 
@@ -106,7 +106,7 @@ Supported fields: `name` (required), `description` (required), `tools`, `disallo
 
 - Canonical: `.specify/agents/templates/*.agent.md` + `.specify/agents/instances/*.agent.md` (single source of truth per layer; discovered by globbing these patterns and reading each file's frontmatter `name`/`description`)
 - Execution artifacts: `.specify/agents/execution/{configs,scripts}/` tracked; `execution/logs/` gitignored, never committed
-- Per-file symlinks (read-only): `.github/agents/`, `.qoder/agents/`, `.qwen/agents/`, `.opencode/agents/`, `.hermes/agents/`, `.iflow/agents/`
+- Per-file symlinks (read-only): `.github/agents/`, `.qoder/agents/`, `.opencode/agents/`, `.hermes/agents/`
 
 Agent definitions are **self-contained**: everything an agent needs lives in its own `.agent.md` (no shared-assets directory under the agent stores).
 

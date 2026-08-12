@@ -91,10 +91,8 @@ Before executing this skill's workflow, identify which AI agent you are:
 | **GitHub Copilot** | Running in VS Code Copilot Chat context; `.github/copilot-instructions.md` loaded; tools include `workspace edit`, `@terminal` |
 | **Qoder CLI** | `.qoder/` directory exists; `AGENTS.md` instructions loaded |
 | **opencode** | `.opencode/` directory exists |
-| **Qwen Code** | `QWEN.md` instructions loaded; `.qwen/` directory exists |
 | **Codex CLI** | `.codex/` directory exists |
 | **Hermes Agent** | `.hermes/` directory exists |
-| **iFlow** | `.iflow/` directory exists |
 
 If you cannot identify your agent, skip Step 2 and proceed with the standard workflow.
 
@@ -106,7 +104,7 @@ If you identified your agent in Step 1, check if a guide exists at:
 ${SKILL_HOME}/references/<agent-slug>-guide.md
 ```
 
-Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `qwen`, `codex`, `hermes`, or `iflow`.
+Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `codex`, `hermes`.
 
 If the guide exists, read it and apply the agent-specific tool mappings, best practices, and pitfall avoidances during execution. If no guide exists for your agent, proceed with the standard workflow.
 

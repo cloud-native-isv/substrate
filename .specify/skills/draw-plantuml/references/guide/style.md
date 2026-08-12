@@ -24,7 +24,7 @@ skinparam roundCorner 20
 ' === 高质量渲染（面向 SVG；PNG 由脚本自适应调整） ===
 skinparam dpi 300
 scale 4
-skinparam defaultFontSize 14
+skinparam defaultFontSize 16
 skinparam defaultFontName "Arial, Helvetica, sans-serif"
 skinparam padding 8
 skinparam ArrowThickness 2
@@ -117,7 +117,7 @@ skinparam actorStyle awesome
 | `skinparam roundCorner 20` | 统一圆角半径为 20px | 所有图表 |
 | `skinparam dpi 300` | SVG 高密度渲染；PNG 由脚本按需调整 | 所有图表（.puml 源文件） |
 | `scale 4` | SVG viewBox 放大 4 倍（≥ 3840×2160）；PNG 由脚本按需缩减 | 所有图表（.puml 源文件） |
-| `skinparam defaultFontSize 14` | 默认字体 14pt，配合 scale 4 保证文字可读性 | 所有图表 |
+| `skinparam defaultFontSize 16` | 统一字体 16px，配合 scale 4 保证文字可读性；所有图表（含专项图）必须一致，避免跨图字号不统一 | 所有图表 |
 | `skinparam defaultFontName "Arial, ..."` | 使用无衬线字体，渲染清晰抗锯齿 | 所有图表 |
 | `skinparam padding 8` | 元素内边距 8px，避免内容拥挤贴边 | 所有图表 |
 | `skinparam ArrowThickness 2` | 箭头线条加粗为 2px，配合放大后保持视觉清晰 | 所有图表 |
@@ -132,7 +132,7 @@ skinparam actorStyle awesome
 
 1. **布局方向**：确认 `top to bottom direction` 仅在类图/组件图/部署图中使用（其他图类型不应出现此指令）
 2. **通用 skinparam**：确认通用 skinparam（shadowing、roundCorner）全部存在且值正确；确认色彩模式选择正确（单色图加 `monochrome true`，彩色图省略）
-3. **高质量渲染 skinparam**：确认 `dpi 300`、`scale 4`、`defaultFontSize 14`、`defaultFontName`、`padding 8`、`ArrowThickness 2`、`BorderThickness 2` 全部存在
+3. **高质量渲染 skinparam**：确认 `dpi 300`、`scale 4`、`defaultFontSize 16`、`defaultFontName`、`padding 8`、`ArrowThickness 2`、`BorderThickness 2` 全部存在
 4. **SVG 优化 skinparam**：确认 `svgDimensionStyle false` 和 `svgLinkTarget _blank` 存在
 5. **条件 skinparam**：如图表含 actor 或为用例图，确认 `actorStyle awesome` 已添加
 6. **位置**：所有样式配置必须在 `@startuml` 之后、图表元素定义之前
@@ -256,6 +256,8 @@ EOF
 - **第二行的残留需逐个人工确认来源**，只有两类是合法的：① 该色是 `<style>` 的**默认底色**而非 `.类名` 底色（脚本只识别 `.类名 { BackgroundColor #… }`，识别不到 `milestone { BackGroundColor #… }` 这类元素级默认值）；② 该色来自被脚本按行剔除的 `today` 竖线。**除这两类之外的残留一律是第 1 条被违反，必须删掉该图例行。**
 - **描边色不参与比对**：图例色块只呈现填充色，`is colored in 填充/描边` 的斜线后半段与 `LineColor` 都不进 `used` 集合，不必强求出现在图例里。
 - 实测样例：对 [howto/14-gantt-diagram.md](../howto/14-gantt-diagram.md) 的「带责任人的交付甘特图」跑该脚本，输出 `图内使用但图例缺失: []` / `图例列出但图内零实例: ['1565C0', 'FFD54F']`——两个残留恰好分别是 `today` 线与 `milestone { BackGroundColor }` 默认底色，属合法；而在同一份源码里人为多写一行零实例图例、删掉一行已用色后，脚本立刻两个方向都报出问题。
+
+> **渲染服务依赖（换后端必复验）**：`<back:#…>` 色块是 HTML/Creole 语法，其渲染支持程度取决于**具体渲染服务**（服务器版本、不同镜像、本地 jar 的实现可能有差异）。更换渲染服务器/后端（如远端 server → 本地 jar，或换一台自建服务器）后，**必须重渲并肉眼复验图例色块与 CJK 字体**——色块渲染成空白、中文变豆腐块都是换后端的高发问题（见 [howto/12-rendering-and-output.md §1.4](../howto/12-rendering-and-output.md)）。
 
 ## 扩展阅读
 

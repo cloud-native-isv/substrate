@@ -54,3 +54,4 @@ Thumbs.db
 # Stray local build outputs (go build ./tools/... without -o)
 /validate-image-cache
 .specify/tools/*.json
+.specify/instructions.md-*

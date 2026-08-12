@@ -1,4 +1,16 @@
 <!DOCTYPE html>
+<!--
+  ============================================================
+  复现附录（Reproduction Appendix）— 保留本注释块，交付时按需更新
+  - 打开本文件即可渲染：无构建步骤；CDN 模式需联网，split/vendored 模式离线可用
+  - 数据维护：单文件模式改下方 const data；split 模式改同目录 data-*.js
+    · nodes / links / rels / cells 数组分别对应图面的节点、连线、矩阵格
+    · 修改后刷新浏览器即重新渲染
+  - 坐标规则（若用手工坐标）：记录分区/栅格约定于此处，如
+    panel A: x∈[40,360] y∈[40,300]，节点槽位 24px 栅格；渲染前跑重叠/越界校验
+  - 数据溯源：依据 <架构描述文件> v<版本>（<YYYY-MM-DD>）
+  ============================================================
+-->
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
@@ -10,6 +22,7 @@
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
@@ -43,11 +56,51 @@
       pointer-events: none;
       z-index: 100;
     }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      width: 100%;
+      max-width: 900px;
+      margin-bottom: 8px;
+    }
+    .toolbar button {
+      font-size: 12px;
+      padding: 4px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .toolbar button:hover { background: #f0f0f0; }
+    .repro-appendix {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #666;
+      width: 100%;
+      max-width: 900px;
+    }
+    .repro-appendix summary { cursor: pointer; }
+    .repro-appendix ul { margin: 8px 0 0 16px; padding: 0; }
+    .repro-appendix code { background: #f4f4f4; padding: 0 4px; border-radius: 3px; }
   </style>
 </head>
 <body>
+  <div class="toolbar">
+    <button id="btn-export-svg" type="button">导出 SVG</button>
+    <button id="btn-export-png" type="button">导出 PNG</button>
+  </div>
   <div id="chart"></div>
   <div class="tooltip"></div>
+  <details class="repro-appendix">
+    <summary>复现附录：如何修改数据与重新渲染</summary>
+    <ul>
+      <li>打开本文件即可渲染，无构建步骤；CDN 模式需联网，vendored 模式离线可用。</li>
+      <li>数据位置：单文件模式位于下方 <code>const data</code>；split 模式位于同目录 <code>data-*.js</code>（nodes / links / rels / cells 对应图面各部分）。</li>
+      <li>修改数据后刷新浏览器即重新渲染；手工坐标图请同步更新文件头坐标规则并跑校验。</li>
+      <li>数据溯源：依据 <code>&lt;架构描述文件&gt; v&lt;版本&gt;（&lt;YYYY-MM-DD&gt;）</code>。</li>
+    </ul>
+  </details>
   <script>
     // ============================================================
     // Configuration
@@ -124,6 +177,45 @@
     // Tooltip (optional)
     // ============================================================
     const tooltip = d3.select(".tooltip");
+
+    // ============================================================
+    // Export: SVG serialization + PNG via Canvas (static snapshot)
+    // ============================================================
+    function exportSVG(filename = "chart.svg") {
+      const svgNode = document.querySelector("#chart svg");
+      const clone = svgNode.cloneNode(true);
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("width", svgNode.viewBox.baseVal.width);
+      clone.setAttribute("height", svgNode.viewBox.baseVal.height);
+      // 若导出的 SVG 样式缺失，先内联关键样式（font-size / fill）到 clone 中
+      const blob = new Blob([new XMLSerializer().serializeToString(clone)],
+                            { type: "image/svg+xml;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function exportPNG(filename = "chart.png", scale = 2) {
+      const svgNode = document.querySelector("#chart svg");
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = svgNode.viewBox.baseVal.width * scale;
+        canvas.height = svgNode.viewBox.baseVal.height * scale;
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = filename;
+        a.click();
+      };
+      img.src = "data:image/svg+xml;charset=utf-8," +
+        encodeURIComponent(new XMLSerializer().serializeToString(svgNode));
+    }
+
+    document.getElementById("btn-export-svg").addEventListener("click", () => exportSVG());
+    document.getElementById("btn-export-png").addEventListener("click", () => exportPNG());
   </script>
 </body>
 </html>

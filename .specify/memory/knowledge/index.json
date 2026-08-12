@@ -1,7 +1,24 @@
 {
   "scope": "knowledge",
-  "updated": "2026-08-07T06:11:53Z",
+  "updated": "2026-08-12T03:21:13Z",
   "entries": [
+    {
+      "id": "exploration-stage-conventions-and-quality-bar-scoping",
+      "file": "exploration-stage-conventions-and-quality-bar-scoping.md",
+      "scope": "knowledge",
+      "source": "/speckit.instructions",
+      "feature": "",
+      "tags": [
+        "convention",
+        "decision",
+        "preference",
+        "constitution",
+        "quality-bar"
+      ],
+      "title": "Exploration-stage conventions and quality-bar scoping",
+      "created": "2026-08-12T03:21:13Z",
+      "summary": "Durable conventions confirmed by the user (2026-08-12) and now binding on future refreshes:"
+    },
     {
       "id": "docs-upstream-i-taxonomy-xuanji-d6cfa7a7",
       "file": "docs-upstream-i-taxonomy-xuanji-d6cfa7a7.md",

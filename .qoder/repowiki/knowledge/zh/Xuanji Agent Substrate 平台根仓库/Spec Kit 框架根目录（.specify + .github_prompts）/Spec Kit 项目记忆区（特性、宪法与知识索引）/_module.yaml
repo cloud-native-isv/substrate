@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: specify_framework/memory_state
-title: Spec Kit 项目记忆区（特性、宪法与知识索引）
-scope:
-    - .specify/memory/
-source_files: []
-depends_on: []
-related_to: []

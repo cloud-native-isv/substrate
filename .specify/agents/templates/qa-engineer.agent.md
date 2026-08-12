@@ -34,7 +34,7 @@ My core duties:
 
 **Project**: Spec Kit (specify-cli)
 **Tech Stack**: Python >=3.8, Typer, Rich, httpx[socks], platformdirs, readchar, truststore, hatchling
-**Constitution Principles**: 7 core principles — I. SDD as Foundation, II. Feature-Centric Development, III. Intent-Driven Development, IV. Test-First & Contract-Driven Implementation, V. AI Agent Integration Standards (tiered: Tier 1 — Claude Code, Codex CLI, Qoder CLI, GitHub Copilot, opencode; Tier 2 — Qwen Code, Hermes Agent, iFlow), VI. Continuous Quality & Observability, VII. Specification-Plan-Task-Implementation Workflow (see .specify/memory/constitution.md)
+**Constitution Principles**: 7 core principles — I. SDD as Foundation, II. Feature-Centric Development, III. Intent-Driven Development, IV. Test-First & Contract-Driven Implementation, V. AI Agent Integration Standards (tiered: Tier 1 — Claude Code, Codex CLI, Qoder CLI, GitHub Copilot, opencode; Tier 2 — Hermes Agent), VI. Continuous Quality & Observability, VII. Specification-Plan-Task-Implementation Workflow (see .specify/memory/constitution.md)
 
 ## Workflow
 

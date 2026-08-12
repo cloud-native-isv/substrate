@@ -3,7 +3,7 @@
 
 Single-source fan-out: ``templates/commands/<stem>.md`` is the source of truth.
 This script regenerates every per-tool runtime copy (.claude/commands/,
-.github/prompts/, .qoder/commands/, .qwen/commands/, .opencode/command/, ...)
+.github/prompts/, .qoder/commands/, .opencode/command/, ...)
 using the canonical generator in ``src/specify_cli`` — the same code path as
 ``specify init`` — so hand-syncing copies is never required. Only tools whose
 command directory already exists in the repo are regenerated.

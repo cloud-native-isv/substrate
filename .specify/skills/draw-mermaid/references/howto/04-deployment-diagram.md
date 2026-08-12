@@ -35,9 +35,10 @@ flowchart TD
 
 ## 3. Kubernetes 语义
 
-- 集群 → Namespace → Deployment/Service → Pod 四级用嵌套 subgraph；
+- 集群 → Namespace → Deployment/Service → Pod 四级用嵌套 subgraph；**Namespace 是显式层级，subgraph 标题写清 namespace 名**（如 `subgraph ns-worker[namespace: worker]`），不要省略或用别名含糊带过；
 - Service 与 Pod 的映射：边标签注明（`selector`）；
-- 外部入口（Ingress/LB）单独 subgraph 或不入框。
+- 外部入口（Ingress/LB）单独 subgraph 或不入框；
+- 跨 namespace/跨集群的访问单独成边，标签写清方向（`namespace A → namespace B`）。
 
 ## 4. C4Deployment 写法
 
@@ -56,14 +57,16 @@ C4Deployment
 ## 5. 通信建模
 
 - 通信路径与依赖区分：部署图关注「在哪运行 + 怎么连」；
-- 协议/端口写进边标签（`|TCP 3306|`）；
+- 协议/端口写进边标签（`|TCP 3306|`、`|mTLS :443|`）；
+- **跨节点隧道/加密通道（mTLS、VPN、WireGuard、隧道代理 sidecar）显式画成边**：注明协议与端口、标注隧道两端节点——隧道关系藏在节点内部文字里等于没画，部署语义精度就在这里；
 - 不画业务调用链细节（那是组件/时序图职责）。
 
 ## 6. 布局与美观
 
-- 环境分区（生产/测试/外部）用顶级 subgraph + 同色系；
+- 环境分区（生产/测试/外部）用顶级 subgraph + **同色系**（每环境/每子系统一个 `classDef` 色相族），配色后用 `legend` 图例说明色义，避免「全图默认蓝一片」；
 - 多层嵌套 ≤3 层，更多拆图；
-- 图过宽用 LR，多环境对比用 TD。
+- 图过宽用 LR，多环境对比用 TD；
+- 嵌套层级多、边密集时，渲染后量有效字号（见 12-rendering-and-output.md §2）——<12px 上调 `fontSize` 重渲或用 SVG 宽幅显示，不要放大 zoom。
 
 ## 7. 常见陷阱
 

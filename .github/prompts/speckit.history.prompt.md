@@ -18,7 +18,7 @@ It is **incremental**: a manifest tracks which sessions were already distilled, 
 
 ### Step 1: Identify Tool & Project
 
-1. **Identify the executing agent** following `.specify/shared/workflow/agent-configuration.md` → "Step 1: Identify Executing Agent" (Claude Code / Copilot / Qoder / opencode / Qwen / Codex / …).
+1. **Identify the executing agent** following `.specify/shared/workflow/agent-configuration.md` → "Step 1: Identify Executing Agent" (Claude Code / Copilot / Qoder / opencode / Codex / Hermes / …).
 2. Run `.specify/scripts/bash/collect-history.sh --json` from repo root. It auto-detects the tool and prints JSON:
    ```json
    {

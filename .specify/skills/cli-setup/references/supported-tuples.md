@@ -80,7 +80,7 @@ All valid (tool, model, provider_url, provider_key) combinations.
 | 6 | glm-5.2 | bailian | ALIYUN_ANTHROPIC_COMPATIBLE_URL | ALIYUN_BAILIAN_API_KEY |
 | 7 | kimi-k2.7-code | bailian | ALIYUN_ANTHROPIC_COMPATIBLE_URL | ALIYUN_BAILIAN_API_KEY |
 
-### OpenAI-Protocol Tools (codex / qwen / qoder / iflow / opencode)
+### OpenAI-Protocol Tools (codex / qoder / opencode)
 
 All five tools share the same model list and use the same URL/Key variables:
 
@@ -97,13 +97,6 @@ All five tools share the same model list and use the same URL/Key variables:
 | 12 | codex | deepseek-v4-flash |
 | 13 | codex | glm-5.2 |
 | 14 | codex | kimi-k2.7-code |
-| 15 | qwen | qwen3-coder-plus |
-| 16 | qwen | qwen3.7-max |
-| 17 | qwen | qwen3.7-plus |
-| 18 | qwen | deepseek-v4-pro |
-| 19 | qwen | deepseek-v4-flash |
-| 20 | qwen | glm-5.2 |
-| 21 | qwen | kimi-k2.7-code |
 | 22 | qoder | qwen3-coder-plus |
 | 23 | qoder | qwen3.7-max |
 | 24 | qoder | qwen3.7-plus |
@@ -111,13 +104,6 @@ All five tools share the same model list and use the same URL/Key variables:
 | 26 | qoder | deepseek-v4-flash |
 | 27 | qoder | glm-5.2 |
 | 28 | qoder | kimi-k2.7-code |
-| 29 | iflow | qwen3-coder-plus |
-| 30 | iflow | qwen3.7-max |
-| 31 | iflow | qwen3.7-plus |
-| 32 | iflow | deepseek-v4-pro |
-| 33 | iflow | deepseek-v4-flash |
-| 34 | iflow | glm-5.2 |
-| 35 | iflow | kimi-k2.7-code |
 | 36 | opencode | qwen3-coder-plus |
 | 37 | opencode | qwen3.7-max |
 | 38 | opencode | qwen3.7-plus |

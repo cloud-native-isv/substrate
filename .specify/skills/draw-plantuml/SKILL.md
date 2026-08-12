@@ -26,6 +26,7 @@ skill_id: "<SKILL:.specify/skills/draw-plantuml/SKILL.md>"
 - **UML 语义，而非随意方框**：UML 类图表必须遵循标准 UML 图表类型，使用正确的 UML 元素和关系
 - **架构优先的叙事**：图和文字互补——文字解释*为什么*，图展示*什么*
 - **统一样式**：使用 `skinparam` / `<style>` 保持统一样式，UML 图每张核心元素 ≤7 个（硬上限 ≤15）
+- **远端渲染优先**：默认只使用 PlantUML 服务器渲染（`render-plantuml.sh` 默认 `PLANTUML_BACKEND=server`），**不下载、不配置本地渲染工具链**（plantuml.jar / graphviz / 字体）；远端不可用时，必须先询问用户是否改用本地渲染（`PLANTUML_BACKEND=local`），**未获用户确认不得本地渲染**
 - **专项图表遵循其原生语义**：WBS/甘特图/思维导图/JSON/YAML/Salt 六类非 UML 图表使用各自的原生语法（`@startwbs`/`@startgantt`/`@startmindmap`/`@startjson`/`@startyaml`/`@startsalt`）与原生配色，不套用 UML 的 skinparam 单色规则；ER 图虽被官方归为非 UML，但用 `@startuml` + `entity` 语法、走 Graphviz 布局，按 UML 图同套 skinparam 规范处理
 
 ### 方法论总纲（贯穿全流程，先「对」与「达意」再「好看」）
@@ -49,7 +50,7 @@ skill_id: "<SKILL:.specify/skills/draw-plantuml/SKILL.md>"
 
 ### Step 2: 选图类型 + 定「单图 or 图集」（减法与拆分）
 
-从 8 种标准 UML 图表类型中选最合适的一或多种，每图聚焦**单一视角/一个核心点**。**信息量大或多面时做减法与拆分**：优先整洁美观而非面面俱到；单图表达不下则按架构接缝（分层/控制面数据面/静态行为/请求制品流/系统节点边界）**拆为图集**——一张概览/索引图在顶 + 下钻子图，图间体现层次与交叉引用（`▶ 见 图N`），每图自足，图集共享稳定词汇（编号/颜色/构造型跨图同义）。
+从 8 种标准 UML 图表类型中选最合适的一或多种，每图聚焦**单一视角/一个核心点**。**信息量大或多面时做减法与拆分**：优先整洁美观而非面面俱到；单图表达不下则按架构接缝（分层/控制面数据面/静态行为/请求制品流/系统节点边界）**拆为图集**——一张概览/索引图在顶 + 下钻子图，图间体现层次与交叉引用（`▶ 见 图N`），每图自足，图集共享稳定词汇（编号/颜色/构造型跨图同义）。**若任务/需求清单点名了多类图（如"5 类图"），逐项核对每类图都有独立图表交付——note/文字摘要顺带出现不算完成该类图**（需求清单覆盖检查见 [01-choose-diagram-type.md](references/howto/01-choose-diagram-type.md)）。
 
 → [01-choose-diagram-type.md](references/howto/01-choose-diagram-type.md)；减法与拆分见 [diagram-principles.md §4.2/§4.3](references/guide/diagram-principles.md)
 
@@ -75,7 +76,7 @@ skill_id: "<SKILL:.specify/skills/draw-plantuml/SKILL.md>"
 
 ### Step 6: 文字修饰（独立一步）
 
-单独治理图元文字：**元素上只留很简洁的标题**（先去重——已被 interface/stereotype/嵌套表达的删掉）；**详细清晰的说明外置到 `note`**（用完整语言，非碎片；布局安全否则省——深层嵌套成员的 note 常被引擎甩到页边，改折叠进父级 note 或 legend）；**字号层级用 per-kind skinparam 统一设定**（标题>容器>组件>note>legend>箭头>stereotype），图内与跨图集一致，**禁用零散内联 `<size:>`/`**bold**`**（字号/粗细不一的头号成因）。
+单独治理图元文字：**元素上只留很简洁的标题**（先去重——已被 interface/stereotype/嵌套表达的删掉）；**详细清晰的说明外置到 `note`**（用完整语言，非碎片；布局安全否则省——深层嵌套成员的 note 常被引擎甩到页边，改折叠进父级 note 或 legend）；**字号统一为 16px**（`skinparam defaultFontSize 16`，渲染脚本自动注入，UML 与专项图同值；跨图集一致，禁止 per-kind 差异化字号），**禁用零散内联 `<size:>`/`**bold**`**（字号/粗细不一的头号成因）。
 
 → [diagram-principles.md §3](references/guide/diagram-principles.md)、[content.md](references/guide/content.md)
 
@@ -87,7 +88,7 @@ skill_id: "<SKILL:.specify/skills/draw-plantuml/SKILL.md>"
 
 ### Step 8: 渲染、匹配与微调
 
-用渲染脚本渲染 SVG/PNG；读取生成图片与用户要求比对，发现差异微调代码重渲；图集则逐图检查自足性、交叉引用与跨图一致（配色/字号/编号/页脚）；最终组装为 HTML 文档输出。
+用渲染脚本渲染 SVG/PNG（**默认远端渲染**——脚本默认 `PLANTUML_BACKEND=server`；禁止自行下载/配置本地渲染工具；远端不可用时脚本会提示，必须先询问用户是否接受本地渲染，获确认后以 `PLANTUML_BACKEND=local` 重试）；读取生成图片与用户要求比对，发现差异微调代码重渲；图集则逐图检查自足性、交叉引用与跨图一致（配色/字号/编号/页脚）；最终组装为 HTML 文档输出。
 
 → [12-rendering-and-output.md](references/howto/12-rendering-and-output.md)
 
@@ -105,14 +106,15 @@ skill_id: "<SKILL:.specify/skills/draw-plantuml/SKILL.md>"
 | **ER 实体关系图** | 数据库表结构、数据建模、表间基数 | `@startuml`（`entity` 语法） | [18-er-diagram.md](references/howto/18-er-diagram.md) |
 | **Salt UI 线框图** | 界面原型、表单/窗口线框 | `@startsalt`/`@endsalt` | [19-salt-diagram.md](references/howto/19-salt-diagram.md) |
 
-> 专项图表的渲染同样走 Step 8 的渲染脚本；除 ER 图外均无需 Graphviz（`dot`）即可渲染（ER 走 Graphviz 布局，本地 jar 渲染时须有 `dot`）。样式与美观要点见各操作指南的「布局与美观技巧」小节。
+> 专项图表的渲染同样走 Step 8 的渲染脚本；除 ER 图外均无需 Graphviz（`dot`）即可渲染（ER 走 Graphviz 布局，**仅限用户确认后的本地渲染**才需要本机 `dot`）。样式与美观要点见各操作指南的「布局与美观技巧」小节。
 >
 > **WBS / 甘特图交付前必做量测自检**：这两类图的"清晰度、版面、日期定位"都不能靠肉眼判断，用 [measure-svg-layout.py](scripts/measure-svg-layout.py) 量三条判据——**正文有效字号 ≥12px**（`= font-size × 显示宽度 ÷ viewBox 宽`；放大 zoom 无效）、**长宽比 1.2~1.8:1**、**标签不越过时间轴右边界**（不能用 `viewBox 宽 − 最右元素 x`，该值结构性 ≈0）；判断某个写法（依赖箭头、资源分配、标题字号）有没有改写排期，用 `--compare` 做 A/B 并看 `scheduleChanged`。详见 [13-wbs-diagram.md](references/howto/13-wbs-diagram.md)、[14-gantt-diagram.md](references/howto/14-gantt-diagram.md)。
 
 ## 输出要求
 
-- 输出为单个 HTML 文档，包含渲染的图表（不嵌入原始 PlantUML 文本）
-- 图表通过 [render-plantuml.sh](scripts/render-plantuml.sh) 渲染，同时产出 PNG 与 SVG
+- 输出为单个 HTML 文档，包含渲染的图表（渲染图为主体；原始 PlantUML 文本不嵌入正文，仅放入可折叠的「复现性附录」`<details>` 块，默认收起）
+- 图表通过 [render-plantuml.sh](scripts/render-plantuml.sh) 渲染，同时产出 PNG 与 SVG（**默认远端渲染**：脚本默认 `PLANTUML_BACKEND=server`；本地渲染必须先在用户确认后以 `PLANTUML_BACKEND=local` 显式启用）
+- **HTML 附复现性附录**：本图渲染命令（render-plantuml.sh 调用 + CJK 补跑脚本，一律 `${SKILL_HOME}` 相对路径、禁止写死绝对路径）、依赖说明（后端/CJK/本地工具链，含离线 fallback）与可折叠的 puml 源码——**附录源码必须与磁盘实际渲染的 `.puml` 逐字节一致**（含渲染脚本注入的样式块，直接从磁盘复制），保证"这张图怎么重新生成"可复现（详见 [12-rendering-and-output.md §4.4](references/howto/12-rendering-and-output.md)）
 - **默认优先选用 PNG 格式**引用/嵌入图片（最美观，且在 Preview / Markdown 预览中可直接查看）；仅当图表过宽/过大触及 PNG 4096px 上限或需任意无损缩放时改用 SVG
 - **嵌入 Markdown 文档时（最佳实践）**：默认看 PNG、细节不够可开 SVG 无损放大，**SVG/PNG 必须同时产出**。⚠️ Markdown 图片 `![]()` 与内联 HTML `<a>` 走**不同的路径解析管线**（有的渲染器会代理/改写 Markdown 图片 URL 却透传 HTML `href`），混用会导致两条路径不一致——故 **PNG 与 SVG 引用须用同一机制**：首选**全内联 HTML**（`<a href=x.svg target=_blank rel=noopener><img src=x.png></a>`，点图即开 SVG 新标签），渲染器会剥 HTML 时回退**全纯 Markdown**（同标签打开）。→ 见 [12-rendering-and-output.md §4.3](references/howto/12-rendering-and-output.md)
 - PNG/SVG 与 HTML 保存在同一目录，HTML 通过相对路径引用图片
@@ -122,6 +124,8 @@ skill_id: "<SKILL:.specify/skills/draw-plantuml/SKILL.md>"
 ## 参考文档
 
 所有参考文档（操作指南、最佳实践、官方文档）的完整索引和说明，参见 [references/index.md](references/index.md)。
+
+**实战沉淀（务必阅读）**：竞技评审与重绘中固化的经验教训，见 [best-practices/best-practices.md](best-practices/best-practices.md)（最佳实践）与 [best-practices/pitfalls.md](best-practices/pitfalls.md)（陷阱）——绘制前对照最佳实践，绘制后自查陷阱清单。
 
 ## Feedback
 

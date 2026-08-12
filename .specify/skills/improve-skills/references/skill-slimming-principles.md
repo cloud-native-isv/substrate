@@ -4,6 +4,50 @@
 
 Apply these principles whenever an improvement loop touches `SKILL.md`, especially when the file has grown past the point where a reader can grasp the workflow at a glance.
 
+The verdict is **not** a judgement call. Run the gate and read its findings:
+
+```bash
+python3 "${SKILL_HOME}/scripts/skill-shape.py" <path/to/SKILL.md>
+# exit 0 = contract-shaped; exit 10 = blocking findings (slim before finishing the loop)
+```
+
+---
+
+## Principle 0 — The budget binds what you ADD, not only what you remove
+
+Slimming has two directions, and the authoring direction is the one that gets skipped:
+
+- **Cleanup** — relocate manual content that is already in the body (Principles 1–7 below).
+- **Authoring** — new detail written *during this loop* defaults to `references/` (explanations,
+  worked examples, checklists) or `scripts/` (deterministic logic). `SKILL.md` gains only
+  contract lines: a step heading + one-sentence goal, a hard rule, a decision branch, a
+  resource-index row, a pointer with an anchor.
+
+A correct, freshly-written 30-line command example is still L2 material. "It is new and it
+works" is not an argument for putting it in the contract.
+
+**Measured failure case (2026-08)**: this rule previously read "evaluate whether *existing*
+sections should be moved out". A loop that added a decomposition capability to a skill
+authored ~190 new lines of worked examples and command sequences and remained fully
+compliant with the rule as written — the body reached **10,334 tokens (2× the L1 budget) with
+42% of its lines inside code fences**, and the reviewer, not the loop, caught it. Three
+compounding causes, all now closed:
+
+1. **Scope** — the rule only governed pre-existing content (fixed by this principle).
+2. **Placement** — the rule sat as one bullet among eleven inside the longest step of a body
+   that was itself 56% over budget, i.e. the attention low-zone its own
+   [constraint-placement.md](./constraint-placement.md) measures at ~76% compliance (fixed by
+   a consolidated `## Hard Constraints` block placed late in `SKILL.md`).
+3. **No objective condition** — the quantitative facts lived only here in L2, so a loop that
+   never opened this file never saw a number and "slim enough?" had no verdict (fixed by
+   `scripts/skill-shape.py` plus a mandatory gate in the validation step).
+
+The general lesson: *a discipline that depends on the agent voluntarily reading a reference
+is not enforced.* Give it a number, a script, and a late-positioned rule.
+
+**Failure mode prevented**: the body grows unboundedly through additions while every
+individual edit passes review.
+
 ---
 
 ## Principle 1 — Keep `SKILL.md` to contract-only content

@@ -25,6 +25,7 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 - **UML 语义，而非随意方框**：UML 类图表必须遵循标准 UML 图表类型，使用正确的 UML 元素和关系（Mermaid 的 classDiagram / sequenceDiagram / stateDiagram-v2 / erDiagram / flowchart 各司其职）
 - **架构优先的叙事**：图和文字互补——文字解释*为什么*，图展示*什么*
 - **统一样式**：用 `%%{init: {themeVariables}}%%` / `classDef` 保持统一样式，UML 图每张核心元素 ≤7 个（硬上限 ≤15）
+- **远端渲染优先**：默认只使用 mermaid.ink 渲染服务器（`render-mermaid.sh` 默认 `MERMAID_BACKEND=server`），**不下载、不配置本地渲染工具链**（mermaid-cli / Chrome / puppeteer）；远端不可用时，必须先询问用户是否改用本地渲染（`MERMAID_BACKEND=local`），**未获用户确认不得本地渲染**
 - **专项图表遵循其原生语义**：Gantt / MindMap（含 WBS）/ ER / C4 使用各自原生语法与原生配色，不套用 flowchart 的通用样式规则；Use Case / JSON / YAML / Salt 在 Mermaid 无原生图表类型，用 flowchart 语义化近似并明示近似关系
 
 ### 方法论总纲（贯穿全流程，先「对」与「达意」再「好看」）
@@ -115,7 +116,7 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 
 ### Step 8: 渲染、匹配与微调
 
-用渲染脚本渲染 SVG/PNG；读取生成图片与用户要求比对，发现差异微调代码重渲；图集则逐图检查自足性、交叉引用与跨图一致（配色/字号/编号/页脚）；最终组装为 HTML 文档输出。
+用渲染脚本渲染 SVG/PNG（**默认远端渲染**——脚本默认 `MERMAID_BACKEND=server`；禁止自行下载/配置本地渲染工具；远端不可用时脚本会提示，必须先询问用户是否接受本地渲染，获确认后以 `MERMAID_BACKEND=local` 重试）；读取生成图片与用户要求比对，发现差异微调代码重渲；图集则逐图检查自足性、交叉引用与跨图一致（配色/字号/编号/页脚）；最终组装为 HTML 文档输出。
 
 → [12-rendering-and-output.md](references/howto/12-rendering-and-output.md)
 
@@ -138,9 +139,10 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 
 ## 输出要求
 
-- 输出为单个 HTML 文档，包含渲染的图表（不嵌入原始 Mermaid 文本）
-- 图表通过 [render-mermaid.sh](scripts/render-mermaid.sh) 渲染，同时产出 PNG 与 SVG（后端自动选择：mermaid.ink 服务器 > 本地 mermaid-cli）
+- 输出为单个 HTML 文档，包含渲染的图表；**每图附「可复现信息」折叠块**（内嵌 `.mmd` 源码 + 渲染命令，`<details>` 块，见 [12-rendering-and-output.md §4.4](references/howto/12-rendering-and-output.md)），不依赖外部渲染服务在线即可复现
+- 图表通过 [render-mermaid.sh](scripts/render-mermaid.sh) 渲染，同时产出 PNG 与 SVG（**默认远端渲染**：脚本默认 `MERMAID_BACKEND=server`；本地渲染必须先在用户确认后以 `MERMAID_BACKEND=local` 显式启用）
 - **默认优先选用 PNG 格式**引用/嵌入图片（最美观，且在 Preview / Markdown 预览中可直接查看）；仅当图表过宽/过大或需任意无损缩放时改用 SVG
+- **密集图（组件/部署/时序）交付前量有效字号**：`measure-svg-layout.py <x.svg> --display-width <目标显示宽>`，正文 <12px 时上调 `fontSize`（时序图用 sequence 的 `actorFontSize`/`messageFontSize`/`noteFontSize`）重渲，或 HTML 改引 SVG 宽幅显示——**放大 zoom 无效**（画布同比放大）
 - **嵌入 Markdown 文档时（最佳实践）**：默认看 PNG、细节不够可开 SVG 无损放大，**SVG/PNG 必须同时产出**。⚠️ Markdown 图片 `![]()` 与内联 HTML `<a>` 走**不同的路径解析管线**（有的渲染器会代理/改写 Markdown 图片 URL 却透传 HTML `href`），混用会导致两条路径不一致——故 **PNG 与 SVG 引用须用同一机制**：首选**全内联 HTML**（`<a href=x.svg target=_blank rel=noopener><img src=x.png></a>`，点图即开 SVG 新标签），渲染器会剥 HTML 时回退**全纯 Markdown**（同标签打开）。→ 见 [12-rendering-and-output.md §4.3](references/howto/12-rendering-and-output.md)
 - PNG/SVG 与 HTML 保存在同一目录，HTML 通过相对路径引用图片
 - Mermaid 源文件（`.mmd`）保存以供未来编辑
@@ -149,6 +151,8 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 ## 参考文档
 
 所有参考文档（操作指南、最佳实践、官方文档）的完整索引和说明，参见 [references/index.md](references/index.md)。
+
+**实战沉淀（务必阅读）**：竞技评审与重绘中固化的经验教训，见 [best-practices/best-practices.md](best-practices/best-practices.md)（最佳实践）与 [best-practices/pitfalls.md](best-practices/pitfalls.md)（陷阱）——绘制前对照最佳实践，绘制后自查陷阱清单。
 
 ## Feedback
 

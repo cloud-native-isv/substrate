@@ -88,7 +88,10 @@ C4Context
 
 - 每视图元素 ≤10；上下文图最简（系统+关键外部）；
 - 层间递进：Context → Container → Component 的边界必须一致（同一系统名）；
-- 关系标签 ≤10 字符（协议+用途）。
+- 关系标签 ≤10 字符（协议+用途）；
+- **框内文字只放关键词行**：C4 宏的第 2/3 参（标题/描述）渲染在框内，描述过长会挤压/截断——标题 ≤10 字符、描述只留关键词（≤15 字符，如 `Go/HTTP`），长描述下移到 HTML 说明列表（每容器一行 `<li>`），图内保持干净；
+- **C4Deployment 语义精度**：部署层级写全（集群 → Namespace → Node → 容器），`Deployment_Node` 标题写清 namespace 名；跨节点隧道/加密通道（mTLS、VPN）显式 `Rel` 并带协议端口（`Rel(路由, 隧道代理, "mTLS 隧道", ":443")`），不要藏在节点文字里；
+- C4 无 classDef 逐元素配色（只有全局 themeVariables），子系统/环境区分靠 **Boundary 分组**（`System_Boundary` / `Container_Boundary` / `Deployment_Node` 嵌套）+ 图例/文字说明，不要承诺逐容器着色。
 
 ## 8. 常见陷阱
 

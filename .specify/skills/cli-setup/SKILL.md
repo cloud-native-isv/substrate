@@ -1,14 +1,14 @@
 ---
 name: agent-setup
 description: |
-  Configure AI agent CLI tools (Claude Code, Codex, Qwen Code, Qoder CLI, iFlow, OpenCode)
+  Configure AI agent CLI tools (Claude Code, Codex, Qoder CLI, OpenCode)
   from a single, unified set of environment variables. Export AGENT_API_KEY, AGENT_MODEL,
   AGENT_BASE_URL (and AGENT_ANTHROPIC_BASE_URL for claude); the skill validates them
   (config_agent_env_validate), secondary-assigns them into each tool's native fields, and
   persists each tool's own config file (config_agent_env_apply). Also provides a legacy
   four-tuple model plus install/start helpers.
   Use this when the user mentions: "配置agent", "配置AI工具", "切换模型", "切换provider",
-  "config agent", "agent setup", "install codex", "install claude", "install qwen",
+  "config agent", "agent setup", "install codex", "install claude",
   "configure agent", "switch model", "agent four-tuple", "四元组配置", "互斥配置",
   "统一环境变量", "unified env", "AGENT_API_KEY"
 skill_id: "<SKILL:.specify/skills/agent-setup/SKILL.md>"
@@ -18,7 +18,7 @@ skill_id: "<SKILL:.specify/skills/agent-setup/SKILL.md>"
 
 ## Overview
 
-Configure the six API-key AI-tool CLIs — `claude`, `codex`, `qwen`, `qoder`, `iflow`,
+Configure the four API-key AI-tool CLIs — `claude`, `codex`, `qoder`,
 `opencode` — from **one unified set of environment variables**. You export the three core
 inputs once; the skill validates them, performs a **secondary assignment** into each tool's
 native variable names, and persists the result into each tool's **own configuration file**.
@@ -54,7 +54,7 @@ config_agent_env_validate --all
 
 # 2 + 3. Read + write — secondary-assign and persist each tool's own config file
 config_agent_env_apply --all          # all six tools
-config_agent_env_apply qwen           # a single named tool
+config_agent_env_apply opencode       # a single named tool
 ```
 
 - **`config_agent_env_validate [--all | <tool>...]`** — verifies presence, non-emptiness, and
@@ -71,9 +71,7 @@ config_agent_env_apply qwen           # a single named tool
 |------|----------|------------|-------------|
 | `claude` | anthropic | `AGENT_ANTHROPIC_BASE_URL` | `~/.claude/settings.json` |
 | `codex` | openai | `AGENT_BASE_URL` | `~/.codex/config.toml` (+ `~/.codex/auth.json` for the key) |
-| `qwen` | openai | `AGENT_BASE_URL` | `~/.qwen/.env` |
 | `qoder` | openai | `AGENT_BASE_URL` | `~/.qoder/config.json` |
-| `iflow` | openai | `AGENT_BASE_URL` | `~/.iflow/settings.json` |
 | `opencode` | openai | `AGENT_BASE_URL` | `~/.config/opencode/config.json` |
 
 ### Guarantees
@@ -93,7 +91,7 @@ Manage AI agent CLI tool configurations through a **four-tuple** abstraction:
 (tool, model, provider_url, provider_key)
 ```
 
-- **tool** — CLI binary name: `claude`, `codex`, `qwen`, `qoder` (Qoder CLI), `iflow`, `opencode`
+- **tool** — CLI binary name: `claude`, `codex`, `qoder` (Qoder CLI), `opencode`
 - **model** — LLM model identifier: `glm-5.2`, `qwen3-coder-plus`, `claude-opus-4-8`, etc.
 - **provider_url** — API endpoint URL (resolved from provider: `idealab` or `bailian`)
 - **provider_key** — API authentication key (resolved from provider credential files)
@@ -110,9 +108,7 @@ Not all combinations are valid. Compatibility is determined by API protocol and 
 |------|-------------|---------------------|-------------------|
 | `claude` | Anthropic-compatible | idealab (claude-opus-4-8 only), bailian (dual-protocol models only) | claude-opus-4-8, qwen3.7-max, qwen3.7-plus, deepseek-v4-pro, deepseek-v4-flash, glm-5.2, kimi-k2.7-code |
 | `codex` | OpenAI-compatible (responses) | bailian | qwen3-coder-plus, qwen3.7-max, qwen3.7-plus, deepseek-v4-pro, deepseek-v4-flash, glm-5.2, kimi-k2.7-code |
-| `qwen` | OpenAI-compatible | bailian | (same as codex) |
 | `qoder` | OpenAI-compatible | bailian | (same as codex) |
-| `iflow` | OpenAI-compatible | bailian | (same as codex) |
 | `opencode` | OpenAI-compatible | bailian | (same as codex) |
 
 > **Note**: `claude-opus-*` models are NOT available on bailian. `claude-opus-4-8` is idealab-only; `claude-opus-4-7` has no provider and is excluded. Bailian dual-protocol models (qwen3.7-max, qwen3.7-plus, deepseek-v4-pro, deepseek-v4-flash, glm-5.2, kimi-k2.7-code) support **both** Anthropic and OpenAI protocols simultaneously, making them usable by all tools including claude.
@@ -160,9 +156,7 @@ config_agent_install <tool>
 Installation methods per tool:
 - `claude` — `npm install -g @anthropic-ai/claude-code`
 - `codex` — `npm install -g @openai/codex`
-- `qwen` — `npm install -g @qwen-code/qwen-code`
 - `qoder` — `curl -fsSL https://qoder.com/install \| bash`
-- `iflow` — `npm install -g @iflow-ai/iflow-cli`
 - `opencode` — `brew install opencode` or `go install github.com/sst/opencode@latest`
 
 ### 4. Configure — Bind a four-tuple to a tool
@@ -179,9 +173,7 @@ This function:
 4. Writes tool-specific configuration files:
    - `claude` → `${HOME}/.claude/settings.json`
    - `codex` → `${HOME}/.codex/config.toml`
-   - `qwen` → env vars `OPENAI_API_KEY` / `OPENAI_BASE_URL`
    - `qoder` → `${HOME}/.qoder/config.json`
-   - `iflow` → `${HOME}/.iflow/settings.json`
    - `opencode` → `${HOME}/.config/opencode/config.json`
 5. Records the active binding in `${SKILL_WORKDIR}/.agent-config/active.json`
 
@@ -219,23 +211,7 @@ This Skill follows the canonical path conventions:
 ### Assets (`${SKILL_HOME}/assets/`)
 - No static assets currently.
 
-## Usage Examples
-
-```bash
-# Full workflow: install codex, configure with glm-5.2 via bailian, start in yolo mode
-config_agent_install codex
-config_agent_configure codex glm-5.2 bailian
-config_agent_start codex yolo
-
-# Switch claude from idealab to bailian (mutual exclusion — old config replaced)
-config_agent_configure claude claude-opus-4-8 bailian
-
-# List all supported tuples
-config_agent_list
-
-# Show what's currently configured
-config_agent_show
-```
+- Worked invocation examples: `./references/usage-examples.md`
 
 ## Resource ID
 - Canonical ID: `<SKILL:.specify/skills/agent-setup/SKILL.md>`

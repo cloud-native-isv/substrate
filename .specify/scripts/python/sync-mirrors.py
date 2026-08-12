@@ -17,6 +17,16 @@ Modes:
 
 Junk entries (__pycache__, node_modules, .DS_Store) are ignored on both sides
 and never copied.
+
+Extra files that exist only in a mirror are never deleted (archive-not-delete
+discipline), but for pairs marked STRICT below they FAIL --check. Rationale:
+`specify init` distributes a framework tree by copying the canonical source over
+the mirror (shutil.copytree(..., dirs_exist_ok=True)) — an additive merge that
+never syncs mirror->source. So a mirror-only file is unreachable by init and can
+never land in a downstream project, however correct it looks locally. Two valid
+remedies, and the check deliberately does not presume which: add the missing
+canonical source (if the file should ship), or delete the mirror copy (if it is
+a superseded leftover).
 """
 
 from __future__ import annotations
@@ -30,13 +40,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# (source, mirror) pairs; source is canonical.
+# (source, mirror, strict_extras) pairs; source is canonical.
+# strict_extras=True means a mirror-only file is an ERROR under --check: the tree
+# is entirely framework-owned, so an unsourced file can never reach downstream
+# projects via `specify init`. skills/ is intentionally lenient because a project
+# may legitimately keep its own local skills in the mirror.
 MIRROR_PAIRS = [
-    ("templates", ".specify/templates"),
-    ("skills", ".specify/skills"),
-    ("agents", ".specify/agents/templates"),
-    ("scripts", ".specify/scripts"),
-    ("shared", ".specify/shared"),
+    ("templates", ".specify/templates", False),
+    ("skills", ".specify/skills", False),
+    ("agents", ".specify/agents/templates", False),
+    ("scripts", ".specify/scripts", True),
+    ("shared", ".specify/shared", False),
 ]
 
 IGNORE_NAMES = {"__pycache__", "node_modules", ".DS_Store", ".gitkeep"}
@@ -76,7 +90,8 @@ def main() -> int:
     check_only = args.check
 
     drift = False
-    for src_name, dst_name in MIRROR_PAIRS:
+    orphans = False
+    for src_name, dst_name, strict_extras in MIRROR_PAIRS:
         src = REPO_ROOT / src_name
         dst = REPO_ROOT / dst_name
         if not src.exists():
@@ -101,9 +116,14 @@ def main() -> int:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(src / rel, target)
                 print(f"sync  {src_name}/ -> {dst_name}/ ({len(missing) + len(differing)} files)")
-        # extras are reported but never deleted (archive-not-delete discipline)
+        # Extras are never deleted (archive-not-delete discipline), but in a
+        # strict tree they are a distribution defect, not a note.
         for rel in extra:
-            print(f"note  extra file only in mirror: {dst_name}/{rel}")
+            if strict_extras:
+                orphans = True
+                print(f"ORPHAN {dst_name}/{rel} (no canonical {src_name}/ source)")
+            else:
+                print(f"note  extra file only in mirror: {dst_name}/{rel}")
 
     # Per-tool command copies: delegate to the existing canonical generator.
     regen = REPO_ROOT / "scripts/python/regen-command-copies.py"
@@ -112,8 +132,18 @@ def main() -> int:
     if result.returncode != 0:
         drift = True
 
+    if check_only and orphans:
+        print(
+            "ORPHANS detected — a mirror-only file cannot be distributed by "
+            "`specify init`, which only copies canonical source -> mirror.\n"
+            "  Fix by either: (a) adding the canonical source (e.g. "
+            "scripts/bash/<name>.sh) if the file should ship to downstream "
+            "projects, or (b) deleting the mirror copy if it is a superseded "
+            "leftover."
+        )
     if check_only and drift:
         print("DRIFT detected — run: python3 scripts/python/sync-mirrors.py --write")
+    if check_only and (drift or orphans):
         return 2
     return 0
 

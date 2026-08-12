@@ -36,6 +36,8 @@ Parse `skill name` and `description` from the user input:
 
 If the input contains only a valid name and the Skill already exists (`.specify/skills/<name>/SKILL.md`), redirect to `improve-skills` rather than creating a duplicate.
 
+**Cross-SSOT collision check**: an absent `.specify/skills/<name>` does not mean the name is free — scan the other locations that can own or load a Skill of that name (other projects' `.specify/skills/`, a global skills library, agent load directories, registries). On a hit, report *entity location + who references it* and choose a documented path (improve in place / adopt via link / split into layers / rename) — MUST NOT create a second entity with the same name silently. Scan targets and decision table: [name-collision-and-layering.md](./references/name-collision-and-layering.md) §1; when the chosen path is a split, the front-door / lower-layer authoring rules are §2.
+
 If the description is missing, derive it from the current conversation or ask one targeted clarification question.
 
 **Case B — User provided no input (empty arguments)**
@@ -160,6 +162,7 @@ Minimum checks:
 - [ ] Registry: one deduplicated row in `.specify/instructions.md` (Spec Kit project mode only; not applicable standalone)
 - [ ] Size: `SKILL.md` < 500 lines
 - [ ] No unrelated documentation files
+- [ ] Topology & links (when the host keeps a skill-topology registry or fans Skills out to several agent load directories): registry updated, dangling-symlink scan returns zero, each load directory resolves to the new content, and description-caching host registries refreshed — see [name-collision-and-layering.md](./references/name-collision-and-layering.md) §3
 - [ ] Feedback: a `## Feedback` section is present as the final workflow section (Feature 028), beginning with the runtime-mode gate. Spec Kit project mode requires the canonical engine-backed block from `.specify/shared/workflow/feedback-step.md`; standalone mode requires the self-contained variant (no engine call). A Skill without the section is non-conformant — fix before reporting completion.
 - [ ] Standalone mode only: format is consistent with sibling skills in the host directory, and no `.specify/**` path is referenced
 - [ ] Spec Kit project mode: **run the existing skill-conformance contract suite** (`pytest tests/contract/ -q -k "skill or runtime_mode"`) before reporting completion — new skills are subject to ALL pre-existing conformance contracts (runtime-mode gate, feedback-section shape, registry dedup); a later full-suite regression is the wrong place to discover a miss. **Fallback**: if the project has no `tests/` or `tests/contract/` directory, the suite is not applicable — verify conformance via the manual checklist items above (frontmatter / Feedback section / registry / size) and state "contract suite not applicable" explicitly in the completion report; do not spin on the missing suite or report it as a failure

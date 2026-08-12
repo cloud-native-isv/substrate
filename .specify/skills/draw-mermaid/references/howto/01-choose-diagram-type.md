@@ -59,6 +59,8 @@
 - **业务分析**：flowchart 用例近似（范围）+ flowchart 活动图（流程）+ stateDiagram-v2（订单状态机）；
 - **数据设计**：erDiagram（表结构）+ classDiagram（领域模型）。
 
+**需求点名图表集合时**（如「5 类图：组件/部署/时序/状态机/资源分层」）：Step 2 先产出**覆盖清单**（需求点名类型 → 图号 → Mermaid 类型映射），交付前逐项打勾核对——缺图先补再交付，不得以「语义相近的其他图」替代点名类型；图集索引（`▶ 见图N`）与覆盖清单一一对应，便于评审核对。
+
 ## 5. Mermaid 独有类型速览（PlantUML 无）
 
 按需选用：`pie`、`quadrantChart`、`requirementDiagram`、`gitGraph`、`journey`、`timeline`、`sankey-beta`、`xychart-beta`、`packet-beta`、`kanban`、`block`。语法见 guide/syntax-reference.md §9。

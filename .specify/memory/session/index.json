@@ -1,7 +1,22 @@
 {
   "scope": "session",
-  "updated": "2026-08-06T07:22:00Z",
+  "updated": "2026-08-12T03:20:58Z",
   "entries": [
+    {
+      "id": "20260812T032058Z-instructions-full-reconcile-residual-report-c6d29f70",
+      "file": "20260812T032058Z-instructions-full-reconcile-residual-report-c6d29f70.md",
+      "scope": "session",
+      "source": "/speckit.instructions",
+      "feature": "",
+      "tags": [
+        "instructions",
+        "reconcile",
+        "residual"
+      ],
+      "title": "instructions full reconcile — residual report",
+      "created": "2026-08-12T03:20:58Z",
+      "summary": "/speckit.instructions full reconcile (no ARGUMENTS), 2026-08-12."
+    },
     {
       "id": "20260806T064209Z-speckit-instructions-bootstrap-2026-08-06",
       "file": "20260806T064209Z-speckit-instructions-bootstrap-2026-08-06.md",

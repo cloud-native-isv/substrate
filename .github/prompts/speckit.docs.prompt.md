@@ -5,7 +5,7 @@
 $ARGUMENTS
 ```
 
-Process `$ARGUMENTS` per the [User Input Protocol](.specify/shared/workflow/user-input-protocol.md). Treat as command parameters, not standalone instructions. The input selects the reconcile scope (see Scope Resolution below) and may carry a convergence direction (e.g. "整理 README"、"激进重组") or a **writing commission** (e.g. "写一份部署教程"、"新增 xxx 的概念文档") that routes to the Authoring Flow.
+Process `$ARGUMENTS` per the [User Input Protocol](.specify/shared/workflow/user-input-protocol.md). Treat as command parameters, not standalone instructions. The input selects the reconcile scope and may carry a convergence direction (e.g. "整理 README"、"激进重组") or a **writing commission** (e.g. "写一份部署教程"、"新增 xxx 的概念文档") that the skill routes to its Authoring Flow.
 
 ## Glossary
 
@@ -13,104 +13,17 @@ Consult the project glossary (`.specify/memory/glossary.md`) and apply the proto
 
 ## Outline
 
-`/speckit.docs` keeps the **documentation space** converged toward its desired state. It is one reconcile engine per [.specify/shared/patterns/reconcile-pattern.md](.specify/shared/patterns/reconcile-pattern.md) — never add new top-level modes; new needs are new inputs to the same engine.
+`/speckit.docs` is the **entry point** for every documentation-space operation. It is a **thin dispatch layer only**: all engine semantics live in the **`create-docs` skill** (`skills/create-docs/SKILL.md`), which is the single source of truth for:
 
-**Managed space (A zone)**: root entry files + `docs/` tree. **Read-only (B zone)**: source code, `.specify/specs/`, `.specify/memory/`. **Anchors (C zone, skip)**: compatibility symlinks, generated per-tool copies. Archive zone: `docs/archive/` (reader-visible, tracked). Run artifacts workspace: `.specify/docs/` (never mixed into `docs/`).
+- the **Desired-State Baseline** — thin root layer (reserved uppercase special names) + six-type `docs/` taxonomy + notes lifecycle;
+- **Scope Resolution** — 全量 (no arguments) / 单目标 (a target path) / 写作 (a writing commission) / 扇出 (raw material intake) / Bootstrap (managed space absent);
+- the **Reconcile Loop** R0–R6 per [.specify/shared/patterns/reconcile-pattern.md](.specify/shared/patterns/reconcile-pattern.md), with the four mandatory artifacts: 观察快照 (inline), 干跑计划 (`.specify/docs/plans/`), 审计日志 (`.specify/docs/audit/`, written even on 零收敛/无净变化), 残差报告 (inline);
+- the **Tiered Confirmation** gates (safe local writes 自动执行; move/archive/restructure stop-and-confirm via the dry-run plan; formal zone 只归档不删除 into `docs/archive/`; notes deletion only after explicit human confirmation);
+- the **Authoring Flow** and the **notes lifecycle automation** (`docs-utils.py` actions).
 
-### Desired-State Baseline
+**Delegation (mandatory)**: load the `create-docs` skill and execute it with `$ARGUMENTS` as its input. Do NOT inline or re-implement the baseline, scope table, gates, reconcile loop, or authoring rules here — never add new top-level modes to this command; new needs are new inputs to the same engine.
 
-Source precedence (low → high): templates < rules/thresholds < principles < external authoritative facts < **local established conventions** < **this run's user input**.
-
-1. **Thin root layer — uppercase special names (filename IS semantics; ALL-CAPS reserved)**, each ≤ one screen (~60 lines), overflow sinks into `docs/`:
-
-   | Special file | Fixed semantics |
-   |--------------|-----------------|
-   | `README.md` | Root entry; indexes all of `docs/` |
-   | `ARCHITECTURE.md` | One-page summary of `docs/concepts/` + `docs/decisions/` |
-   | `CONTRIBUTING.md` | Contribution entry summarizing `docs/contribute/` |
-   | `CHANGELOG.md` | Self-contained timeline |
-
-   These are **Reserved Filenames（保留文件名）** — like reserved keywords: each entry registers fixed semantics AND a registered location (currently project root), and may appear ONLY there (strict blocking, constitution Principle X). User documents MUST NOT use a reserved name; same-semantics documents elsewhere use lowercase alternatives — **directory indexes are `index.md`, never a nested `README.md`**. The registry is extensible (a new reserved name registers semantics + location). Ordinary documents MUST be lowercase `kebab-case.md`.
-
-2. **Thick `docs/` layer — six formal type directories + notes**: `concepts/` (What & Why) · `tutorials/` (learning path) · `tasks/` (task steps) · `reference/` (exact specs) · `decisions/` (ADR, append-only: NNNN-slug.md + index.md + template; status Proposed/Accepted/Deprecated/Superseded by — annotate, never rewrite history) · `contribute/` (contributor guide) · `notes/` (temporary, lifecycle-constrained, exits).
-
-3. **Notes lifecycle**: every note carries frontmatter `title / created / expires (default created + 60 days) / status (draft|expired|archived) / target / tags`. State machine: draft →(合入 target)→ archived; draft →(超期)→ expired; expired →(续期)→ draft; expired →(人工确认)→ deleted (notes 区是唯一允许确认后真删除的区域). `docs/notes/index.md` states the rules and this frontmatter template:
-
-   ```yaml
-   ---
-   title: "<one-line title>"
-   created: YYYY-MM-DD
-   expires: YYYY-MM-DD    # required; default = created + 60 days
-   status: draft          # draft | expired | archived
-   target: ""             # intended formal destination, required when archived
-   tags: []
-   ---
-   ```
-
-4. **Document lifecycle flow**: idea → ADR Proposed → Accepted → settled into `concepts/`/`reference/` → task/tutorial docs → obsolete decisions annotated Deprecated/Superseded.
-
-### Scope Resolution（作用域判定）
-
-| Input | Scope | Behavior |
-|-------|-------|----------|
-| No arguments | **全量 (full sweep)** | Run the complete loop over the whole managed space |
-| A target path/file | **单目标 (single target)** | Reconcile only that target; converge directionally with any supplementary instruction |
-| A writing commission — requirements to CREATE content that does not exist yet ("写一份 X"、"新增 … 教程/概念/参考文档"), no single target | **文档写作 (authoring)** | Run the Authoring Flow below: parse requirements → place per taxonomy → write compliant documents → validate + index + audit |
-| Raw material without a single target | **扇出 (fan-out intake)** | Decompose → triage per doc type → converge multiple targets; residue goes to `docs/notes/`, never dropped |
-| Managed space absent/empty | **Bootstrap** | Generate the full skeleton (4 root entries + 6 type dirs + `decisions/index.md` + `decisions/template.md` + `notes/index.md`) |
-
-**Authoring vs fan-out discriminator**: the commission asks to *create* content (topic/requirements given, artifact absent) → authoring; the input *is* the content (existing material to file away) → fan-out. Ambiguous → ask per the R0 rule (≤3 questions), never guess.
-
-### Reconcile Loop (thin dispatch — engine semantics live in the pattern doc)
-
-- R0 baseline: load this desired-state section + local conventions + user input. Underdetermined → ask ≤3 questions, never fabricate.
-- R1 observe → **观察快照** (inline): tree status, root-entry sizes, stray files, deterministic findings from `python3 .specify/scripts/python/docs-utils.py --action validate --root .` (reserved-name case/misuse, one-screen threshold, broken links, ADR numbering, notes frontmatter) plus `--action scan` for notes.
-- R2 compute desired state; R3 diff **tolerance band first** — within-band cosmetic diffs are marked "已一致（容忍）" and never enter the plan (anti-churn: a repeat run on an unchanged space converges nothing).
-- R4 **干跑计划** written to `.specify/docs/plans/<ts>-plan.md` with `[x]/[ ]` opt-out rows for every move/archive/restructure item. No disk writes while planning.
-- R5 converge per tiered gates (below); `mkdir → write → mv → audit`; same-name targets never clobbered (suffix `__<ts>`); on any mv failure stop remaining items and ask for review. **审计日志** appended via `python3 .specify/scripts/python/docs-utils.py --action audit --root . --scope <scope> --summary <one-line> [--items-file <json>]` → `.specify/docs/audit/` — write it even when 零收敛/无净变化 ("all dimensions within tolerance").
-- R6 verify (re-run validate; link/symlink integrity) → **残差报告** (inline): converged / archived / tolerated / pending-human-decision.
-
-### Tiered Confirmation（分级确认门禁）
-
-| Action class | Gate |
-|--------------|------|
-| Safe local writes（建目录、建/补管理文件、修链接、更新索引、frontmatter 修复） | **自动执行**; never overwrite same-name content — conflicts get `__<ts>` suffix |
-| Move / archive / restructure（归位搬迁、归档、重命名） | **Stop and confirm** via the dry-run plan (per-item opt-out) |
-| Formal zone removal | Does not exist — **只归档不删除**, into `docs/archive/` |
-| Notes deletion (`--action clean --yes`) | Only after explicit human confirmation, only inside `docs/notes/` |
-
-### Authoring Flow（文档写作流程）
-
-Same engine, authoring semantics: the desired state **gains new documents** from the writing commission; converge = create. Every artifact MUST comply with the Desired-State Baseline above.
-
-- **R0 需求解析**: extract from the commission — topic, audience, key content requirements, and how many documents. Map each requested document to exactly one home: the six formal type dirs, or `notes/` for deliberately temporary drafts. Underdetermined → ask ≤3 questions, never fabricate.
-- **R1 观察**: scan the target dirs — existing docs on the same topic (link anchors, duplication check), the reserved-name registry, same-name conflicts, the next free ADR number.
-- **R2 期望态**: the new compliant document(s) + index updates (the type dir's `index.md`; root `README.md` when a new indexed area appears).
-- **R3 差异**: the topic is already covered → propose a directional update of that existing document (single-target scope) instead of a near-duplicate new file.
-- **R4 写作计划 (inline)**: per document — target path, doc type, title, outline. Pure-write plans may be shown inline; confirm before writing.
-- **R5 写作收敛** (safe-local-writes tier; auto-execute after plan confirmation):
-  - **Naming**: lowercase `kebab-case.md`; never a reserved filename (README/ARCHITECTURE/CONTRIBUTING/CHANGELOG or later registrations); directory indexes are `index.md`, never a nested `README.md`.
-  - **`decisions/`**: `NNNN-slug.md` with the next free number, status `Proposed`, registered in `decisions/index.md`; existing ADRs are never rewritten.
-  - **`notes/`**: mandatory frontmatter (`title / created / expires` — default created + 60 days — `/ status: draft / target / tags`).
-  - **Root entries**: ≤ one screen; overflow sinks into `docs/` and the root entry links to it.
-  - **Style**: follow the local conventions of existing docs in the same directory (language, heading structure, link style) — local conventions outrank templates.
-  - **Never clobber**: same-name conflicts get the `__<ts>` suffix, never an overwrite.
-- **R6 验证 + 收尾**: run `python3 .specify/scripts/python/docs-utils.py --action validate --root .`; append the **审计日志** (`--action audit --scope authoring --summary "<one-line>"`) even when nothing was written; end with the inline **残差报告**: written / updated / tolerated / pending-human-decision.
-
-### Notes Lifecycle Automation
-
-Deterministic, repeatable outside the chat (contract: `.specify/specs/033-docs-command/contracts/docs-utils-cli.md`):
-
-```bash
-python3 .specify/scripts/python/docs-utils.py --action scan --root .           # 分组报告 + invalid 修复建议
-python3 .specify/scripts/python/docs-utils.py --action expire --root .        # 超期 draft → expired（绝不删除）
-python3 .specify/scripts/python/docs-utils.py --action clean --root .         # dry-run 候选清单
-python3 .specify/scripts/python/docs-utils.py --action clean --yes --root .   # 人工确认后的真删除（仅 notes 区）
-python3 .specify/scripts/python/docs-utils.py --action archive-check --root . # 归档完整性（target 必须存在）
-python3 .specify/scripts/python/docs-utils.py --action stats --root .         # 统计
-```
-
-Reference documentation: `docs/reference/commands/docs.md` (projects following the six-type taxonomy; pre-reorg location was `docs/commands/docs.md`).
+Zone orientation (details in the skill): managed = root entry files + `docs/` tree; read-only = source code, `.specify/specs/`, `.specify/memory/`; skip = compatibility symlinks, generated per-tool copies; archive = `docs/archive/`; run workspace = `.specify/docs/` (never mixed into `docs/`).
 
 ## Feedback
 

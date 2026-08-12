@@ -12,7 +12,7 @@ Adjust and optimize an **existing** agent team. `improve-team` is the team-domai
 
 Editing a team's **goal** is a first-class modify that **cascades into structure realignment** — follow `references/goal-editing.md`. For a **`continuous`** team, the operating discipline you tune (maturity level, cadence, budget/circuit-breaker, constraints file, independent verifier, state spine) is defined in `../create-team/references/operating-loops.md`.
 
-Goal anchor (Constitution Principle XIII): this skill is a Better-Harness instrument — improving a team strengthens the **Controlled Execution** and **Reliable Delivery** dimensions (sound orchestration, independent verification, bounded autonomy) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
+Goal anchor (Constitution Principle X): this skill is a Better-Harness instrument — improving a team strengthens the **Controlled Execution** and **Reliable Delivery** dimensions (sound orchestration, independent verification, bounded autonomy) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
 
 ## Inputs
 

@@ -81,41 +81,7 @@ Analyze the conversation history and project context to infer a useful role:
 
 ### 3. Create the template file
 
-Write `skills/create-agent/templates/agent-capacity-<slug>-template.md` following the established structure:
-
-```markdown
----
-name: {{AGENT_NAME}}
-description: {{AGENT_DESCRIPTION}}
-user-invocable: true
-disable-model-invocation: false
-supervisor: true
-capacity-scope: <slug>
-model: auto
-tools: [Read, Grep, Glob, Write, Edit]
-maxTurns: 12
-color: blue
----
-You are a **<Role Name>** for the {{PROJECT_NAME}} project.
-
-## Identity & Responsibilities
-[First-person professional identity and core duties]
-
-## Project Context
-[Project-specific placeholders from approved list]
-
-## Workflow
-[Step-by-step workflow for this role]
-
-## Upstream (Inputs)
-[Who provides inputs and what format]
-
-## Downstream (Outputs)
-[Who consumes outputs and what format]
-
-## Output Format
-[Expected output structure]
-```
+Write `skills/create-agent/templates/agent-capacity-<slug>-template.md` following the skeleton in [`./references/template-authoring.md`](./references/template-authoring.md) — Qoder-compatible frontmatter plus six mandatory body sections (Identity & Responsibilities, Project Context, Workflow, Upstream, Downstream, Output Format).
 
 ### 4. Validate the template
 
@@ -155,7 +121,7 @@ Every agent this skill can produce has one of two lifecycles. Choose the lifecyc
 **Persistent generation rules**:
 
 - Write the generated agent to its layer's canonical store: role Templates to `.specify/agents/templates/<slug>.agent.md`, responsibility-bound Instances to `.specify/agents/instances/<slug>.agent.md` (single source of truth per layer).
-- On initialization the CLI (re)creates a **per-file** symlink for each `*.agent.md` under `.specify/agents/{templates,instances}/` inside every officially supported tool's agent config dir — e.g. `.qoder/agents/<slug>.agent.md → ../../.specify/agents/templates/<slug>.agent.md`, plus `.github/agents`, `.qwen/agents`, `.opencode/agents`, `.hermes/agents`, `.iflow/agents`. On a filename collision the instance wins. Each tool `agents/` is a real directory of per-file links (so tools may add their own overrides beside the framework links); never write tool-specific copies of framework agents.
+- On initialization the CLI (re)creates a **per-file** symlink for each `*.agent.md` under `.specify/agents/{templates,instances}/` inside every officially supported tool's agent config dir — e.g. `.qoder/agents/<slug>.agent.md → ../../.specify/agents/templates/<slug>.agent.md`, plus `.github/agents`, `.opencode/agents`, `.hermes/agents`. On a filename collision the instance wins. Each tool `agents/` is a real directory of per-file links (so tools may add their own overrides beside the framework links); never write tool-specific copies of framework agents.
 - Agents are discovered by globbing `.specify/agents/{templates,instances}/*.agent.md` and reading each file's frontmatter `name`/`description`; no separate registry file is maintained. The `execution/` directory holds no agent definitions and is never globbed for discovery.
 
 **Temporary generation rules**:
@@ -223,16 +189,7 @@ Use this capability (`kind: execution-config`) to author the **execution-layer a
 
 ### Config schema (`configs/<slug>.yaml`)
 
-```yaml
-agent: <slug>              # the Instance/Template this config dispatches (templates/ or instances/)
-mode: external             # native | virtual | external (subagent-definitions.md)
-cli: qodercli              # external only: agent CLI binary
-model: auto                # optional per-dispatch overrides
-reasoning_effort: ""
-context_window: ""
-extra_flags: ""            # appended CLI flags
-log_dir: .specify/agents/execution/logs
-```
+Field-level schema in [`./references/execution-config.md`](./references/execution-config.md) — `agent`, `mode` (native | virtual | external), `cli`, per-dispatch overrides (`model`, `reasoning_effort`, `context_window`, `extra_flags`), and `log_dir`.
 
 ### Rules
 
@@ -252,10 +209,8 @@ Before executing this skill's workflow, identify which AI agent you are:
 | **GitHub Copilot** | Running in VS Code Copilot Chat context; `.github/copilot-instructions.md` loaded; tools include `workspace edit`, `@terminal` |
 | **Qoder CLI** | `.qoder/` directory exists; `AGENTS.md` instructions loaded |
 | **opencode** | `.opencode/` directory exists |
-| **Qwen Code** | `QWEN.md` instructions loaded; `.qwen/` directory exists |
 | **Codex CLI** | `.codex/` directory exists |
 | **Hermes Agent** | `.hermes/` directory exists |
-| **iFlow** | `.iflow/` directory exists |
 
 If you cannot identify your agent, skip Step 2 and proceed with the standard workflow.
 
@@ -267,7 +222,7 @@ If you identified your agent in Step 1, check if a guide exists at:
 ${SKILL_HOME}/references/<agent-slug>-guide.md
 ```
 
-Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `qwen`, `codex`, `hermes`, or `iflow`.
+Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `codex`, `hermes`.
 
 If the guide exists, read it and apply the agent-specific tool mappings, best practices, and pitfall avoidances during execution. If no guide exists for your agent, proceed with the standard workflow.
 

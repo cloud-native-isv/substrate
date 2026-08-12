@@ -58,7 +58,7 @@ This command runs as a **reconcile engine** over the instructions space (see `.s
 
 - **Tolerance band**: a section whose described state still matches project reality is marked consistent and left **byte-for-byte untouched** — never rewrite a section to change nothing, never churn cosmetic wording.
 - **Archive-not-delete**: user-authored content is never dropped; superseded snapshots live on as `.specify/instructions.md-<TIMESTAMP>` backups, and lost content is recovered from them (Action 3).
-- **Scope zones**: managed registry ranges (`AGENTS/SKILLS/TOOLS_REGISTRY`) are owned by their commands — observed but never converged here.
+- **Scope zones**: managed registry ranges (`AGENTS/SKILLS/TOOLS_REGISTRY`, `GIT_WORKFLOW`) are owned by their commands — observed but never converged here.
 
 When `$ARGUMENTS` is empty (full reconcile), apply these rules:
 - **Auto-update sections**: Documentation Map, Spec Kit Framework Map, Tech Stack & Resources, Key Directories, Build/Test commands.
@@ -131,11 +131,12 @@ Fallback behavior:
    - **Documentation Map**: verify each row still points to a file that exists in the repo — run a scripted existence check (loop every Location cell through `test -e`) instead of eyeballing; fix paths that moved and add rows only for genuinely new canonical docs. Also re-verify numeric facts quoted in Key Content cells (e.g. feature counts) against their source files — these drift silently and have survived previous refreshes.
    - **Spec Kit Framework Map**: keep this section a **map (what/where), never a manual (how)**. Verify each Where cell against the actual `.specify/` tree with the same scripted existence check — in particular the layered agent stores `.specify/agents/templates/` (shipped Agent Templates), `.specify/agents/instances/` (project-authored Agent Instances), and `.specify/agents/execution/` (dispatch configs/scripts tracked, `logs/` gitignored) — and drop or fix rows whose paths no longer exist. Add rows only for genuinely new framework locations observed on disk (e.g. `.specify/history/`, `.specify/review/` when present). If prose in this section starts explaining procedures, compress it back to a pointer at the owning document.
    - **Add missing scaffolding**: if the latest `.specify/templates/instructions-template.md` defines a section (or a managed registry range) that is **absent** from the base, insert it at the structurally appropriate place. Never remove a base section merely because the template lacks it (e.g., project-specific sections like `## Recurring Operational Lessons` are kept).
-   - **Preserve managed ranges**: do NOT remove or overwrite the `## Agents`, `## Skills`, and `## Tools` managed ranges; keep the marker comments intact:
+   - **Preserve managed ranges**: do NOT remove or overwrite the `## Agents`, `## Skills`, `## Tools` and `## Git Workflow` managed ranges; keep the marker comments intact:
      - `<!-- AGENTS_REGISTRY_START --> ... <!-- AGENTS_REGISTRY_END -->`
      - `<!-- SKILLS_REGISTRY_START --> ... <!-- SKILLS_REGISTRY_END -->`
      - `<!-- TOOLS_REGISTRY_START --> ... <!-- TOOLS_REGISTRY_END -->`
-     These ranges are reserved for the `agents`, `skills`, and `tools` commands.
+     - `<!-- GIT_WORKFLOW_START --> ... <!-- GIT_WORKFLOW_END -->`
+     These ranges are reserved for the `agents`, `skills`, and `tools` commands, and for the `git-workflow` skill.
    - **Conflict policy**: when your fresh analysis conflicts with clearly user-authored content, keep the user-authored content and update only the stale factual item (mirrors the **Update Strategy** conflict policy).
    - **Incorporate User Input**: if `$ARGUMENTS` provided specific instructions or context, integrate them into the relevant sections.
    - **No wholesale replacement**: modify only what mismatches; everything else stays byte-for-byte.

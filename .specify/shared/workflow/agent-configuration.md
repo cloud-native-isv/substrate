@@ -12,10 +12,8 @@ Before executing workflows that require agent-specific file operations, identify
 | **GitHub Copilot** | Running in VS Code Copilot Chat context; `.github/copilot-instructions.md` loaded; tools include `workspace edit`, `@terminal` |
 | **Qoder CLI** | `.qoder/` directory exists; `AGENTS.md` instructions loaded |
 | **opencode** | `.opencode/` directory exists |
-| **Qwen Code** | `QWEN.md` instructions loaded; `.qwen/` directory exists |
 | **Codex CLI** | `.codex/` directory exists |
 | **Hermes Agent** | `.hermes/` directory exists |
-| **iFlow** | `.iflow/` directory exists |
 
 If you cannot identify your agent, skip agent-specific guidance and proceed with the standard workflow.
 

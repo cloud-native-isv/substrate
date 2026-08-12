@@ -1,0 +1,22 @@
+{{- /* Title for a frontmatter-less page: this project's Markdown is kept pure (no
+     frontmatter), so .Title/.LinkTitle are empty and nav labels, section cards and
+     page lists would render blank. Fall back to the document's own first heading,
+     then to a humanized file/section name. Call with a Page as context. */ -}}
+{{- $title := .Title -}}
+{{- if not $title -}}
+  {{- with .Fragments -}}
+    {{- with .Headings -}}
+      {{- /* Fragment headings arrive HTML-escaped; undo it so the caller escapes once. */ -}}
+      {{- $title = (index . 0).Title | htmlUnescape -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if not $title -}}
+  {{- with .File -}}
+    {{- $title = .ContentBaseName | humanize | title -}}
+  {{- end -}}
+{{- end -}}
+{{- if not $title -}}
+  {{- $title = .Section | humanize | title -}}
+{{- end -}}
+{{- $title -}}

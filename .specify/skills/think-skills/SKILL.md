@@ -73,45 +73,11 @@ Verify the likely behavior of another Skill, prompt, workflow, or instruction se
 
 ## Output Template
 
-```markdown
-## Simulation Scope
-- Target:
-- Scenario:
-- Forbidden real actions:
-
-## Initial State / Rules / Assumptions
-- Initial State:
-- Rules:
-- Assumptions:
-- Unknowns:
-
-## Mental Trace
-| Step | Trigger / Instruction | Mental Action | State Delta | Consistency Check | Risk / Uncertainty |
-|---|---|---|---|---|---|
-
-## Edge Cases
-1. Happy path:
-2. Missing or conflicting input:
-3. Tool/action failure or forbidden side effect:
-
-## Self-Audit
-- Real execution claims:
-- Skipped logic:
-- Hidden assumptions:
-- Needs real validation:
-- Deterministic vs Judgmental boundary:
-
-## Verdict
-- Result:
-- Likely behavior:
-- Failure modes:
-- Minimal patches:
-- Logic extraction opportunities:
-```
+Emit the full report skeleton from [`./references/prompt-templates.md`](./references/prompt-templates.md#simulation-report-output-template) — six mandatory sections: Simulation Scope, Initial State / Rules / Assumptions, Mental Trace (table), Edge Cases, Self-Audit, Verdict. Every heading is required; Self-Audit and Verdict are what make the simulation auditable rather than a guess.
 
 ## Resources
 
-- Prompt fragments and reusable templates: `./references/prompt-templates.md`
+- Prompt fragments, reusable templates, and the report output template: `./references/prompt-templates.md`
 
 ## Resource ID
 - Canonical ID: `<SKILL:.specify/skills/think-skills/SKILL.md>`

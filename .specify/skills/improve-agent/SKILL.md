@@ -10,7 +10,7 @@ skill_id: "<SKILL:.specify/skills/improve-agent/SKILL.md>"
 
 Improve **an existing single-agent artifact** based on evidence from real usage — user feedback, failure cases, behavioral drift, or observed inefficiencies. Targets include role templates, the shared supervision snippet, generated agents, and execution configs. The result is a targeted update that fixes the identified issues while preserving the artifact's established structure. To adjust or optimize a multi-agent **team** (stages, orchestration, thresholds), use `improve-team` via `/speckit.team`.
 
-Goal anchor (Constitution Principle XIII): this skill is a Better-Harness instrument — improving an agent artifact strengthens the **Task Understanding** and **Controlled Execution** dimensions (clearer role intent, more reliable guided behavior) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
+Goal anchor (Constitution Principle X): this skill is a Better-Harness instrument — improving an agent artifact strengthens the **Task Understanding** and **Controlled Execution** dimensions (clearer role intent, more reliable guided behavior) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
 
 ## Input Contract
 
@@ -114,10 +114,8 @@ Before executing this skill's workflow, identify which AI agent you are:
 | **GitHub Copilot** | Running in VS Code Copilot Chat context; `.github/copilot-instructions.md` loaded; tools include `workspace edit`, `@terminal` |
 | **Qoder CLI** | `.qoder/` directory exists; `AGENTS.md` instructions loaded |
 | **opencode** | `.opencode/` directory exists |
-| **Qwen Code** | `QWEN.md` instructions loaded; `.qwen/` directory exists |
 | **Codex CLI** | `.codex/` directory exists |
 | **Hermes Agent** | `.hermes/` directory exists |
-| **iFlow** | `.iflow/` directory exists |
 
 If you cannot identify your agent, skip Step 2 and proceed with the standard workflow.
 
@@ -129,7 +127,7 @@ If you identified your agent in Step 1, check if a guide exists at:
 ${SKILL_HOME}/references/<agent-slug>-guide.md
 ```
 
-Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `qwen`, `codex`, `hermes`, or `iflow`.
+Where `<agent-slug>` is: `claude-code`, `copilot`, `qoder`, `opencode`, `codex`, `hermes`.
 
 If the guide exists, read it and apply the agent-specific tool mappings, best practices, and pitfall avoidances during execution. If no guide exists for your agent, proceed with the standard workflow.
 

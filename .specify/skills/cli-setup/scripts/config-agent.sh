@@ -33,14 +33,6 @@ CONFIG_AGENT_TUPLES=(
   "codex|deepseek-v4-flash|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   "codex|glm-5.2|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   "codex|kimi-k2.7-code|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  # --- qwen (OpenAI protocol) ---
-  "qwen|qwen3-coder-plus|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "qwen|qwen3.7-max|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "qwen|qwen3.7-plus|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "qwen|deepseek-v4-pro|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "qwen|deepseek-v4-flash|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "qwen|glm-5.2|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "qwen|kimi-k2.7-code|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   # --- qoder (OpenAI protocol) ---
   "qoder|qwen3-coder-plus|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   "qoder|qwen3.7-max|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
@@ -49,14 +41,6 @@ CONFIG_AGENT_TUPLES=(
   "qoder|deepseek-v4-flash|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   "qoder|glm-5.2|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   "qoder|kimi-k2.7-code|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  # --- iflow (OpenAI protocol) ---
-  "iflow|qwen3-coder-plus|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "iflow|qwen3.7-max|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "iflow|qwen3.7-plus|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "iflow|deepseek-v4-pro|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "iflow|deepseek-v4-flash|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "iflow|glm-5.2|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
-  "iflow|kimi-k2.7-code|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   # --- opencode (OpenAI protocol) ---
   "opencode|qwen3-coder-plus|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
   "opencode|qwen3.7-max|bailian|ALIYUN_OPENAI_COMPATIBLE_URL|ALIYUN_BAILIAN_API_KEY|openai"
@@ -69,17 +53,15 @@ CONFIG_AGENT_TUPLES=(
 
 # Tool CLI binary names
 declare -A CONFIG_AGENT_CLI=(
-  [claude]="claude" [codex]="codex" [qwen]="qwen"
-  [qoder]="qoder" [iflow]="iflow" [opencode]="opencode"
+  [claude]="claude" [codex]="codex"
+  [qoder]="qoder" [opencode]="opencode"
 )
 
 # Tool install commands
 declare -A CONFIG_AGENT_INSTALL_CMD=(
   [claude]="npm install -g @anthropic-ai/claude-code"
   [codex]="npm install -g @openai/codex"
-  [qwen]="npm install -g @qwen-code/qwen-code"
   [qoder]="curl -fsSL https://qoder.com/install | bash"
-  [iflow]="npm install -g @iflow-ai/iflow-cli"
   [opencode]="brew install opencode 2>/dev/null || go install github.com/sst/opencode@latest"
 )
 
@@ -93,7 +75,7 @@ declare -A CONFIG_AGENT_INSTALL_CMD=(
 # ============================================================
 
 # In-scope tools for the unified env-var flow.
-CONFIG_AGENT_ENV_TOOLS=(claude codex qwen qoder iflow opencode)
+CONFIG_AGENT_ENV_TOOLS=(claude codex qoder opencode)
 
 # Profile registry: name|protocol|url_source|config_path|format
 #   protocol   : anthropic | openai
@@ -103,9 +85,7 @@ CONFIG_AGENT_ENV_TOOLS=(claude codex qwen qoder iflow opencode)
 CONFIG_AGENT_ENV_PROFILES=(
   "claude|anthropic|anthropic_base_url|.claude/settings.json|json"
   "codex|openai|base_url|.codex/config.toml|toml"
-  "qwen|openai|base_url|.qwen/.env|dotenv"
   "qoder|openai|base_url|.qoder/config.json|json"
-  "iflow|openai|base_url|.iflow/settings.json|json"
   "opencode|openai|base_url|.config/opencode/config.json|json"
 )
 
@@ -350,7 +330,7 @@ config_agent_install() {
   local tool="${1:-}"
   if [[ -z "${tool}" ]]; then
     _config_agent_log error "Usage: config_agent_install <tool>"
-    _config_agent_log info "Tools: claude, codex, qwen, qoder, iflow, opencode"
+    _config_agent_log info "Tools: claude, codex, qoder, opencode"
     return 1
   fi
 
@@ -427,9 +407,7 @@ except: pass
   case "${tool}" in
     claude)  _config_agent_write_claude "${model}" "${url_val}" "${key_val}" ;;
     codex)   _config_agent_write_codex "${model}" "${provider}" "${url_val}" "${key_val}" ;;
-    qwen)    _config_agent_write_qwen "${model}" "${url_val}" "${key_val}" ;;
     qoder)   _config_agent_write_qoder "${model}" "${url_val}" "${key_val}" ;;
-    iflow)   _config_agent_write_iflow "${model}" "${url_val}" "${key_val}" ;;
     opencode) _config_agent_write_opencode "${model}" "${provider}" "${url_val}" "${key_val}" ;;
   esac
 
@@ -525,12 +503,8 @@ print('yes' if '${tool}' in d else 'no')
     claude|yolo)   claude --dangerously-skip-permissions "$@" || claude --permission-mode bypassPermissions "$@" ;;
     codex|dev)     codex --approval-mode suggest "$@" ;;
     codex|yolo)    codex --approval-mode full-auto "$@" ;;
-    qwen|dev)      qwen --permission-mode acceptEdits "$@" ;;
-    qwen|yolo)     qwen --dangerously-skip-permissions "$@" || qwen --permission-mode bypassPermissions "$@" ;;
     qoder|dev)    qoder --permission-mode acceptEdits "$@" ;;
     qoder|yolo)    qoder --dangerously-skip-permissions "$@" || qoder --permission-mode bypassPermissions "$@" ;;
-    iflow|dev)     iflow --permission-mode acceptEdits "$@" ;;
-    iflow|yolo)    iflow --dangerously-skip-permissions "$@" || iflow --permission-mode bypassPermissions "$@" ;;
     opencode|dev)  opencode --auto-approve "$@" ;;
     opencode|yolo) opencode --yolo "$@" || opencode --auto-approve "$@" ;;
     *)
@@ -580,30 +554,10 @@ _config_agent_write_codex() {
   return 0
 }
 
-_config_agent_write_qwen() {
-  local model="$1" url="$2" key="$3"
-  local path="${HOME}/.qwen/.env"
-  _ca_ensure_dir "${path}"
-  _ca_dotenv_upsert "${path}" OPENAI_API_KEY "${key}" || return 1
-  _ca_dotenv_upsert "${path}" OPENAI_BASE_URL "${url}" || return 1
-  _ca_dotenv_upsert "${path}" OPENAI_MODEL "${model}" || return 1
-  chmod 600 "${path}" 2>/dev/null || true
-  export OPENAI_API_KEY="${key}" OPENAI_BASE_URL="${url}" OPENAI_MODEL="${model}"
-  return 0
-}
-
 _config_agent_write_qoder() {
   local model="$1" url="$2" key="$3"
   local path="${HOME}/.qoder/config.json"
   _CA_MERGE_JSON="$(CA_MODEL="${model}" CA_URL="${url}" CA_KEY="${key}" python3 -c 'import json, os; print(json.dumps({"provider": "openai", "model": os.environ["CA_MODEL"], "apiKey": os.environ["CA_KEY"], "baseURL": os.environ["CA_URL"]}))')" _ca_json_merge "${path}" || return 1
-  chmod 600 "${path}" 2>/dev/null || true
-  return 0
-}
-
-_config_agent_write_iflow() {
-  local model="$1" url="$2" key="$3"
-  local path="${HOME}/.iflow/settings.json"
-  _CA_MERGE_JSON="$(CA_MODEL="${model}" CA_URL="${url}" CA_KEY="${key}" python3 -c 'import json, os; print(json.dumps({"selectedAuthType": "openai-compatible", "apiKey": os.environ["CA_KEY"], "baseUrl": os.environ["CA_URL"], "modelName": os.environ["CA_MODEL"]}))')" _ca_json_merge "${path}" || return 1
   chmod 600 "${path}" 2>/dev/null || true
   return 0
 }
@@ -770,25 +724,11 @@ config_agent_env_apply() {
           _config_agent_log error "$(printf '%-8s failed      (write error)' codex)"; failed=1
         fi
         ;;
-      qwen)
-        if _config_agent_write_qwen "${model}" "${url}" "${key}"; then
-          _config_agent_log ok "$(printf '%-8s configured  (~/.qwen/.env)' qwen)"
-        else
-          _config_agent_log error "$(printf '%-8s failed      (write error)' qwen)"; failed=1
-        fi
-        ;;
       qoder)
         if _config_agent_write_qoder "${model}" "${url}" "${key}"; then
           _config_agent_log ok "$(printf '%-8s configured  (~/.qoder/config.json)' qoder)"
         else
           _config_agent_log error "$(printf '%-8s failed      (write error)' qoder)"; failed=1
-        fi
-        ;;
-      iflow)
-        if _config_agent_write_iflow "${model}" "${url}" "${key}"; then
-          _config_agent_log ok "$(printf '%-8s configured  (~/.iflow/settings.json)' iflow)"
-        else
-          _config_agent_log error "$(printf '%-8s failed      (write error)' iflow)"; failed=1
         fi
         ;;
       opencode)

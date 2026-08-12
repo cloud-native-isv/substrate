@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 # render-mermaid.sh — Render Mermaid to high-quality SVG and PNG
 #
-# Two rendering backends (auto-selected):
+# Two rendering backends (REMOTE-FIRST policy):
 #   • server — a mermaid.ink-compatible render server (MERMAID_SERVER, default
 #              https://mermaid.ink). The source plus a default config is
 #              zlib-compressed + base64-encoded (the official "pako:" state
 #              protocol) and fetched from /svg/{enc} (SVG) and /img/{enc} (PNG).
-#              Preferred when reachable.
+#              THE DEFAULT — no local tooling needed.
 #   • local  — mermaid-cli (`mmdc`, @mermaid-js/mermaid-cli) via npx; needs a
 #              Chrome/Chromium for puppeteer (set PUPPETEER_EXECUTABLE_PATH if
-#              your Chrome is in a non-standard location). Works fully offline.
-# Backend selection: MERMAID_BACKEND=server|local|auto (default auto).
-#   auto → probe the server; on failure fall back to local mmdc if present.
+#              your Chrome is in a non-standard location). ONLY with explicit
+#              user consent (remote-first policy): when the server is
+#              unreachable the script asks the user (TTY) or exits with
+#              instructions for the agent to ask the user — it NEVER falls back
+#              to local silently.
+# Backend selection: MERMAID_BACKEND=server|local|auto (default server).
+#   server → remote only; local only after user consent (prompt or error).
+#   auto   → probe server; local still requires user consent.
+#   local  → explicit opt-in (user already consented).
 #
 # Style is NOT injected: Mermaid styles are authored in-source via %%{init}%%
 # directives / classDef / themeVariables (unlike PlantUML skinparams). The
@@ -23,7 +29,7 @@
 set -euo pipefail
 
 MERMAID_SERVER="${MERMAID_SERVER:-https://mermaid.ink}"
-MERMAID_BACKEND="${MERMAID_BACKEND:-auto}"   # server | local | auto
+MERMAID_BACKEND="${MERMAID_BACKEND:-server}"   # server | local | auto (remote-first)
 MERMAID_THEME="${MERMAID_THEME:-default}"    # default | neutral | dark | forest | base
 MERMAID_FONT="${MERMAID_FONT:-Noto Sans CJK SC, PingFang SC, Microsoft YaHei, sans-serif}"
 SVG_SCALE=3        # mmdc scale for SVG (local backend only)
@@ -82,26 +88,47 @@ resolve_mmdc() {
   return 1
 }
 
+# Remote-first consent gate for local rendering. Returns 0 only when the user
+# explicitly agrees to fall back to mermaid-cli. Interactive when stdin is a
+# TTY; otherwise (agent-driven Bash) exits with instructions so the agent asks
+# the user — local rendering is NEVER chosen silently.
+local_consent_gate() {
+  local mmdc_cmd="${1:-}"
+  if [[ -z "$mmdc_cmd" ]]; then
+    warn "本地渲染需要 mermaid-cli（mmdc），但未找到（npx 不可用）。"
+    warn "请先询问用户是否接受本地渲染；获确认并安装 @mermaid-js/mermaid-cli 后再以 MERMAID_BACKEND=local 重试。"
+    return 1
+  fi
+  if [[ -t 0 ]]; then
+    local ans
+    read -r -p "[render-mermaid] 远端渲染不可用，是否改用本地渲染（mermaid-cli + Chrome）？[y/N] " ans
+    [[ "$ans" =~ ^[yY] ]]
+  else
+    warn "远端渲染不可用（${MERMAID_SERVER} 不可达）。"
+    warn "本地渲染需用户确认：请先询问用户是否接受本地渲染（需要 @mermaid-js/mermaid-cli + Chrome）；"
+    warn "获确认后以 MERMAID_BACKEND=local 重新执行。"
+    return 1
+  fi
+}
+
 # Decide which backend to use. Echoes "server <url>" or "local <cmd>".
-# Exits when neither is usable.
+# Remote-first: server is tried first; local is used ONLY after user consent.
+# Exits when neither a reachable server nor a consented local tool is available.
 select_backend() {
   local mmdc_cmd; mmdc_cmd="$(resolve_mmdc || true)"
   case "$MERMAID_BACKEND" in
-    server) echo "server $MERMAID_SERVER" ;;
     local)
       [[ -n "$mmdc_cmd" ]] || { warn "MERMAID_BACKEND=local but no mmdc/npx found"; exit 1; }
       echo "local $mmdc_cmd" ;;
-    auto|*)
+    server|auto|*)
       if server_reachable "$MERMAID_SERVER"; then
         echo "server $MERMAID_SERVER"
         return
       fi
-      if [[ -n "$mmdc_cmd" ]]; then
-        warn "Render server unreachable (${MERMAID_SERVER}); using local mermaid-cli"
+      warn "Render server unreachable (${MERMAID_SERVER})."
+      if local_consent_gate "$mmdc_cmd"; then
         echo "local $mmdc_cmd"
       else
-        warn "Render server unreachable (${MERMAID_SERVER}) and no mmdc/npx found."
-        warn "Set MERMAID_SERVER to a reachable mermaid.ink-compatible server, or install @mermaid-js/mermaid-cli."
         exit 1
       fi ;;
   esac
@@ -219,6 +246,12 @@ main() {
   echo "SVG:    ${svg} (${svg_vb})"
   echo "PNG:    ${png} (${png_dim})"
   echo "Backend: ${BACKEND}"
+  # Dense-diagram tip: a narrow PNG (e.g. <1200px wide) compresses borders/text.
+  # Zoom does NOT help (canvas scales with it) — raise fontSize or embed SVG wide.
+  local png_w="${png_dim%% *}"
+  if [[ "$png_w" =~ ^[0-9]+$ ]] && (( png_w < 1200 )); then
+    echo "NOTE: PNG 仅 ${png_w}px 宽 — 文字密集时 HTML 请改引 SVG 并给足显示宽度，或上调 fontSize 重渲（放大 zoom 无效；有效字号量测见 howto/12 §2）。"
+  fi
   [[ -f "$png" ]] || echo "NOTE: PNG not produced — embed the SVG for this diagram."
 }
 

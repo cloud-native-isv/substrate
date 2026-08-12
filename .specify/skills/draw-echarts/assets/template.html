@@ -4,7 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ECharts Visualization</title>
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <!-- ECharts version PINNED to 5.6.0 (never use a floating echarts@5 tag).
+       Offline-first loader: the vendored local copy is the primary source, the
+       pinned CDN is only a fallback. The local copy MUST actually exist —
+       fetch it with: bash scripts/vendor-echarts.sh <deliverable-dir>
+       (downloads https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js
+       into vendor/echarts.min.js and verifies it).
+       Never ship a loader that references vendor/ without the file, and never
+       use document.write for this loader (deprecated/blocking/CSP-hostile).
+       Where practical, add integrity/crossorigin (SRI) attributes. -->
+  <script>
+    (function () {
+      var s = document.createElement('script');
+      s.src = 'vendor/echarts.min.js';
+      s.async = false;
+      s.onerror = function () {
+        var c = document.createElement('script');
+        c.src = 'https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js';
+        c.async = false;
+        document.head.appendChild(c);
+      };
+      document.head.appendChild(s);
+    })();
+  </script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {

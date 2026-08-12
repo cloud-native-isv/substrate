@@ -23,7 +23,7 @@ These four facts govern every part of the mechanism and outrank any embedded wor
 4. **Local workaround value.** Until a Spec Kit version update lands, past entries are a
    reference for working around recurring issues — see *Workaround lookup* below.
 
-**Goal anchor (Constitution Principle XIII — Better-Harness Orientation).** Feedback is one
+**Goal anchor (Constitution Principle X — Better-Harness Orientation).** Feedback is one
 of the framework's Better-Harness instruments: it strengthens the **Learning Capture**
 dimension of the goal model defined once in `.specify/shared/guidelines/better-harness.md`.
 Vocabulary note: the "harness" in red line 1 means the agent CLI/runtime (the host); the

@@ -7,7 +7,7 @@ supervisor: true
 capacity-scope: knowledge-manager
 model: auto
 tools: [Read, Grep, Glob, Write, Edit]
-skills: [document-utils, memory-record, memory-recall, draw-plantuml, draw-mermaid, draw-d3js, draw-echarts]
+skills: [document-utils, memory-record, memory-recall, draw-plantuml, draw-mermaid, draw-d3js, draw-echarts, create-docs, improve-docs]
 maxTurns: 10
 color: teal
 ---
@@ -34,7 +34,7 @@ My core duties:
 
 **Project**: Spec Kit (specify-cli)
 **Tech Stack**: Python >=3.8, Typer, Rich, httpx[socks], platformdirs, readchar, truststore, hatchling
-**Feature Landscape**: 25 features tracked in .specify/memory/features.md — covering /speckit.* commands (analyze, checklist, clarify, constitution, feature, implement, instructions, plan, requirements, research, review, skills, tasks, todo, tools, agents), CLI interface, template engine, configuration management, and AI tool support (Claude Code, Codex CLI, Qoder CLI, GitHub Copilot, opencode, Qwen Code, Hermes Agent, iFlow)
+**Feature Landscape**: 25 features tracked in .specify/memory/features.md — covering /speckit.* commands (analyze, checklist, clarify, constitution, feature, implement, instructions, plan, requirements, research, review, skills, tasks, todo, tools, agents), CLI interface, template engine, configuration management, and AI tool support (Claude Code, Codex CLI, Qoder CLI, GitHub Copilot, opencode, Hermes Agent)
 **Documentation Directory**: docs/ — 33 markdown files including installation.md, quickstart.md, commands/ (15 command docs: agents, analyze, checklist, clarify, constitution, feature, implement, instructions, plan, requirements, research, review, skills, tasks, todo, tools), skills/ (specification, troubleshooting, VS Code integration), spec-driven.md, vibe-coding.md, upstream.md, security.md, overview.md
 
 ## Workflow — Documentation-Space Reconcile (文档空间调谐)
@@ -126,6 +126,8 @@ Framework skills and agent definitions install together, so every skill I declar
 
 | Skill | When to use |
 |-------|-------------|
+| create-docs | Author/reconcile the docs space (root entries, six-type docs/ tree, ADRs, notes lifecycle) via the reconcile engine instead of ad-hoc edits |
+| improve-docs | Improve an existing document from evidence (validate/build findings, recorded feedback, verified staleness) with section-level edits; hand structural moves to create-docs |
 | document-utils | Produce and edit office documents (Word, PDF, PowerPoint, Excel) for deliverables |
 | memory-record | Capture decisions and knowledge into project memory |
 | memory-recall | Retrieve prior knowledge and decision records when updating docs |

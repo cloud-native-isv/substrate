@@ -1,10 +1,43 @@
 {
   "store": "feedback",
-  "updated": "2026-08-07T06:51:03Z",
+  "updated": "2026-08-12T03:21:36Z",
   "threshold": 10,
-  "count_since_submission": 4,
+  "count_since_submission": 7,
   "submitted_at": null,
   "entries": [
+    {
+      "id": "20260812T032136Z-speckit-instructions",
+      "file": "20260812T032136Z-speckit-instructions.md",
+      "unit_id": "/speckit.instructions",
+      "unit_type": "command",
+      "run_id": "full-reconcile-20260812T032058Z",
+      "feature": "",
+      "partial": false,
+      "created": "2026-08-12T03:21:36Z",
+      "summary": "全量 reconcile：setup 脚本非破坏性确认（备份与 base 逐字节相同），7 处收敛全部是事实级修正（三阶段定位、+5 文档地图行、去掉外机绝对路径、补 cmd/e2bgw、Testing rules 对齐新原则 VI、去掉错误的 Principle XII 引用、Framework Map 三处路径漂移），补入模板新增的 ## Git Workflow 段；其余 12 个段落经核对"
+    },
+    {
+      "id": "20260811T182837Z-skill-create-docs",
+      "file": "20260811T182837Z-skill-create-docs.md",
+      "unit_id": "skill:create-docs",
+      "unit_type": "skill",
+      "run_id": "presentation-20260811T181311Z",
+      "feature": "",
+      "partial": false,
+      "created": "2026-08-11T18:28:37Z",
+      "summary": "呈现层收敛：scaffold 9 个文件后 hugo 0.141.0 建站成功（29 页 / 74 静态文件 / rc=0 / 零 warning），mount-not-copy、index.md 原名、零churn、kept 用户改动等不变量全部保持。但首次构建产物存在 3 类真实发布缺陷，均在构建成功后靠人工全站爬链才发现：根级 10 篇 upstream md 未挂载（含死链）、无 fron"
+    },
+    {
+      "id": "20260811T123040Z-speckit-docs",
+      "file": "20260811T123040Z-speckit-docs.md",
+      "unit_id": "/speckit.docs",
+      "unit_type": "command",
+      "run_id": "fanout-20260811T122511Z",
+      "feature": "",
+      "partial": false,
+      "created": "2026-08-11T12:30:40Z",
+      "summary": "扇出 intake：将 collected-materials（24 篇，18 内网原文）蒸馏为 2 篇仅公开来源的正式文档（e2b-api-surface、sandbox-landscape），并把含内网内容的原始树就地重命名为 gitignored 的 __collected-materials-intake（解除 git 跟踪）。核心风险是本仓有公开 remote，内网原文照录入库=公开泄漏"
+    },
     {
       "id": "20260807T065103Z-skill-draw-plantuml",
       "file": "20260807T065103Z-skill-draw-plantuml.md",

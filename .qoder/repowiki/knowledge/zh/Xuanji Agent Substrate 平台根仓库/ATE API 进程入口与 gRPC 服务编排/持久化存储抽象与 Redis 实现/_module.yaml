@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/c1a1e973-28a5-43ac-841a-47f82d039ac1
-title: 持久化存储抽象与 Redis 实现
-scope:
-    - cmd/ateapi/internal/store/
-source_files: []
-depends_on: []
-related_to:
-    - path: 28fdf37f-91d1-484e-9a1f-0d79dae76ddf/272e30ee-7cc2-4732-bd38-f5595531bab3

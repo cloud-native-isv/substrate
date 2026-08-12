@@ -65,6 +65,59 @@ C4Component
 - 层内节点 ≤6，超出拆子图；
 - 弱化非关键边（灰虚线），突出核心调用链。
 
+### 6.1 子系统配色 + 图例（防止全图同色）
+
+多子系统/多分层时，**每个子系统一个 `classDef` 色相族**，并在图内用 `legend` 指令给出图例——否则全图只剩默认蓝一片，读者无法靠颜色区分语义族：
+
+```mermaid
+flowchart TD
+  subgraph 认证域
+    A[认证服务]
+  end
+  subgraph 业务域
+    B[订单服务]
+  end
+  A --> B
+  classDef auth fill:#fde8e8,stroke:#b3261e,color:#7a1a12
+  classDef biz fill:#e8f0fe,stroke:#1a73e8,color:#174ea6
+  A:::auth
+  B:::biz
+  legend
+    认证域:::auth
+    业务域:::biz
+  end
+```
+
+- 颜色是语义通道：同子系统同色相族、跨子系统不同色相（diagram-principles §2.3）；配色后再加图例说明「色 → 子系统」映射；
+- 图例条目与 classDef 同义（同色块 + 同名字），跨图集复制同一段 classDef/legend 配置保持同义。
+
+### 6.2 中心辐射布局（多子系统防交叉）
+
+多个子系统**不要单列纵向堆叠**——堆叠后「枢纽 → 其余子系统」的跨层连线必然交叉密集。改用**中心辐射（hub-and-spoke）**：
+
+- 枢纽子系统放**中间层**，其余子系统分列其上/下（或左右），subgraph 内可 `direction LR` 翻转；
+- 跨层边**一律经枢纽汇聚**（N+M 条而非 N×M 条全互联），交叉随之消失；
+- 仍交叉 → 重排声明顺序（先声明 hub 再声明周边）或按架构接缝拆图集（diagram-principles §4.2）。
+
+```mermaid
+flowchart TD
+  subgraph 上层[接入域]
+    direction LR
+    G[网关]
+  end
+  subgraph 中心[身份体系]
+    H[认证中心]
+  end
+  subgraph 下层[业务域]
+    direction LR
+    S1[服务1]
+    S2[服务2]
+  end
+  G --> H
+  H --> S1
+  H --> S2
+```
+
 ## 7. 常见陷阱
 
 - 把数据库画成组件节点而不是存储形状（`[( )]`）；

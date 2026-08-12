@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973/392c3f35-58de-43d8-8089-6c891ec6f62d/efe08c1c-6e37-499e-8735-95c76b789e28
-title: 开发工具与辅助脚本集
-scope:
-    - tools/
-    - hack/
-source_files: []
-depends_on: []
-related_to: []

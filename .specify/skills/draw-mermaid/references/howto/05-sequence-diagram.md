@@ -93,14 +93,21 @@ sequenceDiagram
 ## 7. 配置
 
 ```mermaid
-%%{init: {"sequence": {"mirrorActors": false, "showSequenceNumbers": true, "actorMargin": 60, "messageMargin": 40}}}%%
+%%{init: {"sequence": {
+  "mirrorActors": false, "showSequenceNumbers": true,
+  "actorMargin": 60, "messageMargin": 40,
+  "actorFontSize": 16, "actorFontWeight": 600,
+  "messageFontSize": 14, "noteFontSize": 14
+}}}%%
 sequenceDiagram
   participant A as 客户端
   A->>B: 请求
 ```
 
 - `mirrorActors: false` 参与者只显示在顶部（节省版面）；
-- `showSequenceNumbers` 显示消息编号。
+- `showSequenceNumbers` 显示消息编号；
+- **字号用 sequence 配置统一**：`actorFontSize` / `messageFontSize` / `noteFontSize`（层级：参与者 > 消息 = 注释）；参与者多（≥8）或渲染偏小时整体上调一档，**不要**用放大 zoom——画布同比放大，有效字号不变；
+- 全局粗细：`actorFontWeight` / `messageFontWeight` / `noteFontWeight`（mermaid 不支持单条消息加粗，见 §8.2）。
 
 ## 8. 布局与美观
 
@@ -108,6 +115,26 @@ sequenceDiagram
 - 消息标签 ≤10 字符（CJK），细节进 Note；
 - 消息顺序自上而下即时间顺序——声明顺序即布局顺序；
 - 生命周期长的场景：把无关消息放进 `opt` 或拆图。
+
+### 8.1 阶段 Note 样式统一
+
+多阶段场景的阶段标注必须**同一格式**，否则视觉凌乱：
+
+- 统一前缀 + 位置：`Note over X: [阶段 1] 初始化`——全图要么全 `over`、要么全 `right of`，不要混用；
+- 底色统一：`themeVariables.noteBkgColor` / `noteTextColor` 全图一套（见 style.md §1 模板），不得每段换色；
+- 阶段标签写清序号与含义（`[阶段 1] 初始化`），不要只写「阶段 1」。
+
+### 8.2 关键消息强调
+
+Mermaid 时序图**不支持单条消息加粗/改色**（字号粗细是全局配置）。强调关键消息用结构手段：
+
+- `critical` 片段包裹必须成功的调用（`critical 必须成功`）；
+- `autonumber` 编号 + HTML 文字点名（「图 N 中消息 7–9 为恢复流程」）；
+- 分支标签写清条件（`alt 池未饱和` / `else 池饱和`）——语义进标签，不靠粗细。
+
+### 8.3 行为完整性自检
+
+上下文摘要里**明确写到的行为**（重试/退避/超时/排队/预算/可选中止）必须逐项体现为片段：`loop`（重试 ≤N 次）、`opt`（可选/超预算才走）、`alt`（饱和分支）、`critical`（必须成功）。交付前对照摘要逐项核对——评审最常见的「缺分支」由此漏掉。
 
 ## 9. 常见陷阱
 

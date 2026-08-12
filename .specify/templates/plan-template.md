@@ -134,7 +134,7 @@ reference the real directories captured above. Explicitly note any new top-level
 
 | Source file (edited) | Mirror / generated copies (must land identically) | Verify |
 |----------------------|---------------------------------------------------|--------|
-| [e.g. `templates/commands/x.md`] | [e.g. `.specify/templates/commands/x.md`; `.claude/commands/speckit.x.md`; `.github/prompts/speckit.x.prompt.md`; `.qoder/commands/speckit.x.md`; `.qwen/commands/speckit.x.toml`; `.opencode/command/speckit.x.md`] | [e.g. `diff -q` for mirrors; regenerated copies contain the edit] |
+| [e.g. `templates/commands/x.md`] | [e.g. `.specify/templates/commands/x.md`; `.claude/commands/speckit.x.md`; `.github/prompts/speckit.x.prompt.md`; `.qoder/commands/speckit.x.md`; `.opencode/command/speckit.x.md`] | [e.g. `diff -q` for mirrors; regenerated copies contain the edit] |
 
 ## Complexity Tracking
 

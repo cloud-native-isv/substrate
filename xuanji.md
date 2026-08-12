@@ -29,6 +29,8 @@
 | `manifests/xuanji/wasm-example.yaml` | wasm 类示例：SandboxConfig(wasm-default, python-wasm 资产) + WorkerPool(sandboxClass=wasm, 外部 ateom-wasmd 镜像) + ActorTemplate(python-interpreter) |
 | `contrib/e2b-e2e/` | E2B 协议验收资产（自 sandbox 仓 `scripts/` 原样迁入）：官方 SDK e2e、files e2e、smolagents、MCP server、TLS relay 等；作为 `cmd/e2bgw` 的验收基线，M3 改指新网关 |
 | `cmd/e2bgw/` | E2B REST → `ateapipb.Control` 翻译网关（Go）：HS256 API-Key 鉴权（atespace/tenant claim）、POST /sandboxes→CreateActor+ResumeActor(boot)（失败回滚 DeleteActor）、pause/resume→Suspend/Resume、gRPC↔HTTP 错误映射、数据面 /execute /files 307 跳转 atenet 域名（M4 接通）；handler 单测全绿 |
+| `docs/reference/e2b-api-surface.md`、`docs/concepts/sandbox-landscape.md` | /speckit.docs 扇出蒸馏产出：E2B 接口面×e2bgw 覆盖矩阵（代码核实）+ Agent 沙箱竞品格局（仅公开来源）。原 `docs/reference/collected-materials/`（含内网原文）已移出 tracked docs 树（本仓有公开 remote，内网原文不入库） |
+| `docs/hugo.toml`、`docs/layouts/`、`docs/static/css/site.css`、`docs/.gitignore`、`docs/contribute/docs-site-build.md` | Hugo 呈现层（create-docs 技能 scaffold + 人工修正）：`docs/` 兼作 Hugo 项目根，内容挂载不复制、Markdown 保持无 frontmatter。人工补 4 条挂载（根级 `*.md` 入 content；`figures` 镜像到 concepts/reference/overview 三处 static）与 `layouts/partials/page-title.html`（H1 兜底标题），修复根级文档缺页/死链、导航标题空白、raw-HTML 图片 404。构建 29 页零 warning；产物 `docs/public/` 永不提交 |
 
 ## 设计约定
 

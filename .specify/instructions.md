@@ -11,6 +11,14 @@ Dual-branch model (Constitution Principle I — non-negotiable): `main` mirrors 
 only; all custom development (E2B Protocol Plane, Wasm Sandbox) happens on `xuanji`,
 kept current by **rebase** onto `main`, with custom changes structured to survive rebases.
 
+**Technical exploration, not a product** (Constitution "Project Nature & Three-Stage
+Roadmap"): three stages — (1) absorb upstream's own definitions, (2) customize heavily on
+that base, (3) consolidate a new project identity. **Currently Stage 1 (absorb-dominant)**;
+`cmd/e2bgw` and the `wasm` sandbox class are exploratory Stage-2 pilots. Consequences:
+concepts are provisional (do not build compatibility shims for names expected to change),
+and working functionality outranks polish — only the mechanical gates (build, `make verify`,
+license headers) stay mandatory, because they protect rebase health.
+
 Entry points: `AGENTS.md` (layout rules + build/test), `README.md` (quickstart/demos),
 `docs/architecture.md` (system design), `.specify/memory/constitution.md` (governance).
 
@@ -32,6 +40,11 @@ This project documentation is distributed across several key files. You MUST ref
 | **Code Layout** | `docs/dev/code-layout.md` | Go code placement | Rationale for cmd/ vs internal/ vs pkg/ |
 | **Observability** | `docs/observability.md` | Metrics/logging/tracing guide | Actor logging, metrics, distributed tracing |
 | **Roadmap** | `docs/roadmap.md` | Future plans | Current limitations and planned security work |
+| **Xuanji Change Registry** | `xuanji.md` | Rebase conflict checklist | Every upstream file the xuanji branch modified + all added files, with reasons |
+| **Architecture Entry** | `ARCHITECTURE.md` | One-page architecture summary | Thin root entry pointing into `docs/`; xuanji custom extensions |
+| **E2B Interface Coverage** | `docs/reference/e2b-api-surface.md` | E2B ↔ Substrate contract | E2B REST endpoints × `cmd/e2bgw` coverage, status/error mapping (code-verified) |
+| **Sandbox Landscape** | `docs/concepts/sandbox-landscape.md` | Competitor positioning | AgentENV/E2B/Daytona/OpenSandbox isolation + perf comparison (public sources only) |
+| **Docs Site Build** | `docs/contribute/docs-site-build.md` | Hugo publishing | Build/preview commands, the four hand-maintained mounts, publish-scope warnings |
 
 > **Directive**: When answering questions or generating code, ALWAYS check the relevant document from the map above first.
 
@@ -108,13 +121,14 @@ The test of a healthy loop is simple: do team members rely on the product for re
 
 ## Tech Stack & Resources
 - **Project Name**: substrate (xuanji fork)
-- **Root Path**: /Users/liuqiming.lqm/project/cloud-native-isv/substrate
+- **Root Path**: the repository checkout directory (varies per machine; all paths in this
+  file are repo-relative)
 
 - **Languages**: Go 1.26.3 (pinned by `go.mod`), gofmt-mandatory
 - **Package Manager**: Go modules; container images built with `ko`
 - **Frameworks/Ecosystem**: Kubernetes (CRDs, client-go), gVisor `runsc`, Kata + Cloud Hypervisor, Envoy + go-control-plane, gRPC/protobuf, Redis/Valkey, SPIFFE/SPIRE-style identity, OpenTelemetry + Prometheus
 - **Key Directories**:
-  - `cmd/`: one directory per binary (ateapi, atelet, atenet, ateom-gvisor, ateom-microvm, atecontroller, kubectl-ate, podcertcontroller, benchmarking)
+  - `cmd/`: one directory per binary (ateapi, atelet, atenet, ateom-gvisor, ateom-microvm, atecontroller, kubectl-ate, podcertcontroller, benchmarking, plus xuanji-only `e2bgw` — not yet a Makefile/ko target)
   - `internal/`: shared packages internal to the module (incl. `internal/e2e/` suites, `internal/proto/` internal ttrpc protos)
   - `pkg/`: public packages (`pkg/api/v1alpha1/` CRDs, `pkg/proto/` control-plane API, generated `pkg/client/`)
   - `manifests/`: Kubernetes YAML (`manifests/ate-install/` full system install)
@@ -157,13 +171,18 @@ Full rationale and per-directory details: `docs/dev/code-layout.md`.
 - Keep `go.mod` clean (`go mod tidy` when adding/removing dependencies).
 - Submit small, focused PRs touching a limited part of the codebase.
 
-**Testing rules:**
-- Write tests for ALL new code — code lacking tests will not be merged.
-- Changes MUST NOT break existing tests.
+**Testing rules** (xuanji relaxes the upstream bar — Constitution Principle VI
+"Pragmatic Testing (Exploration-Grade)"; upstream itself requires tests for all new code):
+- Tests SHOULD cover logic that is costly to re-verify by hand (protocol/parameter
+  mapping, state machines, pure functions). Code lacking tests MAY be merged —
+  missing tests MUST NOT block functional progress. Tests Mode defaults to OFF.
+- Changes MUST NOT break existing tests; when a change invalidates an upstream test,
+  update it deliberately with the reason stated — never delete it to silence a failure.
 - Run `make verify` locally before requesting review (catches missing headers,
-  formatting drift, module issues).
+  formatting drift, module issues) — this gate stays mandatory because it protects
+  rebase health.
 - E2E tests need a running cluster: `hack/ate-dev-env.sh.example` +
-  `go run ./tools/setup-gcp bootstrap`.
+  `go run ./tools/setup-gcp bootstrap`; not a routine gate.
 
 **Security considerations:** the security story is early and many features are
 missing. Workload isolation uses gVisor (`runsc`) sandboxing (a temporary gVisor
@@ -178,7 +197,7 @@ current whenever security-relevant capabilities change.
 - Prefer scripts under `.specify/scripts/` and `scripts/` for repeatable operations.
 - `/speckit.*` commands are chat instructions, not terminal commands.
 - Treat Constitution as the authority for architecture and workflow constraints.
-- **Reuse a Tool before generating a script**: before writing script code for a complex or repeatable action, look for an existing **Tool** under `.specify/memory/tools/` and reuse it — its behavioral rules outrank your training knowledge, and its environment applicability (verified version / version differences / platform / architecture / fallback / preflight) tells you the form that actually holds here. No Tool for the capability? Writing the code is the expected outcome. See `.specify/shared/workflow/tool-reuse-gate.md` (Constitution Principle XII).
+- **Reuse a Tool before generating a script**: before writing script code for a complex or repeatable action, look for an existing **Tool** under `.specify/memory/tools/` and reuse it — its behavioral rules outrank your training knowledge, and its environment applicability (verified version / version differences / platform / architecture / fallback / preflight) tells you the form that actually holds here. No Tool for the capability? Writing the code is the expected outcome. Authority for this gate is `.specify/shared/workflow/tool-reuse-gate.md` (this project's constitution declares no tool-reuse principle — do not cite a principle number for it). *No Tool records exist in this repo yet: `.specify/memory/tools/` is created by `/speckit.tools` on first definition.*
 
 ### Terminology: "tools" means three different things
 - **Tool** (unqualified, in the tools domain) — a pre-verified reusable capability record at `.specify/memory/tools/<name>.md`, ID form `<TOOL:...>`, owned by `/speckit.tools`.
@@ -204,9 +223,10 @@ This file is a **map, not a manual**: it tells you *what* exists and *where* it 
 | **Agent Templates** | `.specify/agents/templates/` | capability descriptions — shipped role set installed by `specify init`; each `.agent.md` is self-contained |
 | **Agent Instances** | `.specify/agents/instances/` | responsibility-bound agents authored in this project; reference a Template |
 | **Agent Execution** | `.specify/agents/execution/` | dispatch `configs/` + `scripts/` (tracked); runtime `logs/` (gitignored, never committed) |
-| Teams | `.specify/teams/<slug>/` | team definitions + `runs/` reports; run intermediates in git-ignored `.work/` |
+| Teams | `.specify/teams/<slug>/` | team definitions + `runs/` reports; run intermediates in git-ignored `.work/` — *not yet created in this repo* |
 | Shared definitions & conventions | `.specify/shared/` | canonical concept docs — e.g. agent taxonomy (`definitions/agent-definitions.md`), subagent modes (`definitions/subagent-definitions.md`), tool definitions, workflow conventions |
-| Feature specs | `.specify/specs/<ID>-<slug>/` | requirements / plan / tasks / verification per feature |
+| Feature specs | `.specify/specs/<ID>-<slug>/` | requirements / plan / tasks / verification per feature — *not yet created in this repo* |
+| Docs run artifacts | `.specify/docs/` | `/speckit.docs` dry-run `plans/` + `audit/` logs (never mixed into `docs/`) |
 | This file | `.specify/instructions.md` | canonical AI instructions; per-tool files are symlinks |
 | Tool JSON manifests | `.specify/tools/` | generated `project.json` / `shell.json` / `system.json` manifests consumed by `/speckit.tools` |
 
@@ -219,6 +239,20 @@ This file is a **map, not a manual**: it tells you *what* exists and *where* it 
 - **Do NOT break the symlinks (applies to both users and AI agents)**: The compatibility files/directories above are symbolic links, NOT copies — this is easy to miss because they *look* like ordinary files. Editing their content is safe: changes write through to the canonical `.specify/...` target and stay consistent across every tool. But **deleting, renaming, moving, or replacing** a link (e.g. an editor's "save as new file", or a manual `rm` + recreate) SEVERS it; the affected tool then silently reads stale or independent content and updates diverge across tools. Never delete-and-recreate these paths by hand.
 - **Detect & repair symlinks**: List every symlink in the project with `find . -type l` (or inspect a single path with `ls -l <path>` / `readlink <path>`) before assuming a compatibility file is a real file. If a link was accidentally broken or replaced with a regular file, run `/speckit.instructions` to regenerate the canonical instructions and recreate all compatibility symlinks.
 - **Regeneration behavior**: `/speckit.instructions` refreshes the instructions content and recreates compatibility symlinks. If a compatibility path appears to contain the same content as `.specify/instructions.md` or `.specify/skills/`, verify whether it is a symlink before treating it as a separate file.
+
+## Git Workflow
+Machine-maintained by the `git-workflow` skill. The branch roles recorded below are the **single source of truth** for every git operation in this project — no separate workflow document is generated. To rename a role, edit its `Branch` cell; the operational procedure (pre-checks, rebase sequences, push strategy, `.gitexcludes` subroutine, safety rules) lives in the skill and its references, not here.
+
+<!-- GIT_WORKFLOW_START -->
+<!-- Record one row per branch role (MAIN / PRE / DEV). While no workflow is established, keep the `None yet.` row. -->
+| Role | Branch | Tracking | Purpose |
+|------|--------|----------|---------|
+| None yet. | - | - | - |
+
+- **Sync chain (rebase)**: `MAIN -> PRE -> DEV`
+- **Merge chain (PR)**: `MAIN <- PRE <- DEV`
+- **Last updated**: -
+<!-- GIT_WORKFLOW_END -->
 
 ## Resource Registry
 Use this machine-maintained section to track reusable resource identifiers created by SpecKit commands. Keep entries deduplicated and sorted when updating this file. Record each resource as a single row in the corresponding horizontal Markdown table, and keep column names aligned with the corresponding agent/skill/tool templates. When no records exist, keep a single row with `None yet.` in the first column and `-` in the remaining columns.

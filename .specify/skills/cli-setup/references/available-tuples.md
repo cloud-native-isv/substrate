@@ -36,14 +36,14 @@ The script `${SKILL_HOME}/scripts/agent-setup.sh` computes availability at runti
 
 ## Available Tuples (when all credentials loaded)
 
-When both idealab and bailian credentials are loaded, all 42 supported tuples are available.
+When both idealab and bailian credentials are loaded, all 28 supported tuples are available.
 
 ### If only bailian credentials are available:
 
-All 41 bailian tuples are available (tuples #2–#42 from the [Supported Tuples](./supported-tuples.md) list). This includes:
+All 27 bailian tuples are available (tuples #2–#42 from the [Supported Tuples](./supported-tuples.md) list; the numbering keeps stable IDs and therefore has gaps where the dropped `qwen`/`iflow` tool tuples used to sit). This includes:
 
 - **claude**: 6 models via Anthropic protocol (qwen3.7-max, qwen3.7-plus, deepseek-v4-pro, deepseek-v4-flash, glm-5.2, kimi-k2.7-code)
-- **codex / qwen / qoder / iflow / opencode**: 7 models each via OpenAI protocol (qwen3-coder-plus, qwen3.7-max, qwen3.7-plus, deepseek-v4-pro, deepseek-v4-flash, glm-5.2, kimi-k2.7-code)
+- **codex / qoder / opencode**: 7 models each via OpenAI protocol (qwen3-coder-plus, qwen3.7-max, qwen3.7-plus, deepseek-v4-pro, deepseek-v4-flash, glm-5.2, kimi-k2.7-code)
 
 > `claude-opus-*` models are NOT available on bailian. Only idealab provides `claude-opus-4-8`.
 

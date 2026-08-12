@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: 27974088-4d08-4c8f-ab7c-1e23f7f0b973
-title: 项目文档与架构规范
-scope:
-    - docs/
-source_files: []
-depends_on: []
-related_to: []
