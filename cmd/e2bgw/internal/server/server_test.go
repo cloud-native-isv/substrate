@@ -15,15 +15,22 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agent-substrate/substrate/pkg/proto/ateapipb"
 	"google.golang.org/grpc"
@@ -131,6 +138,78 @@ func do(t *testing.T, s *Server, method, path, body string, authed bool) *httpte
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
 	return w
+}
+
+// newProxyTestServer runs upstream as a TLS fake of the atenet edge and
+// returns a gateway whose data-plane proxy is wired at it: the upstream
+// certificate is trusted via Config.ActorCA (the --actor-ca path, injected
+// as PEM like the flag would) and the transport dials the fake regardless
+// of the actor authority in the URL.
+//
+// The httptest certificate is issued for example.com, not the actor authority,
+// so the verification name is pinned through Config.ActorTLSServerName — the
+// same --actor-tls-server-name path a real deployment uses when the atenet edge
+// certificate carries no actor-domain SAN.
+func newProxyTestServer(t *testing.T, upstream http.Handler) *Server {
+	t.Helper()
+	return newProxyTestServerTLSName(t, upstream, "example.com")
+}
+
+// newProxyTestServerTLSName is newProxyTestServer with an explicit TLS
+// verification name; "" leaves verification against the actor authority.
+func newProxyTestServerTLSName(t *testing.T, upstream http.Handler, tlsServerName string) *Server {
+	t.Helper()
+	fake := httptest.NewTLSServer(upstream)
+	t.Cleanup(fake.Close)
+
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: fake.Certificate().Raw})
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		t.Fatal("appending upstream cert PEM")
+	}
+	s := New(Config{
+		Control:            &fakeControl{},
+		JWTSecret:          testSecret,
+		TemplateNamespace:  "ate-wasm",
+		ActorDomain:        "actors.resources.test",
+		ActorCA:            pool,
+		ActorTLSServerName: tlsServerName,
+	})
+	fakeAddr := strings.TrimPrefix(fake.URL, "https://")
+	s.dataPlaneTransport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, fakeAddr)
+	}
+	return s
+}
+
+// TestDataPlaneProxyTLSServerName pins both halves of the
+// --actor-tls-server-name contract: pinning the name lets the proxy verify an
+// edge certificate that does not carry the actor domain, and leaving it empty
+// keeps verifying the actor authority (so a mismatch is still refused rather
+// than silently accepted).
+func TestDataPlaneProxyTLSServerName(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	t.Run("pinned name verifies against the edge cert", func(t *testing.T) {
+		s := newProxyTestServerTLSName(t, ok, "example.com")
+		w := do(t, s, "POST", "/sandboxes/sbx-1/execute", `{"code":"1"}`, true)
+		if w.Code != http.StatusOK {
+			t.Fatalf("code = %d, want 200; body %s", w.Code, w.Body)
+		}
+	})
+
+	t.Run("without the override the actor authority is still verified", func(t *testing.T) {
+		// The fake edge cert is for example.com; the proxy dials
+		// sbx-1.tenant-a.actors.resources.test. Verification must fail, and the
+		// ErrorHandler must turn that into a 502 rather than proceeding.
+		s := newProxyTestServerTLSName(t, ok, "")
+		w := do(t, s, "POST", "/sandboxes/sbx-1/execute", `{"code":"1"}`, true)
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("code = %d, want 502 (hostname verification must fail); body %s", w.Code, w.Body)
+		}
+	})
 }
 
 func TestAuthRejects(t *testing.T) {
@@ -267,15 +346,132 @@ func TestGRPCErrorMapping(t *testing.T) {
 	}
 }
 
-func TestDataPlaneRedirect(t *testing.T) {
-	s := newTestServer(&fakeControl{})
-	w := do(t, s, "POST", "/sandboxes/sbx-9/execute", `{"code":"1+1"}`, true)
-	if w.Code != http.StatusTemporaryRedirect {
-		t.Fatalf("code = %d, want 307", w.Code)
+func TestDataPlaneProxyRewritesPathAndHost(t *testing.T) {
+	type seen struct {
+		method, path, query, host, body, apiKey string
 	}
-	want := "https://sbx-9.tenant-a.actors.resources.test/sandboxes/sbx-9/execute"
-	if got := w.Header().Get("Location"); got != want {
-		t.Errorf("Location = %q, want %q", got, want)
+	var got seen
+	s := newProxyTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		got = seen{r.Method, r.URL.Path, r.URL.RawQuery, r.Host, string(body), r.Header.Get("X-API-Key")}
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		fmt.Fprintln(w, `{"type":"end"}`)
+	}))
+	w := do(t, s, "POST", "/sandboxes/sbx-1/execute?foo=bar", `{"code":"1+1"}`, true)
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d, body %s", w.Code, w.Body)
+	}
+	if got.method != "POST" || got.path != "/execute" {
+		t.Errorf("upstream saw %s %s, want POST /execute", got.method, got.path)
+	}
+	if got.query != "foo=bar" {
+		t.Errorf("query = %q, want foo=bar", got.query)
+	}
+	if want := "sbx-1.tenant-a.actors.resources.test"; got.host != want {
+		t.Errorf("Host = %q, want %q", got.host, want)
+	}
+	if got.body != `{"code":"1+1"}` {
+		t.Errorf("body = %q", got.body)
+	}
+	if got.apiKey != "" {
+		t.Errorf("X-API-Key leaked to upstream: %q", got.apiKey)
+	}
+	if !strings.Contains(w.Body.String(), `"end"`) {
+		t.Errorf("response body = %q", w.Body)
+	}
+}
+
+func TestDataPlaneProxyRoutes(t *testing.T) {
+	tests := []struct {
+		name, method, path, body string
+		wantPath, wantQuery      string
+	}{
+		{"files GET", "GET", "/sandboxes/sbx-2/files?path=%2Ftmp%2Fa.txt", "", "/files", "path=%2Ftmp%2Fa.txt"},
+		{"files POST", "POST", "/sandboxes/sbx-2/files?path=%2Ftmp%2Fa.txt", "hello", "/files", "path=%2Ftmp%2Fa.txt"},
+		{"filesystem Stat", "POST", "/sandboxes/sbx-2/filesystem.Filesystem/Stat", `{"path":"/tmp"}`, "/filesystem.Filesystem/Stat", ""},
+		{"filesystem ListDir", "POST", "/sandboxes/sbx-2/filesystem.Filesystem/ListDir", `{"path":"/"}`, "/filesystem.Filesystem/ListDir", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotMethod, gotPath, gotQuery, gotBody string
+			s := newProxyTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				gotMethod, gotPath, gotQuery, gotBody = r.Method, r.URL.Path, r.URL.RawQuery, string(body)
+				w.WriteHeader(http.StatusOK)
+			}))
+			w := do(t, s, tt.method, tt.path, tt.body, true)
+			if w.Code != http.StatusOK {
+				t.Fatalf("code = %d, body %s", w.Code, w.Body)
+			}
+			if gotMethod != tt.method || gotPath != tt.wantPath || gotQuery != tt.wantQuery {
+				t.Errorf("upstream saw %s %s?%s, want %s %s?%s",
+					gotMethod, gotPath, gotQuery, tt.method, tt.wantPath, tt.wantQuery)
+			}
+			if gotBody != tt.body {
+				t.Errorf("body = %q, want %q", gotBody, tt.body)
+			}
+		})
+	}
+}
+
+func TestDataPlaneProxyStreamsNDJSON(t *testing.T) {
+	firstLineRead := make(chan struct{})
+	handlerDone := make(chan struct{})
+	s := newProxyTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(handlerDone)
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		fmt.Fprintln(w, `{"type":"stdout","text":"hi"}`)
+		w.(http.Flusher).Flush()
+		// Hold the stream open until the client proves it received the
+		// first line mid-stream (i.e. the proxy did not buffer).
+		select {
+		case <-firstLineRead:
+		case <-time.After(5 * time.Second):
+			t.Error("client never read the first line")
+			return
+		}
+		fmt.Fprintln(w, `{"type":"end"}`)
+	}))
+
+	gw := httptest.NewServer(s)
+	t.Cleanup(gw.Close)
+	req, err := http.NewRequest("POST", gw.URL+"/sandboxes/sbx-3/execute", strings.NewReader(`{"code":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-API-Key", signJWT(t, map[string]any{"atespace": "tenant-a"}))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("code = %d", resp.StatusCode)
+	}
+
+	br := bufio.NewReader(resp.Body)
+	line1, err := br.ReadString('\n')
+	if err != nil {
+		t.Fatalf("reading first frame: %v", err)
+	}
+	if !strings.Contains(line1, `"stdout"`) {
+		t.Errorf("first frame = %q", line1)
+	}
+	// The upstream handler must still be alive: if the proxy had buffered
+	// the response, the first line would only arrive after it returned.
+	select {
+	case <-handlerDone:
+		t.Fatal("upstream handler already returned: stream was buffered, not flushed per line")
+	default:
+	}
+	close(firstLineRead)
+
+	line2, err := br.ReadString('\n')
+	if err != nil {
+		t.Fatalf("reading end frame: %v", err)
+	}
+	if !strings.Contains(line2, `"end"`) {
+		t.Errorf("end frame = %q", line2)
 	}
 }
 
@@ -284,6 +480,24 @@ func TestDataPlane501WithoutDomain(t *testing.T) {
 	w := do(t, s, "POST", "/sandboxes/sbx-9/execute", "", true)
 	if w.Code != http.StatusNotImplemented {
 		t.Errorf("code = %d, want 501", w.Code)
+	}
+}
+
+func TestDataPlane502WhenUpstreamUnreachable(t *testing.T) {
+	s := newTestServer(&fakeControl{})
+	// A freshly closed listener yields an address that refuses connections.
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadAddr := lis.Addr().String()
+	_ = lis.Close()
+	s.dataPlaneTransport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, deadAddr)
+	}
+	w := do(t, s, "POST", "/sandboxes/sbx-9/execute", `{"code":"1"}`, true)
+	if w.Code != http.StatusBadGateway {
+		t.Errorf("code = %d, want 502; body %s", w.Code, w.Body)
 	}
 }
 

@@ -18,12 +18,15 @@ package server
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 	"time"
 
@@ -49,17 +52,48 @@ type Config struct {
 	JWTSecret         []byte
 	TemplateNamespace string
 	// ActorDomain is the atenet suffix for per-actor data-plane URLs
-	// (e.g. "actors.resources.example.com"). Empty disables redirects.
+	// (e.g. "actors.resources.example.com"). Empty disables the data-plane
+	// proxy (those routes answer 501).
 	ActorDomain string
+	// ActorCA optionally overrides the root CAs used to verify the atenet
+	// edge certificate fronting actor data planes (self-signed test
+	// environments). Nil uses the system roots.
+	ActorCA *x509.CertPool
+	// ActorTLSServerName overrides the hostname verified against the atenet
+	// edge certificate. Empty verifies against the actor authority in the URL,
+	// which is the right default but requires that certificate to carry the
+	// actor domain among its SANs.
+	//
+	// It usually does not: upstream's servicedns signer derives SANs purely
+	// from the Services covering the pod (`<svc>.<ns>.svc`; see
+	// cmd/podcertcontroller/internal/servicednssigner), so the edge cert has no
+	// actor-domain SAN and every data-plane request would fail hostname
+	// verification. Fix it either by adding the actor domain to the certificate
+	// (preferred — see manifests/ate-install/cert-manager-pki/certificates.yaml)
+	// or by pinning the name here. Both keep chain verification intact, unlike
+	// disabling verification.
+	ActorTLSServerName string
 }
 
 type Server struct {
 	cfg Config
 	mux *http.ServeMux
+	// dataPlaneTransport dials the atenet edge for proxied data-plane
+	// requests; tests rewire its dialer at a fake upstream.
+	dataPlaneTransport *http.Transport
 }
 
 func New(cfg Config) *Server {
-	s := &Server{cfg: cfg, mux: http.NewServeMux()}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if cfg.ActorCA != nil || cfg.ActorTLSServerName != "" {
+		tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+		if cfg.ActorCA != nil {
+			tlsCfg.RootCAs = cfg.ActorCA
+		}
+		tlsCfg.ServerName = cfg.ActorTLSServerName
+		transport.TLSClientConfig = tlsCfg
+	}
+	s := &Server{cfg: cfg, mux: http.NewServeMux(), dataPlaneTransport: transport}
 	s.mux.HandleFunc("POST /sandboxes", s.auth(s.createSandbox))
 	s.mux.HandleFunc("GET /sandboxes", s.auth(s.listSandboxes))
 	s.mux.HandleFunc("GET /sandboxes/{id}", s.auth(s.getSandbox))
@@ -67,9 +101,14 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("POST /sandboxes/{id}/pause", s.auth(s.pauseSandbox))
 	s.mux.HandleFunc("POST /sandboxes/{id}/resume", s.auth(s.resumeSandbox))
 	s.mux.HandleFunc("POST /sandboxes/{id}/timeout", s.auth(s.setTimeout))
-	// Data plane: served by the actor itself via atenet (M4).
-	s.mux.HandleFunc("/sandboxes/{id}/execute", s.auth(s.dataPlaneRedirect))
-	s.mux.HandleFunc("/sandboxes/{id}/files", s.auth(s.dataPlaneRedirect))
+	// Data plane: reverse-proxied to the actor's own HTTP surface
+	// (ateom-wasmd) through the atenet edge (M4). Watch-family filesystem
+	// RPCs are not registered: the actor answers them unimplemented.
+	s.mux.HandleFunc("/sandboxes/{id}/execute", s.auth(s.dataPlaneProxy))
+	s.mux.HandleFunc("/sandboxes/{id}/files", s.auth(s.dataPlaneProxy))
+	for _, rpc := range []string{"Stat", "ListDir", "MakeDir", "Move", "Remove"} {
+		s.mux.HandleFunc("POST /sandboxes/{id}/filesystem.Filesystem/"+rpc, s.auth(s.dataPlaneProxy))
+	}
 	s.mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -239,17 +278,50 @@ func (s *Server) setTimeout(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// dataPlaneRedirect points SDKs at the actor's atenet domain, where the
-// in-actor HTTP surface (ateom-wasmd) serves /execute and /files (M4).
-func (s *Server) dataPlaneRedirect(w http.ResponseWriter, r *http.Request) {
+// dataPlaneProxy reverse-proxies data-plane calls (/execute, /files, and the
+// filesystem.Filesystem RPCs) to the actor's atenet domain, where the
+// in-actor HTTP surface (ateom-wasmd) serves them at the root path (M4).
+// The outgoing Host must be the actor authority: the atenet router selects
+// the worker by :authority and atunnel authorizes the actor DNS name.
+func (s *Server) dataPlaneProxy(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.ActorDomain == "" {
 		writeErr(w, http.StatusNotImplemented, "data plane not wired: set --actor-domain")
 		return
 	}
 	name := r.PathValue("id")
-	atespace := atespaceFrom(r.Context())
-	target := fmt.Sprintf("https://%s.%s.%s%s", name, atespace, s.cfg.ActorDomain, r.URL.Path)
-	http.Redirect(w, r, target, http.StatusTemporaryRedirect)
+	authority := fmt.Sprintf("%s.%s.%s", name, atespaceFrom(r.Context()), s.cfg.ActorDomain)
+	// Strip the gateway prefix: /sandboxes/{id}/execute → /execute.
+	upstreamPath := strings.TrimPrefix(r.URL.Path, "/sandboxes/"+name)
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.Out.URL.Scheme = "https"
+			pr.Out.URL.Host = authority
+			pr.Out.URL.Path = upstreamPath
+			pr.Out.URL.RawPath = ""
+			pr.Out.Host = authority
+			// The E2B API key is gateway-only; keep it off the actor.
+			pr.Out.Header.Del("X-API-Key")
+			pr.Out.Header.Del("Authorization")
+		},
+		Transport: s.dataPlaneTransport,
+		// /execute is a long-lived NDJSON stream: flush every write instead of
+		// buffering. Note httputil already forces this for streaming
+		// responses — its flushInterval() returns -1 whenever
+		// res.ContentLength == -1 — so setting it here only changes behaviour
+		// for responses that *do* carry a Content-Length. Kept explicit so the
+		// intent survives; what would actually break streaming is buffering the
+		// body (e.g. a ModifyResponse that reads it whole), which
+		// TestDataPlaneProxyStreamsNDJSON does catch.
+		FlushInterval: -1,
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			slog.Warn("data-plane proxy failed",
+				slog.String("authority", authority), slog.Any("err", err))
+			// Plain 502, not an E2B error body: this is a gateway-level
+			// transport failure, not an API-mapped error.
+			http.Error(w, "upstream actor unreachable", http.StatusBadGateway)
+		},
+	}
+	proxy.ServeHTTP(w, r)
 }
 
 // --- helpers ---

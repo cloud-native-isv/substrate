@@ -15,8 +15,8 @@
 // e2bgw is the E2B-protocol gateway: it translates the E2B REST surface
 // (POST /sandboxes, pause/resume, ...) into ateapi Control gRPC calls, so
 // unmodified E2B SDKs can drive substrate actors. Data-plane endpoints
-// (/execute, /files) are answered with a redirect to the actor's atenet
-// domain (wired up in migration milestone M4).
+// (/execute, /files, filesystem RPCs) are reverse-proxied to the actor's
+// atenet domain, where the in-actor HTTP surface serves them (M4).
 //
 // Part of the xuanji branch additions (see xuanji.md); acceptance assets in
 // contrib/e2b-e2e/.
@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"net"
@@ -48,7 +49,9 @@ var (
 
 	jwtSecretFile     = pflag.String("jwt-secret-file", "", "File holding the HS256 secret that signs E2B API keys (JWTs)")
 	templateNamespace = pflag.String("template-namespace", "ate-wasm", "Kubernetes namespace holding the ActorTemplates that E2B templateIDs refer to")
-	actorDomain       = pflag.String("actor-domain", "", "atenet actor domain suffix (e.g. actors.resources.example.com); used for data-plane redirects")
+	actorDomain       = pflag.String("actor-domain", "", "atenet actor domain suffix (e.g. actors.resources.example.com); used for data-plane proxying")
+	actorCAFile       = pflag.String("actor-ca", "", "PEM CA bundle for the atenet edge certificate fronting actor data planes (empty = system roots)")
+	actorTLSName      = pflag.String("actor-tls-server-name", "", "Hostname to verify against the atenet edge certificate instead of the actor authority. Needed when that certificate carries no actor-domain SAN (upstream's servicedns signer only signs '<svc>.<ns>.svc'). Empty verifies against the actor authority; chain verification applies either way.")
 )
 
 func main() {
@@ -84,11 +87,25 @@ func run(ctx context.Context) error {
 	}
 	defer conn.Close()
 
+	var actorCA *x509.CertPool
+	if *actorCAFile != "" {
+		pemBytes, err := os.ReadFile(*actorCAFile)
+		if err != nil {
+			return fmt.Errorf("reading --actor-ca: %w", err)
+		}
+		actorCA = x509.NewCertPool()
+		if !actorCA.AppendCertsFromPEM(pemBytes) {
+			return fmt.Errorf("--actor-ca %s holds no PEM certificates", *actorCAFile)
+		}
+	}
+
 	srv := server.New(server.Config{
-		Control:           ateapipb.NewControlClient(conn),
-		JWTSecret:         secret,
-		TemplateNamespace: *templateNamespace,
-		ActorDomain:       *actorDomain,
+		Control:            ateapipb.NewControlClient(conn),
+		JWTSecret:          secret,
+		TemplateNamespace:  *templateNamespace,
+		ActorDomain:        *actorDomain,
+		ActorCA:            actorCA,
+		ActorTLSServerName: *actorTLSName,
 	})
 
 	lis, err := net.Listen("tcp", *listenAddress)
