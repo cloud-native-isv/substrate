@@ -1,0 +1,140 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ACK M4 overlay (xuanji addition, see xuanji.md).
+#
+# Full control plane + data plane on a managed ACK cluster, for the M4
+# end-to-end acceptance (unmodified E2B SDKs driving wasm actors through
+# e2bgw). It composes two concerns that no single existing overlay covers:
+#
+#   1. cert-manager PKI (manifests/ate-install/cert-manager-pki): TLS material
+#      from cert-manager/trust-manager, because ACK has no
+#      PodCertificateRequest / ClusterTrustBundle feature gates. This is what
+#      brings the mTLS components (ateapi/atelet/atenet/valkey) up at all.
+#   2. ACK environment adaptation, previously only in manifests/xuanji/ack
+#      (which was M2, control-plane-only, and podcert-based):
+#        - every docker.io / gcr.io image redirected to the team ACR, since
+#          those registries are unreachable from cn-hangzhou;
+#        - atelet: --gcp-auth-for-image-pulls=false (no GCP ADC on ACK) and
+#          rustfs as the S3 asset store instead of GCS.
+#
+# Unlike manifests/xuanji/ack this KEEPS the data plane (atenet-router /
+# atenet-dns), because e2bgw reverse-proxies the E2B data plane to the actor
+# via atenet-router; the previously-skipped envoy/coredns images are mirrored
+# to ACR here.
+#
+# The four ate binaries stay ko:// and are built by `ko resolve` at deploy
+# time (KO_DOCKER_REPO + KO_DEFAULTBASEIMAGE must point at the ACR mirror of a
+# reachable static base, since cgr.dev's R2 blob backend is unreachable too).
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../ate-install/cert-manager-pki
+
+# docker.io / gcr.io images are unreachable from cn-hangzhou; point them at the
+# team ACR mirror. The ko:// ate/atenet binaries are resolved by `ko resolve`
+# and are intentionally not listed here.
+images:
+  - name: valkey/valkey
+    newName: wasm-agent-registry-vpc.cn-hangzhou.cr.aliyuncs.com/wasm-poc/valkey
+    newTag: "9.1"
+    digest: ""
+  - name: envoyproxy/envoy
+    newName: wasm-agent-registry-vpc.cn-hangzhou.cr.aliyuncs.com/wasm-poc/envoy
+    newTag: v1.30-latest
+    digest: ""
+  - name: coredns/coredns
+    newName: wasm-agent-registry-vpc.cn-hangzhou.cr.aliyuncs.com/wasm-poc/coredns
+    newTag: "1.11.1"
+    digest: ""
+  - name: busybox
+    newName: wasm-agent-registry-vpc.cn-hangzhou.cr.aliyuncs.com/wasm-poc/busybox
+    newTag: "1.36"
+    digest: ""
+
+patches:
+  # atelet: base sets --gcp-auth-for-image-pulls=true (args[0]); ACK has no GCP
+  # ADC, so flip it. Index is stable — the cert-manager-pki overlay patches
+  # atelet volumes only, never its args.
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: atelet
+      namespace: ate-system
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args/0
+        value: --gcp-auth-for-image-pulls=false
+
+  # atelet: use in-cluster rustfs as the S3 asset store instead of GCS. Env is
+  # merged by name, so ATE_STORAGE_BACKEND flips gcs->s3 and the AWS_* vars are
+  # appended. Switching to OSS later is just repointing AWS_ENDPOINT_URL and
+  # setting AWS_S3_USE_PATH_STYLE=false.
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: atelet
+      namespace: ate-system
+    patch: |-
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: atelet
+        namespace: ate-system
+      spec:
+        template:
+          spec:
+            containers:
+            - name: atelet
+              env:
+              - name: ATE_STORAGE_BACKEND
+                value: s3
+              - name: AWS_REGION
+                value: us-east-1
+              - name: AWS_ENDPOINT_URL
+                value: http://rustfs.ate-system.svc:9000
+              - name: AWS_S3_USE_PATH_STYLE
+                value: "true"
+              - name: AWS_ACCESS_KEY_ID
+                value: rustfsadmin
+              - name: AWS_SECRET_ACCESS_KEY
+                value: rustfsadmin
+
+  # Alibaba Cloud disk CSI refuses volumes below 20Gi; the upstream valkey PVC
+  # is 1Gi (sized for kind's local-path provisioner).
+  - target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      name: valkey-cluster
+      namespace: ate-system
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: valkey-cluster
+        namespace: ate-system
+      spec:
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: 20Gi

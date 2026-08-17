@@ -28,7 +28,8 @@ import (
 
 // verifyHS256 validates a compact JWS signed with HS256 and returns its
 // claims. Deliberately dependency-free: the gateway only ever verifies
-// HS256 tokens minted by the platform operator (contrib/e2b-e2e/sign_jwt.py).
+// HS256 tokens minted by the platform operator (contrib/e2b-e2e/sign_jwt.py)
+// or by itself (envd access tokens, see signHS256).
 func verifyHS256(token string, secret []byte) (map[string]any, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -72,4 +73,22 @@ func verifyHS256(token string, secret []byte) (map[string]any, error) {
 		return nil, errors.New("token expired")
 	}
 	return claims, nil
+}
+
+// signHS256 mints a compact JWS over claims with HS256 — the counterpart of
+// verifyHS256. Used for the envd access token handed to SDKs in
+// `envdAccessToken` and echoed back as X-Access-Token on host-based
+// data-plane requests.
+func signHS256(claims map[string]any, secret []byte) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+	payloadJSON, err := json.Marshal(claims)
+	if err != nil {
+		// Claims are built from plain strings and ints; a marshal failure is
+		// a programming error, not an input error.
+		panic(fmt.Sprintf("marshal JWT claims: %v", err))
+	}
+	payload := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte(header + "." + payload))
+	return header + "." + payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }

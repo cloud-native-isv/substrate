@@ -40,6 +40,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: servicedns-ca
     kind: ClusterIssuer
@@ -62,6 +63,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: podidentity-ca
     kind: ClusterIssuer
@@ -89,6 +91,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: podidentity-ca
     kind: ClusterIssuer
@@ -111,6 +114,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: podidentity-ca
     kind: ClusterIssuer
@@ -159,6 +163,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: servicedns-ca
     kind: ClusterIssuer
@@ -184,6 +189,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: podidentity-ca
     kind: ClusterIssuer
@@ -215,6 +221,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: servicedns-ca
     kind: ClusterIssuer
@@ -239,6 +246,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: podidentity-ca
     kind: ClusterIssuer
@@ -266,6 +274,7 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    encoding: PKCS8
   issuerRef:
     name: podidentity-ca
     kind: ClusterIssuer

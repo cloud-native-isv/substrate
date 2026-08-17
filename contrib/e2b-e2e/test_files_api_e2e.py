@@ -8,6 +8,8 @@ SDK 立即可读，两者只是同一宿主机 sandbox_dir 的两个视图。
 
 环境变量前置（与 test_sdk_nondebug_e2e.py 相同）：
   E2B_DOMAIN / E2B_API_KEY / E2B_VALIDATE_API_KEY=false / SSL_CERT_FILE / E2B_DEBUG=false
+  E2B_TEMPLATE 可选：templateID → ActorTemplate 名；不设则用 SDK 默认模板名
+  （code-interpreter-v1），要求集群里存在同名 ActorTemplate
 
 覆盖：
   1) write/read（str 与 bytes）、read 不存在 → FileNotFoundException
@@ -41,7 +43,12 @@ def main() -> None:
     dom = _require_env()
     print(f"[fs-e2e] E2B_DOMAIN = {dom}")
 
-    sbx = Sandbox.create(timeout=300)
+    template = os.environ.get("E2B_TEMPLATE")
+    if template:
+        print(f"[fs-e2e] template   = {template}")
+        sbx = Sandbox.create(template=template, timeout=300)
+    else:
+        sbx = Sandbox.create(timeout=300)
     try:
         sid = sbx.sandbox_id
         print(f"[fs-e2e] sandbox_id = {sid}")
