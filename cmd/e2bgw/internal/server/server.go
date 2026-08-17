@@ -218,6 +218,10 @@ type sandboxResponse struct {
 	// EnvdAccessToken authenticates host-based data-plane requests: SDKs echo
 	// it as X-Access-Token (see hostDataPlaneProxy).
 	EnvdAccessToken string `json:"envdAccessToken,omitempty"`
+	// TrafficAccessToken is the same credential under a second field name:
+	// the e2b-code-interpreter SDK reads it to populate traffic_access_token
+	// and sends it as E2B-Traffic-Access-Token on /contexts requests.
+	TrafficAccessToken string `json:"trafficAccessToken,omitempty"`
 }
 
 func (s *Server) createSandbox(w http.ResponseWriter, r *http.Request) {
@@ -424,9 +428,16 @@ func (s *Server) dataPlaneProxy(w http.ResponseWriter, r *http.Request) {
 // alone does not carry it) and the sandbox ID (so a token for one sandbox
 // cannot reach another).
 func (s *Server) hostDataPlaneProxy(w http.ResponseWriter, r *http.Request, sandboxID string) {
+	// The SDK sends the envd access token as X-Access-Token for /execute and
+	// /files (set on the httpx client default headers), but the code
+	// interpreter sends it as E2B-Traffic-Access-Token on /contexts. Both name
+	// the same token this gateway mints; accept either.
 	token := r.Header.Get("X-Access-Token")
 	if token == "" {
-		writeErr(w, http.StatusUnauthorized, "missing X-Access-Token")
+		token = r.Header.Get("E2B-Traffic-Access-Token")
+	}
+	if token == "" {
+		writeErr(w, http.StatusUnauthorized, "missing access token (X-Access-Token or E2B-Traffic-Access-Token)")
 		return
 	}
 	claims, err := verifyHS256(token, s.cfg.JWTSecret)
@@ -463,6 +474,7 @@ func (s *Server) proxyToActor(w http.ResponseWriter, r *http.Request, atespace, 
 			pr.Out.Header.Del("X-API-Key")
 			pr.Out.Header.Del("Authorization")
 			pr.Out.Header.Del("X-Access-Token")
+			pr.Out.Header.Del("E2B-Traffic-Access-Token")
 		},
 		Transport: s.dataPlaneTransport,
 		// /execute is a long-lived NDJSON stream: flush every write instead of
@@ -492,14 +504,16 @@ func (s *Server) ref(r *http.Request) *ateapipb.ObjectRef {
 }
 
 func (s *Server) sandboxResponse(actor *ateapipb.Actor, templateID string) sandboxResponse {
+	token := s.mintAccessToken(
+		actor.GetMetadata().GetAtespace(), actor.GetMetadata().GetName())
 	resp := sandboxResponse{
-		SandboxID:   actor.GetMetadata().GetName(),
-		TemplateID:  templateID,
-		ClientID:    "e2bgw",
-		State:       e2bState(actor.GetStatus()),
-		EnvdVersion: "0.2.0",
-		EnvdAccessToken: s.mintAccessToken(
-			actor.GetMetadata().GetAtespace(), actor.GetMetadata().GetName()),
+		SandboxID:          actor.GetMetadata().GetName(),
+		TemplateID:         templateID,
+		ClientID:           "e2bgw",
+		State:              e2bState(actor.GetStatus()),
+		EnvdVersion:        "0.2.0",
+		EnvdAccessToken:    token,
+		TrafficAccessToken: token,
 	}
 	if ts := actor.GetMetadata().GetCreateTime(); ts != nil {
 		resp.StartedAt = ts.AsTime().UTC().Format(time.RFC3339)
