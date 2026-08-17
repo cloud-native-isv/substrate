@@ -50,6 +50,24 @@ spec:
   replicas: 3
   sandboxClass: wasm
   ateomImage: <ATEOM_WASMD_IMAGE>
+  # Sized for the ateom-wasmd kernel pool (WASM_KERNEL_POOL_SIZE, baked into
+  # the image ENV, default 4). Rules from the wasm-sandbox repo's final design
+  # §7.3 (docs/tasks/wasm-sandbox-final-design.md):
+  #   memory >= N x 300Mi + 512Mi   (each live kernel may pin up to 256Mi of
+  #                                  wasm linear memory + pipe/stdout budgets)
+  #   cpu    >= 2                   (hard floor: with 1 vCPU a CPU-bound cell
+  #                                  starves the data plane / gRPC handling;
+  #                                  epoch timeouts themselves stay safe — the
+  #                                  ticker runs on a dedicated OS thread)
+  # Scale requests/limits together with the pool size if the image changes it.
+  template:
+    resources:
+      requests:
+        cpu: "2"
+        memory: 2Gi
+      limits:
+        cpu: "4"
+        memory: 2Gi
 
 ---
 

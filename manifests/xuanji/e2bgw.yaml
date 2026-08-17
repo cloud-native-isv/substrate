@@ -1,0 +1,146 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# e2bgw — the E2B REST gateway (xuanji addition, see xuanji.md).
+#
+# Translates the E2B protocol into ateapi Control gRPC and reverse-proxies the
+# data plane (/execute, /files, filesystem RPCs) to the actor's atenet domain.
+# Needed in-cluster for the M4 end-to-end acceptance (unmodified E2B SDKs
+# driving wasm actors); before this manifest existed e2bgw could only run
+# outside the cluster.
+#
+# Prerequisites, both of which must be created out of band:
+#
+#   1. Secret e2bgw-jwt-secret with key `secret` — the HS256 key that signs E2B
+#      API keys. It is NOT in this manifest on purpose. Create it with:
+#        kubectl create secret generic e2bgw-jwt-secret -n ate-system \
+#          --from-literal=secret="$(openssl rand -hex 32)"
+#      The same value must be used to mint client API keys (see
+#      contrib/e2b-e2e/sign_jwt.py).
+#   2. A client identity for dialing ateapi. Under the base manifests this is
+#      the podCertificate projection below; under the cert-manager PKI overlay
+#      it is swapped for Secret e2bgw-podidentity-cert (see
+#      manifests/ate-install/cert-manager-pki/).
+#
+# The actor-domain value must match the atenet actor DNS suffix; leaving it
+# empty makes the data-plane routes answer 501 (control plane still works).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: e2bgw
+  namespace: ate-system
+  labels:
+    app: e2bgw
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: e2bgw
+  namespace: ate-system
+  labels:
+    app: e2bgw
+spec:
+  selector:
+    app: e2bgw
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: e2bgw
+  namespace: ate-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: e2bgw
+  template:
+    metadata:
+      labels:
+        app: e2bgw
+    spec:
+      serviceAccountName: e2bgw
+      containers:
+      - name: e2bgw
+        image: ko://github.com/agent-substrate/substrate/cmd/e2bgw
+        args:
+        - --listen-address=0.0.0.0:8080
+        - --ateapi-conn-spec=dns:///api.ate-system.svc:443
+        - --ateapi-ca-file=/run/servicedns-ca/trust-bundle.pem
+        - --ateapi-client-cred-bundle=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+        - --jwt-secret-file=/run/e2bgw/jwt-secret
+        # ActorTemplates that E2B templateIDs resolve to. Matches the namespace
+        # in manifests/xuanji/wasm-example.yaml.
+        - --template-namespace=ate-wasm
+        # atenet actor DNS suffix. Data-plane requests are proxied to
+        # <actor>.<atespace>.<this suffix>.
+        - --actor-domain=actors.resources.substrate.ate.dev
+        # CA for the atenet edge certificate fronting actor data planes.
+        - --actor-ca=/run/servicedns-ca/trust-bundle.pem
+        # The atenet edge cert carries no actor-domain SAN unless one was added
+        # per atespace, so hostname verification is pinned to a name it does
+        # carry. Drop this flag once the router cert lists the actor domains —
+        # see the notes on atenet-router-servicedns in
+        # manifests/ate-install/cert-manager-pki/certificates.yaml.
+        - --actor-tls-server-name=atenet-router.ate-system.svc
+        envFrom:
+        - configMapRef:
+            name: ate-otel-config
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+        volumeMounts:
+        # Client identity presented to ateapi.
+        - name: "podidentity"
+          mountPath: "/run/podidentity.podcert.ate.dev"
+        # Trust bundle verifying ateapi's and atenet's servicedns serving certs.
+        - name: "servicedns-ca"
+          mountPath: "/run/servicedns-ca"
+        - name: "jwt-secret"
+          mountPath: "/run/e2bgw"
+          readOnly: true
+      volumes:
+      - name: "podidentity"
+        projected:
+          sources:
+          - podCertificate:
+              signerName: podidentity.podcert.ate.dev/identity
+              keyType: ECDSAP256
+              credentialBundlePath: credential-bundle.pem
+      - name: "servicedns-ca"
+        projected:
+          sources:
+          - clusterTrustBundle:
+              signerName: servicedns.podcert.ate.dev/identity
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+      - name: "jwt-secret"
+        secret:
+          secretName: e2bgw-jwt-secret
+          items:
+          - key: secret
+            path: jwt-secret

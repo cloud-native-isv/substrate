@@ -1,0 +1,70 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Overlay: e2bgw with TLS material from cert-manager/trust-manager instead of
+# the PodCertificateRequest machinery — the e2bgw counterpart of
+# manifests/ate-install/cert-manager-pki, for clusters without those feature
+# gates. Use this instead of ../e2bgw.yaml when the ate system itself was
+# deployed with hack/install-ate-certmanager.sh.
+#
+# Mount paths and file names are unchanged, so the container args in
+# ../e2bgw.yaml stay valid. Requires Certificate e2bgw-podidentity (declared in
+# manifests/ate-install/cert-manager-pki/certificates.yaml) and the
+# trust-manager Bundle servicedns-ca-bundle.
+#
+# As in the ate-install overlay, each volume replacement is pinned by a `test`
+# op on the volume name so the build fails loudly if ../e2bgw.yaml is ever
+# reordered.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../e2bgw.yaml
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: e2bgw
+      namespace: ate-system
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/0/name
+        value: podidentity
+      - op: replace
+        path: /spec/template/spec/volumes/0
+        value:
+          name: podidentity
+          projected:
+            sources:
+            - secret:
+                name: e2bgw-podidentity-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: servicedns-ca
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: servicedns-ca
+          projected:
+            sources:
+            - configMap:
+                name: servicedns-ca-bundle
+                items:
+                - key: trust-bundle.pem
+                  path: trust-bundle.pem

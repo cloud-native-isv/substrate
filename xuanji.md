@@ -56,6 +56,19 @@
 | `cmd/atecontroller/internal/controllers/workerpool_apply_test.go` | TestMicroVMPodShape 加 wasm 行（非特权、无 KVM 形状）；TestAteomSecurityContextByClass 重构断言表——原表把「有 capability」「drop ALL」「AppArmor Unconfined」并成一个标志位，无法表达 wasm 形状，拆成 4 个独立期望 | 测试覆盖 |
 | `manifests/ate-install/sandboxconfig-validation.yaml` | VAP 新增 wasm 规则：每 arch 必须有 `python-wasm` 资产 | wasm 资产校验 |
 | `manifests/ate-install/generated/*` | controller-gen 再生成（枚举/文案变化） | 生成物 |
+| `README.md` | 新增「Feature List」一节（Spec Kit 特性登记表，指向 `.specify/memory/features.md`） | 特性盘点 |
+| `.gitignore` | 末尾追加 1 行 `.specify/tools/*.json` | 工具产物忽略 |
+| `cmd/ateapi/main.go` | 新增 flag `--atelet-require-pod-identity-ext`（默认 `true`，行为不变），透传给 `NewAteletDialer` | cert-manager PKI：外部签发器无法嵌入 PodIdentity X.509 扩展 |
+| `cmd/ateapi/internal/controlapi/dialer.go` | `NewAteletDialer`/`buildTLSConfig`/`verifyAteletServerCert` 增加 `requirePodIdentityExt` 参数；为 `false` 时跳过 PodIdentity 扩展/PodUID 钉扎，SPIFFE ID + 链 + serverAuth EKU 校验保留 | 同上 |
+| `cmd/ateapi/internal/controlapi/dialer_test.go` | 既有调用补 `true` 实参；新增放宽模式 2 用例（无扩展通过 / 错 SPIFFE 仍拒绝） | 测试覆盖 |
+| `cmd/ateapi/internal/controlapi/{functional,workflow_suspend}_test.go` | `NewAteletDialer` 调用补 `true` 实参 | 签名变更适配 |
+| `cmd/atecontroller/main.go` | 新增 flag `--worker-cert-source=pod-certificate\|cert-manager`（默认前者，行为不变），带取值校验并注入 Reconciler | cert-manager PKI：worker 证书卷来源切换 |
+| `cmd/atecontroller/internal/controllers/workerpool_controller.go` | `WorkerPoolReconciler` 新增 `WorkerCertSource` 字段，空值回退 `pod-certificate` | 同上 |
+| `cmd/atecontroller/internal/controllers/workerpool_apply.go` | （追加改动）`buildDeploymentApplyConfig` 增加 `certSource` 参数；卷 sources 抽出 `atunnelIdentitySources`/`atunnelEgressTrustSources` 双模式函数：cert-manager 模式挂 Secret `ate-worker-podidentity-cert` + trust-manager ConfigMap，挂载路径/文件名与 podCertificate 投影完全一致 | 同上 |
+| `cmd/atecontroller/internal/controllers/workerpool_apply_test.go` | （追加改动）既有调用补 `WorkerCertSourcePodCertificate` 实参；新增 `TestWorkerCertSourceVolumes` 双模式卷断言 | 测试覆盖 |
+| `internal/ateclient/builder.go` | `serverTLSConfig` 拆出 `serverCAPool`：ClusterTrustBundle API 不可用或无 live bundle 时回退读 `ate-system/servicedns-ca-bundle` ConfigMap（trust-manager 分发） | kubectl-ate 在无 CTB API 的集群（如 ACK）可用 |
+| `cmd/ateapi/main.go` | （追加改动，review P3）`--atelet-require-pod-identity-ext=false` 时启动打 WARN：说明 atelet PodUID 钉扎已失效、cert-manager 模式下 atelet 凭证为命名空间级共享（泄露可跨节点冒充），并说明仍生效的校验与切回方式 | 降级面显式化，避免只留在文档里 |
+| `cmd/atecontroller/main.go` | （追加改动，review P3）`--worker-cert-source=cert-manager` 时启动打 WARN：worker 凭证由「每 Pod 一份投影」退化为「每命名空间一份 Secret」，并提示 actor 路由授权不受影响 + 每命名空间需自建 Certificate | 同上 |
 
 ## 新增文件（无 upstream 冲突面）
 
@@ -64,12 +77,17 @@
 | `xuanji.md` | 本登记文件（原名 `XUANJI.md`，2026-08-07 按命名规范改小写） |
 | `ARCHITECTURE.md`、`CHANGELOG.md`、`docs/{decisions,notes,concepts,tutorials,tasks,reference,contribute}/` | xuanji 文档空间骨架（/speckit.docs reconcile 建立；薄根入口 + ADR/notes 生命周期 + 六型索引） |
 | `docs/overview.md`、`docs/concepts/core-concepts.md`、`docs/reference/actor-lifecycle-flows.md`、`docs/figures/`（8 图 ×puml/png/svg） | upstream 架构深度研究（study-project）：组件架构图/部署图/Resume/Suspend/停车时序图/状态机/资源模型/golden 流程 + 概念与流程文档；`ARCHITECTURE.md` 详细文档表同步更新 |
-| `manifests/xuanji/wasm-example.yaml` | wasm 类示例：SandboxConfig(wasm-default, python-wasm 资产) + WorkerPool(sandboxClass=wasm, 外部 ateom-wasmd 镜像) + ActorTemplate(python-interpreter) |
+| `manifests/xuanji/wasm-example.yaml` | wasm 类示例：SandboxConfig(wasm-default, python-wasm 资产) + WorkerPool(sandboxClass=wasm, 外部 ateom-wasmd 镜像) + ActorTemplate(python-interpreter)；**2026-08 追加** WorkerPool `template.resources`（requests cpu=2/memory=2Gi，limits cpu=4/memory=2Gi）——ateom-wasmd 引入内核池（一个 actor 内至多 N 个 wasmtime 内核，镜像 ENV `WASM_KERNEL_POOL_SIZE` 缺省 4）后 worker 资源须随池大小配置，公式与 CPU≥2 下限依据见 sandbox 仓 `docs/tasks/wasm-sandbox-final-design.md` §7.3 |
 | `contrib/e2b-e2e/` | E2B 协议验收资产（自 sandbox 仓 `scripts/` 原样迁入）：官方 SDK e2e、files e2e、smolagents、MCP server、TLS relay 等；作为 `cmd/e2bgw` 的验收基线，M3 改指新网关 |
-| `cmd/e2bgw/` | E2B REST → `ateapipb.Control` 翻译网关（Go）：HS256 API-Key 鉴权（atespace/tenant claim）、POST /sandboxes→CreateActor+ResumeActor(boot)（失败回滚 DeleteActor）、pause/resume→Suspend/Resume、gRPC↔HTTP 错误映射、数据面 /execute /files 307 跳转 atenet 域名（M4 接通）；handler 单测全绿 |
+| `cmd/e2bgw/` | E2B REST → `ateapipb.Control` 翻译网关（Go）：HS256 API-Key 鉴权（atespace/tenant claim）、POST /sandboxes→CreateActor+ResumeActor(boot)（失败回滚 DeleteActor）、pause/resume→Suspend/Resume、gRPC↔HTTP 错误映射；数据面 M4 接通：/execute /files /filesystem.Filesystem/{Stat,ListDir,MakeDir,Move,Remove} 反向代理（`httputil.ReverseProxy`）到 `<name>.<atespace>.<actor-domain>`——剥离 `/sandboxes/{id}` 前缀、Host 设为 actor 权威名（atenet 按 :authority 路由、atunnel 据此授权）、`FlushInterval=-1` 保 NDJSON 逐行流式、剥除 API-Key 头、上游不可达回纯文本 502；新增 `--actor-ca` flag 注入自签 CA（空则系统根证书）、`--actor-domain` 为空仍回 501；**review P2 追加** `--actor-tls-server-name`：atenet 边缘证书（servicedns 签发器只签 `<svc>.<ns>.svc`，见 `cmd/podcertcontroller/internal/servicednssigner`）不含 actor 域名 SAN，默认按 actor 权威名校验主机名必然失败；该 flag 可把校验名钉到证书已有的名字上（链校验照旧，空值保持原行为）；单测覆盖钉扎生效 + 不钉扎时错配仍回 502；另注：`FlushInterval=-1` 对流式响应实为冗余（`httputil` 在 `res.ContentLength == -1` 时强制 -1），真正会破坏流式的是缓冲 body，已在注释中写明并由 `TestDataPlaneProxyStreamsNDJSON` 覆盖；原 307 跳转已废弃（其保留完整 `/sandboxes/{id}/execute` 路径，目标本身就错）；handler 单测全绿（路径改写/流式/502/501 覆盖） |
 | `docs/reference/e2b-api-surface.md`、`docs/concepts/sandbox-landscape.md` | /speckit.docs 扇出蒸馏产出：E2B 接口面×e2bgw 覆盖矩阵（代码核实）+ Agent 沙箱竞品格局（仅公开来源）。原 `docs/reference/collected-materials/`（含内网原文）已移出 tracked docs 树（本仓有公开 remote，内网原文不入库） |
 | `docs/reference/upstream-evolution-research.md`、`docs/reference/xuanji-evolution-survey.md`、`docs/figures/{xuanji-evolution-stages,upstream-new-since-baseline,xuanji-extension-plane}.{puml,png,svg}` | 演进研究（study-project，2026-08-19）：upstream 演进方向×xuanji 演进支持（38 提交漂移主题/新子系统/in-flight 分支/rebase 冲突风险/吸收清单）+ xuanji 分支演进调研（试点解剖、preflight M4 管线、阶段转换决策点），配套三图 |
 | `docs/hugo.toml`、`docs/layouts/`、`docs/static/css/site.css`、`docs/.gitignore`、`docs/contribute/docs-site-build.md` | Hugo 呈现层（create-docs 技能 scaffold + 人工修正）：`docs/` 兼作 Hugo 项目根，内容挂载不复制、Markdown 保持无 frontmatter。人工补 4 条挂载（根级 `*.md` 入 content；`figures` 镜像到 concepts/reference/overview 三处 static）与 `layouts/partials/page-title.html`（H1 兜底标题），修复根级文档缺页/死链、导航标题空白、raw-HTML 图片 404。构建 29 页零 warning；产物 `docs/public/` 永不提交 |
+| `manifests/ate-install/cert-manager-pki/` | mTLS 证书签发从 PodCertificateRequest 切换到 cert-manager/trust-manager 的 kustomize overlay（面向无 PCR/CTB feature gate 的托管集群，如 ACK）：`pki.yaml`（自签 bootstrap → servicedns-ca/podidentity-ca 两 CA → 两 ClusterIssuer，对应原两个 signer）、`trust-bundles.yaml`（3 个 trust-manager Bundle 全命名空间分发 CA，valkey 用双根合并 bundle）、`certificates.yaml`（组件 Certificate，`CombinedPEM` 匹配 credbundle 单文件格式，SPIFFE URI 与原签发器一致；**review P2/P4 追加** `atenet-router-servicedns` 补 actor 域名 SAN 的精确说明与按 atespace 的注释模板（X.509 通配符只匹配一层标签，而 actor 权威名有两层可变标签，故单条通配覆盖不了），并新增 `e2bgw-podidentity` 客户端身份证书）、`kustomization.yaml`（复用 base 各组件清单但不含 podcertcontroller；JSON6902 `test`+`replace` 把 podCertificate/clusterTrustBundle 投影卷换成 Secret/ConfigMap，挂载路径与容器 args 不变；追加 `--atelet-require-pod-identity-ext=false` 与 `--worker-cert-source=cert-manager`）、`worker-certificate.example.yaml`（每 WorkerPool 命名空间一份的 worker 身份模板）。切回：集群支持 PCR 后重新部署 base/token-client overlay 即可；**review P3 追加** `kustomization.yaml` 头部新增「安全强度差异」小节，记账两处降级（atelet 失去 PodUID 钉扎且凭证命名空间级共享、worker 凭证由每 Pod 退化为每命名空间）与不受影响面（actor 路由授权、mTLS 本身、SPIFFE 身份、轮换） |
+| `manifests/ate-install/cert-manager-pki-agentgateway/` | 上一行 overlay 的 agentgateway 数据面变体：叠加 `components/agentgateway` Component（其 configmap 引用的证书路径由 cert-manager-pki 的卷替换同样满足） |
+| `manifests/xuanji/e2bgw.yaml` |（review P4）e2bgw 的 K8s 部署清单（原先全仓无清单，只能出集群跑，阻塞 M4 4.4 端到端验收）：ServiceAccount + Service + Deployment，镜像走 `ko://.../cmd/e2bgw`；args 含 ateapi 连接/客户端证书、`--jwt-secret-file`、`--template-namespace=ate-wasm`、`--actor-domain`、`--actor-ca`、`--actor-tls-server-name`（默认钉到 router Service 名，待 router 证书补齐 actor 域名后可去掉）；`/health` readinessProbe；HS256 密钥经 Secret `e2bgw-jwt-secret` 挂载——**密钥本身不入库**，清单头注释给出创建命令 |
+| `manifests/xuanji/e2bgw-certmanager/` |（review P4）上一行清单的 cert-manager 变体 overlay：JSON6902 `test`+`replace` 把 podCertificate/clusterTrustBundle 投影换成 Secret `e2bgw-podidentity-cert` + ConfigMap `servicedns-ca-bundle`，挂载路径与容器 args 不变；`test` op 钉住卷名（已验证：把 `e2bgw.yaml` 的卷顺序对调，kustomize build 立即失败）|
+| `hack/install-ate-certmanager.sh` | cert-manager PKI 部署脚本（不改 upstream `install-ate.sh`）：前置检查 cert-manager / 安装 trust-manager（helm）、CRD/VAP/命名空间/otel/actor-id 秘钥/envvars（跳过 podcertcontroller CA 与 valkey-ca-certs，二者已被 PKI 取代）、渲染部署 cert-manager-pki[-agentgateway] overlay、等待 Certificate Ready 与 Bundle ConfigMap 同步、rollout 校验；另提供 `--create-worker-cert <ns>` 按命名空间签发 worker 身份与 `--delete-ate-system` |
 
 ## 设计约定
 
@@ -80,3 +98,19 @@
   （同 gvisor 限制）；worker 非特权（复用 gvisor 分支的 security context，能力集后续可再收窄）。
 - **资产约定**：wasm 类 SandboxConfig 必须提供 `python-wasm` 资产（CPython 解释器 wasm 模块，
   arch 无关但按 arch 键重复登记）；atelet 原样拉取并交给 ateom-wasmd。
+- **wasm worker 资源与内核池耦合（2026-08）**：ateom-wasmd 采用 actor-as-task 模型——一个 actor
+  内至多 N 个 wasmtime 内核（E2B context 粘性分派），N 由镜像 ENV `WASM_KERNEL_POOL_SIZE`
+  决定（缺省 4；atecontroller 渲染固定 env 列表、WorkerPool CRD 无 env 透传通道，故只能烤镜像）。
+  WorkerPool `template.resources` 须随 N 配置：memory ≥ N×300Mi + 512Mi（每内核 256Mi 线性内存
+  硬限 + 缓冲预算）；CPU ≥ 2 为硬下限（1 vCPU 时 CPU-bound cell 饿死数据面/gRPC 响应；epoch
+  超时强制本身不受影响——ticker 为独立 OS 线程）。设计依据见 sandbox 仓
+  `docs/tasks/wasm-sandbox-final-design.md` §5/§7.3。本仓无代码改动面：Ateom proto、CLI 参数表、
+  atunnel 契约、快照目录契约均不变，e2bgw/atenet/atelet/atecontroller/ateapi 零修改。
+- **mTLS 证书来源双模式（2026-08-13）**：upstream 的 mTLS 体系依赖 PodCertificateRequest /
+  ClusterTrustBundle feature gate，目标验证集群（ACK v1.36）不支持；选择「cert-manager 替代签发」
+  而非「砍掉 TLS 裸传输」，因为全部 Go 代码只从固定路径读 PEM 并热加载、不感知签发方，
+  此方案代码改动最小且 mTLS 语义（SPIFFE 身份/双向认证/轮换）完整保留。两处代码开关默认值
+  均保持 upstream 原行为（ateapi `--atelet-require-pod-identity-ext=true`、atecontroller
+  `--worker-cert-source=pod-certificate`），仅由 `cert-manager-pki[-agentgateway]` overlay 翻转；
+  集群支持 PCR 后重新部署 base/token-client overlay 即切回，无代码回滚面。部署入口统一走
+  `hack/install-ate-certmanager.sh`（不改 upstream `install-ate.sh`）。
