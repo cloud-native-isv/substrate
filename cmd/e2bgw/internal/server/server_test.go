@@ -120,6 +120,10 @@ func (f *fakeControl) ListActors(_ context.Context, in *ateapipb.ListActorsReque
 	return &ateapipb.ListActorsResponse{Actors: []*ateapipb.Actor{f.actorOr("sbx-1", in.GetAtespace())}}, nil
 }
 
+func (f *fakeControl) ListActorSnapshots(_ context.Context, _ *ateapipb.ListActorSnapshotsRequest, _ ...grpc.CallOption) (*ateapipb.ListActorSnapshotsResponse, error) {
+	return &ateapipb.ListActorSnapshotsResponse{}, nil
+}
+
 func newTestServer(f *fakeControl) *Server {
 	return New(Config{
 		Control:           f,

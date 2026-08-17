@@ -46,6 +46,7 @@ type ControlAPI interface {
 	SuspendActor(ctx context.Context, in *ateapipb.SuspendActorRequest, opts ...grpc.CallOption) (*ateapipb.SuspendActorResponse, error)
 	ResumeActor(ctx context.Context, in *ateapipb.ResumeActorRequest, opts ...grpc.CallOption) (*ateapipb.ResumeActorResponse, error)
 	ListActors(ctx context.Context, in *ateapipb.ListActorsRequest, opts ...grpc.CallOption) (*ateapipb.ListActorsResponse, error)
+	ListActorSnapshots(ctx context.Context, in *ateapipb.ListActorSnapshotsRequest, opts ...grpc.CallOption) (*ateapipb.ListActorSnapshotsResponse, error)
 }
 
 type Config struct {
@@ -82,6 +83,8 @@ type Server struct {
 	// dataPlaneTransport dials the atenet edge for proxied data-plane
 	// requests; tests rewire its dialer at a fake upstream.
 	dataPlaneTransport *http.Transport
+	// ttl holds the gateway-side sandbox timeout timers (see ttl.go).
+	ttl ttlTable
 }
 
 func New(cfg Config) *Server {
@@ -102,10 +105,17 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("POST /sandboxes/{id}/pause", s.auth(s.pauseSandbox))
 	s.mux.HandleFunc("POST /sandboxes/{id}/resume", s.auth(s.resumeSandbox))
 	s.mux.HandleFunc("POST /sandboxes/{id}/timeout", s.auth(s.setTimeout))
+	s.mux.HandleFunc("GET /sandboxes/{id}/snapshots", s.auth(s.listSnapshots))
+	// Metrics have no source on the wasm class yet; answer an explicit 501
+	// instead of a bare 404 so SDK get_metrics() fails with a clear reason.
+	s.mux.HandleFunc("GET /sandboxes/{id}/metrics", s.auth(func(w http.ResponseWriter, _ *http.Request) {
+		writeErr(w, http.StatusNotImplemented, "sandbox metrics are not implemented for the wasm sandbox class")
+	}))
 	// Data plane, path-based: reverse-proxied to the actor's own HTTP surface
 	// (ateom-wasmd) through the atenet edge (M4). Watch-family filesystem
 	// RPCs are not registered: the actor answers them unimplemented.
 	s.mux.HandleFunc("/sandboxes/{id}/execute", s.auth(s.dataPlaneProxy))
+	s.mux.HandleFunc("POST /sandboxes/{id}/contexts", s.auth(s.dataPlaneProxy))
 	s.mux.HandleFunc("/sandboxes/{id}/files", s.auth(s.dataPlaneProxy))
 	for _, rpc := range []string{"Stat", "ListDir", "MakeDir", "Move", "Remove"} {
 		s.mux.HandleFunc("POST /sandboxes/{id}/filesystem.Filesystem/"+rpc, s.auth(s.dataPlaneProxy))
@@ -246,6 +256,7 @@ func (s *Server) createSandbox(w http.ResponseWriter, r *http.Request) {
 		writeGRPCErr(w, "ResumeActor", err)
 		return
 	}
+	s.armTTL(atespace, name, req.Timeout)
 	writeJSON(w, http.StatusCreated, s.sandboxResponse(resumed.GetActor(), req.TemplateID))
 }
 
@@ -304,30 +315,94 @@ func (s *Server) deleteSandbox(w http.ResponseWriter, r *http.Request) {
 		writeGRPCErr(w, "DeleteActor", err)
 		return
 	}
+	s.cancelTTL(ref.GetAtespace(), ref.GetName())
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) pauseSandbox(w http.ResponseWriter, r *http.Request) {
-	if _, err := s.cfg.Control.SuspendActor(r.Context(), &ateapipb.SuspendActorRequest{Actor: s.ref(r)}); err != nil {
+	ref := s.ref(r)
+	if _, err := s.cfg.Control.SuspendActor(r.Context(), &ateapipb.SuspendActorRequest{Actor: ref}); err != nil {
 		writeGRPCErr(w, "SuspendActor", err)
 		return
 	}
+	s.cancelTTL(ref.GetAtespace(), ref.GetName())
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) resumeSandbox(w http.ResponseWriter, r *http.Request) {
-	resp, err := s.cfg.Control.ResumeActor(r.Context(), &ateapipb.ResumeActorRequest{Actor: s.ref(r)})
+	// Optional body: the SDK sends {"timeout": seconds} to set the resumed
+	// sandbox's TTL; absence (or garbage) falls back to the E2B default.
+	var req struct {
+		Timeout int64 `json:"timeout"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	ref := s.ref(r)
+	resp, err := s.cfg.Control.ResumeActor(r.Context(), &ateapipb.ResumeActorRequest{Actor: ref})
 	if err != nil {
 		writeGRPCErr(w, "ResumeActor", err)
 		return
 	}
+	s.armTTL(ref.GetAtespace(), ref.GetName(), req.Timeout)
 	writeJSON(w, http.StatusOK, s.sandboxResponse(resp.GetActor(), resp.GetActor().GetActorTemplateName()))
 }
 
-// setTimeout accepts the E2B timeout call. Gateway-side TTL→Suspend scheduling
-// is a follow-up; acknowledging keeps SDK flows moving.
-func (s *Server) setTimeout(w http.ResponseWriter, _ *http.Request) {
+// setTimeout implements the E2B timeout call: it re-arms the gateway-side
+// TTL that suspends the sandbox when it expires (see ttl.go).
+func (s *Server) setTimeout(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Timeout int64 `json:"timeout"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Timeout <= 0 {
+		writeErr(w, http.StatusBadRequest, "timeout (seconds, > 0) is required")
+		return
+	}
+	ref := s.ref(r)
+	s.armTTL(ref.GetAtespace(), ref.GetName(), req.Timeout)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type snapshotResponse struct {
+	Name       string `json:"name"`
+	CreatedAt  string `json:"createdAt,omitempty"`
+	TemplateID string `json:"templateID,omitempty"`
+}
+
+// listSnapshots surfaces the actor's suspend snapshots (migration plan 3.2:
+// snapshot endpoints → ListActorSnapshots). ateapi lists per atespace, so
+// the gateway filters by source actor; mainly operational visibility — e.g.
+// verifying that a pause actually produced a snapshot.
+func (s *Server) listSnapshots(w http.ResponseWriter, r *http.Request) {
+	ref := s.ref(r)
+	out := []snapshotResponse{}
+	pageToken := ""
+	for {
+		resp, err := s.cfg.Control.ListActorSnapshots(r.Context(), &ateapipb.ListActorSnapshotsRequest{
+			Atespace:  ref.GetAtespace(),
+			PageToken: pageToken,
+		})
+		if err != nil {
+			writeGRPCErr(w, "ListActorSnapshots", err)
+			return
+		}
+		for _, snap := range resp.GetSnapshots() {
+			if snap.GetSourceActor().GetName() != ref.GetName() {
+				continue
+			}
+			item := snapshotResponse{
+				Name:       snap.GetMetadata().GetName(),
+				TemplateID: snap.GetActorTemplateName(),
+			}
+			if ts := snap.GetMetadata().GetCreateTime(); ts != nil {
+				item.CreatedAt = ts.AsTime().UTC().Format(time.RFC3339)
+			}
+			out = append(out, item)
+		}
+		pageToken = resp.GetNextPageToken()
+		if pageToken == "" {
+			break
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // dataPlaneProxy reverse-proxies path-based data-plane calls
