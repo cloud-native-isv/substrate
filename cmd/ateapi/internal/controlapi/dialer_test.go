@@ -185,7 +185,7 @@ func TestVerifyAteletServerCert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			verify, err := verifyAteletServerCert(bundle, expectedID, tc.expectedUID)
+			verify, err := verifyAteletServerCert(bundle, expectedID, tc.expectedUID, true)
 			if err != nil {
 				t.Fatalf("constructing verifier: %v", err)
 			}
@@ -199,7 +199,7 @@ func TestVerifyAteletServerCert(t *testing.T) {
 	}
 
 	t.Run("no peer certificate fails", func(t *testing.T) {
-		verify, err := verifyAteletServerCert(bundle, expectedID, uid)
+		verify, err := verifyAteletServerCert(bundle, expectedID, uid, true)
 		if err != nil {
 			t.Fatalf("constructing verifier: %v", err)
 		}
@@ -209,8 +209,30 @@ func TestVerifyAteletServerCert(t *testing.T) {
 	})
 
 	t.Run("empty expected UID fails at construction", func(t *testing.T) {
-		if _, err := verifyAteletServerCert(bundle, expectedID, ""); err == nil {
+		if _, err := verifyAteletServerCert(bundle, expectedID, "", true); err == nil {
 			t.Fatal("verifyAteletServerCert succeeded, want error")
+		}
+	})
+
+	t.Run("missing pod UID extension passes when the extension is not required", func(t *testing.T) {
+		verify, err := verifyAteletServerCert(bundle, expectedID, uid, false)
+		if err != nil {
+			t.Fatalf("constructing verifier: %v", err)
+		}
+		leaf := makeLeafCert(t, ca, caKey, leafOpts{spiffeID: testAteletSPIFFEID})
+		if err := verify(tls.ConnectionState{PeerCertificates: []*x509.Certificate{leaf}}); err != nil {
+			t.Fatalf("verify returned error %v, want nil", err)
+		}
+	})
+
+	t.Run("wrong SPIFFE ID still fails when the extension is not required", func(t *testing.T) {
+		verify, err := verifyAteletServerCert(bundle, expectedID, uid, false)
+		if err != nil {
+			t.Fatalf("constructing verifier: %v", err)
+		}
+		leaf := makeLeafCert(t, ca, caKey, leafOpts{spiffeID: "spiffe://cluster.local/ns/other/sa/other"})
+		if err := verify(tls.ConnectionState{PeerCertificates: []*x509.Certificate{leaf}}); err == nil {
+			t.Fatal("verify succeeded, want error")
 		}
 	})
 }

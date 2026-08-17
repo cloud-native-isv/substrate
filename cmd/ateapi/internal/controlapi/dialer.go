@@ -57,13 +57,17 @@ type AteletDialer struct {
 
 // NewAteletDialer creates a new AteletDialer. clientBundlePath and serverCAPath
 // are used to build the per-atelet mTLS credentials used for every atelet connection.
-func NewAteletDialer(workerIndexer cache.Indexer, ateletIndexer cache.Indexer, clientBundlePath, serverCAPath string) *AteletDialer {
+// requirePodIdentityExt controls whether atelet serving certificates must carry
+// the PodIdentity X.509 extension minted by the podcertcontroller signer; it is
+// disabled when certificates come from an external issuer (e.g. cert-manager)
+// that cannot embed the extension.
+func NewAteletDialer(workerIndexer cache.Indexer, ateletIndexer cache.Indexer, clientBundlePath, serverCAPath string, requirePodIdentityExt bool) *AteletDialer {
 	return &AteletDialer{
 		workerIndexer: workerIndexer,
 		ateletIndexer: ateletIndexer,
 		ateletConns:   lru.New(1024),
 		dialCredentials: func(expectedPodUID string) (credentials.TransportCredentials, error) {
-			tlsConfig, err := buildTLSConfig(clientBundlePath, serverCAPath, expectedPodUID)
+			tlsConfig, err := buildTLSConfig(clientBundlePath, serverCAPath, expectedPodUID, requirePodIdentityExt)
 			if err != nil {
 				return nil, err
 			}
@@ -131,7 +135,7 @@ func (d *AteletDialer) DialForWorker(workerPodNamespace, workerPodName string) (
 	return ateletConn, nil
 }
 
-func buildTLSConfig(clientBundlePath, serverCAPath, expectedPodUID string) (*tls.Config, error) {
+func buildTLSConfig(clientBundlePath, serverCAPath, expectedPodUID string, requirePodIdentityExt bool) (*tls.Config, error) {
 	trustDomain, err := spiffeid.TrustDomainFromString(trustDomainName)
 	if err != nil {
 		return nil, fmt.Errorf("while parsing trust domain %q: %w", trustDomainName, err)
@@ -145,7 +149,7 @@ func buildTLSConfig(clientBundlePath, serverCAPath, expectedPodUID string) (*tls
 		return nil, fmt.Errorf("while building expected atelet SPIFFE ID: %w", err)
 	}
 
-	verify, err := verifyAteletServerCert(bundle, expectedID, expectedPodUID)
+	verify, err := verifyAteletServerCert(bundle, expectedID, expectedPodUID, requirePodIdentityExt)
 	if err != nil {
 		return nil, fmt.Errorf("while creating atelet server cert verifier: %w", err)
 	}
@@ -162,7 +166,7 @@ func buildTLSConfig(clientBundlePath, serverCAPath, expectedPodUID string) (*tls
 	return &tlsConfig, nil
 }
 
-func verifyAteletServerCert(bundle *x509bundle.Bundle, expectedID spiffeid.ID, expectedPodUID string) (func(tls.ConnectionState) error, error) {
+func verifyAteletServerCert(bundle *x509bundle.Bundle, expectedID spiffeid.ID, expectedPodUID string, requirePodIdentityExt bool) (func(tls.ConnectionState) error, error) {
 	if expectedPodUID == "" {
 		return nil, fmt.Errorf("expected pod UID must not be empty")
 	}
@@ -184,6 +188,13 @@ func verifyAteletServerCert(bundle *x509bundle.Bundle, expectedID spiffeid.ID, e
 		leaf := cs.PeerCertificates[0]
 		if !slices.Contains(leaf.ExtKeyUsage, x509.ExtKeyUsageServerAuth) {
 			return fmt.Errorf("server certificate lacks the serverAuth extended key usage")
+		}
+
+		// Certificates from an external issuer (cert-manager) carry no
+		// PodIdentity extension; the SPIFFE ID and chain checks above are the
+		// only binding in that mode, so the per-pod UID pinning is skipped.
+		if !requirePodIdentityExt {
+			return nil
 		}
 
 		identity, err := substratex509.PodIdentityFromCertificate(leaf)

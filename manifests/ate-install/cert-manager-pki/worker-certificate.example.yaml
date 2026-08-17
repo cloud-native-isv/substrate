@@ -1,0 +1,49 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Template: worker (ateom) identity for one WorkerPool namespace.
+#
+# With --worker-cert-source=cert-manager the atecontroller mounts the Secret
+# named ate-worker-podidentity-cert from the WorkerPool's own namespace into
+# every worker pod (see cmd/atecontroller/internal/controllers/
+# workerpool_apply.go). Apply one copy of this Certificate per namespace that
+# hosts WorkerPools, replacing WORKER_NAMESPACE below (twice: metadata and the
+# SPIFFE URI). The trust-bundle ConfigMaps are synced to every namespace by
+# trust-manager and need no per-namespace setup.
+#
+#   sed 's/WORKER_NAMESPACE/ate-wasm/g' worker-certificate.example.yaml | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ate-worker-podidentity
+  namespace: WORKER_NAMESPACE
+spec:
+  secretName: ate-worker-podidentity-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  # Worker pods run under the namespace default ServiceAccount; the router
+  # validates this URI by trust-domain prefix (spiffe://cluster.local/).
+  uris:
+  - spiffe://cluster.local/ns/WORKER_NAMESPACE/sa/default
+  usages:
+  - digital signature
+  - server auth
+  - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: podidentity-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

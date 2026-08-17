@@ -59,6 +59,9 @@ var (
 	ateapiTokenAuth  = pflag.Bool("ateapi-use-token-auth", false, "Authenticate to ateapi with the Bearer token from --ateapi-token-file instead of the client certificate from --ateapi-client-cert.")
 	ateapiTokenFile  = pflag.String("ateapi-token-file", "", "Projected SA token file used as Bearer credential. Required with --ateapi-use-token-auth, ignored otherwise.")
 	ateapiClientCert = pflag.String("ateapi-client-cert", "", "Credential bundle presented as the client certificate when dialing ateapi. Required unless --ateapi-use-token-auth is set, ignored otherwise.")
+
+	workerCertSource = pflag.String("worker-cert-source", string(controllers.WorkerCertSourcePodCertificate),
+		"Where worker pod TLS material comes from: 'pod-certificate' projects podCertificate/clusterTrustBundle volume sources (requires the PodCertificateRequest feature gate), 'cert-manager' mounts the cert-manager issued Secret and trust-manager CA ConfigMaps expected by manifests/ate-install/cert-manager-pki.")
 )
 
 func init() {
@@ -69,6 +72,22 @@ func init() {
 func main() {
 	pflag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+
+	certSource := controllers.WorkerCertSource(*workerCertSource)
+	if certSource != controllers.WorkerCertSourcePodCertificate && certSource != controllers.WorkerCertSourceCertManager {
+		setupLog.Error(nil, "invalid --worker-cert-source", "value", *workerCertSource)
+		os.Exit(1)
+	}
+	if certSource == controllers.WorkerCertSourceCertManager {
+		setupLog.Info("WARNING: worker TLS material comes from cert-manager " +
+			"(--worker-cert-source=cert-manager): worker credentials degrade from one " +
+			"podCertificate projection per pod to a single Secret shared by every worker pod in the " +
+			"namespace, so a leaked worker credential is no longer attributable to one pod. Actor " +
+			"routing is unaffected (atunnel authorizes on the activated actor, not the certificate). " +
+			"Every WorkerPool namespace needs its own Certificate — see " +
+			"hack/install-ate-certmanager.sh --create-worker-cert. Intended only for clusters " +
+			"without PodCertificateRequest.")
+	}
 
 	dialOpts, err := ateapiauth.DialOptions(ateapiauth.ClientConfig{
 		UseTokenAuth:     *ateapiTokenAuth,
@@ -106,6 +125,7 @@ func main() {
 		OTelMetricExportTimeout:  *otelMetricExportTimeout,
 		OTelTracesSampler:        *otelTracesSampler,
 		OTelTracesSamplerArg:     *otelTracesSamplerArg,
+		WorkerCertSource:         certSource,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "WorkerPool")
 		os.Exit(1)

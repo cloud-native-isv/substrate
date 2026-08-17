@@ -1,0 +1,342 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Overlay: TLS material comes from cert-manager/trust-manager instead of the
+# PodCertificateRequest machinery, for clusters without that feature gate
+# (e.g. managed clusters). Mount paths, file names, and therefore all
+# container args stay identical to the base manifests, so switching back is
+# just deploying the base overlay again (plus resetting the two flags added
+# below). podcertcontroller is intentionally not deployed.
+#
+# Prerequisites: cert-manager and trust-manager installed (see
+# trust-bundles.yaml), and one worker-certificate.example.yaml copy applied
+# per WorkerPool namespace.
+#
+# Every volume swap below is pinned by a `test` op on the volume name so the
+# build fails loudly if the base volumes are ever reordered.
+#
+# ── Security differences vs the base manifests ──────────────────────────────
+# Switching the issuer keeps mTLS intact — mutual authentication, SPIFFE
+# identities and rotation all still apply — but certificate *granularity*
+# drops, because cert-manager issues per-Secret whereas PodCertificateRequest
+# issues per-Pod:
+#
+#   1. atelet: this overlay sets --atelet-require-pod-identity-ext=false, so
+#      ateapi no longer pins an atelet serving certificate to the atelet pod's
+#      UID (the PodIdentity X.509 extension cannot be minted by an external
+#      issuer). All atelet pods share Secret atelet-podidentity-cert, so a
+#      leaked atelet credential can impersonate the atelet on *any* node.
+#      Still enforced: SPIFFE ID, chain, serverAuth EKU.
+#   2. workers: one Secret ate-worker-podidentity-cert per namespace is shared
+#      by every worker pod in it, instead of one projection per pod, so a
+#      leaked worker credential is not attributable to a single pod.
+#
+# NOT affected: actor routing authorization (atunnel matches the actor
+# authority against the actor actually activated on that worker, never the
+# certificate), atespace isolation, and the control-plane auth model.
+#
+# Both components log the active downgrade at startup. Reverting is a redeploy
+# of the base manifests: the two flags default to the original behaviour, so
+# there is no code to roll back.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Base components, minus pod-certificate-controller.yaml.
+  - ../ate-api-server.yaml
+  - ../ate-controller.yaml
+  - ../atelet.yaml
+  - ../atenet-dns.yaml
+  - ../atenet-router.yaml
+  - ../valkey.yaml
+  - ../ate-otel-config.yaml
+  # The cert-manager PKI replacing the podcertcontroller signers.
+  - pki.yaml
+  - trust-bundles.yaml
+  - certificates.yaml
+
+patches:
+  # ate-api-server: serving cert + client identity from cert-manager Secrets;
+  # atelet certs carry no PodIdentity extension, so relax that check.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: ate-api-server
+      namespace: ate-system
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --atelet-require-pod-identity-ext=false
+      - op: test
+        path: /spec/template/spec/volumes/0/name
+        value: servicedns
+      - op: replace
+        path: /spec/template/spec/volumes/0
+        value:
+          name: servicedns
+          projected:
+            sources:
+            - secret:
+                name: ateapi-servicedns-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: podidentity
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: podidentity
+          projected:
+            sources:
+            - secret:
+                name: ateapi-podidentity-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+            - configMap:
+                name: podidentity-ca-bundle
+                items:
+                - key: trust-bundle.pem
+                  path: trust-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/3/name
+        value: valkey-ca-certs
+      - op: replace
+        path: /spec/template/spec/volumes/3
+        value:
+          name: valkey-ca-certs
+          projected:
+            sources:
+            - configMap:
+                name: valkey-ca-bundle
+                items:
+                - key: ca.crt
+                  path: ca.crt
+
+  # ate-controller: client identity + ateapi CA from cert-manager; worker pods
+  # mount cert-manager Secrets instead of podCertificate projections.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: ate-controller
+      namespace: ate-system
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --worker-cert-source=cert-manager
+      - op: test
+        path: /spec/template/spec/volumes/0/name
+        value: podidentity
+      - op: replace
+        path: /spec/template/spec/volumes/0
+        value:
+          name: podidentity
+          projected:
+            sources:
+            - secret:
+                name: ate-controller-podidentity-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: servicedns-ca
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: servicedns-ca
+          projected:
+            sources:
+            - configMap:
+                name: servicedns-ca-bundle
+                items:
+                - key: trust-bundle.pem
+                  path: trust-bundle.pem
+
+  # atelet: serving credential + client-cert CA from cert-manager.
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: atelet
+      namespace: ate-system
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: podidentity
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: podidentity
+          projected:
+            sources:
+            - secret:
+                name: atelet-podidentity-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+            - configMap:
+                name: podidentity-ca-bundle
+                items:
+                - key: trust-bundle.pem
+                  path: trust-bundle.pem
+
+  # atenet-router: Envoy serving cert, upstream (atunnel) client identity, and
+  # the ateapi CA all from cert-manager.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: atenet-router
+      namespace: ate-system
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: servicedns
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: servicedns
+          projected:
+            sources:
+            - secret:
+                name: atenet-router-servicedns-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/2/name
+        value: podidentity
+      - op: replace
+        path: /spec/template/spec/volumes/2
+        value:
+          name: podidentity
+          projected:
+            sources:
+            - secret:
+                name: atenet-router-podidentity-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+            - configMap:
+                name: podidentity-ca-bundle
+                items:
+                - key: trust-bundle.pem
+                  path: trust-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/3/name
+        value: servicedns-ca
+      - op: replace
+        path: /spec/template/spec/volumes/3
+        value:
+          name: servicedns-ca
+          projected:
+            sources:
+            - configMap:
+                name: servicedns-ca-bundle
+                items:
+                - key: trust-bundle.pem
+                  path: trust-bundle.pem
+
+  # valkey: serving + client credentials from cert-manager Secrets; the CA
+  # file combines both roots (see trust-bundles.yaml).
+  - target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      name: valkey-cluster
+      namespace: ate-system
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: servicedns
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: servicedns
+          projected:
+            sources:
+            - secret:
+                name: valkey-servicedns-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/2/name
+        value: podidentity
+      - op: replace
+        path: /spec/template/spec/volumes/2
+        value:
+          name: podidentity
+          projected:
+            sources:
+            - secret:
+                name: valkey-podidentity-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/3/name
+        value: valkey-ca-certs
+      - op: replace
+        path: /spec/template/spec/volumes/3
+        value:
+          name: valkey-ca-certs
+          projected:
+            sources:
+            - configMap:
+                name: valkey-ca-bundle
+                items:
+                - key: ca.crt
+                  path: ca.crt
+
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: valkey-cluster-init
+      namespace: ate-system
+    patch: |-
+      - op: test
+        path: /spec/template/spec/volumes/0/name
+        value: podidentity
+      - op: replace
+        path: /spec/template/spec/volumes/0
+        value:
+          name: podidentity
+          projected:
+            sources:
+            - secret:
+                name: valkey-podidentity-cert
+                items:
+                - key: tls-combined.pem
+                  path: credential-bundle.pem
+      - op: test
+        path: /spec/template/spec/volumes/1/name
+        value: valkey-ca-certs
+      - op: replace
+        path: /spec/template/spec/volumes/1
+        value:
+          name: valkey-ca-certs
+          projected:
+            sources:
+            - configMap:
+                name: valkey-ca-bundle
+                items:
+                - key: ca.crt
+                  path: ca.crt

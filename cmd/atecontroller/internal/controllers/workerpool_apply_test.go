@@ -201,7 +201,7 @@ func TestBuildDeploymentApplyConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildDeploymentApplyConfig(tt.wp, ateomOTelSettings{})
+			got := buildDeploymentApplyConfig(tt.wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Fatalf("buildDeploymentApplyConfig() mismatch (-want +got):\n%s", diff)
 			}
@@ -227,7 +227,7 @@ func TestMicroVMPodShape(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			wp := testWorkerPoolApplyConfig(nil)
 			wp.Spec.SandboxClass = tt.class
-			ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}).Spec.Template.Spec
+			ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate).Spec.Template.Spec
 
 			hasVol := false
 			for _, v := range ps.Volumes {
@@ -331,13 +331,74 @@ func TestAteomSecurityContextByClass(t *testing.T) {
 // TestTerminationGracePeriodSeconds asserts the pod's grace period is hardcoded to 3600s.
 func TestTerminationGracePeriodSeconds(t *testing.T) {
 	wp := testWorkerPoolApplyConfig(nil)
-	ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}).Spec.Template.Spec
+	ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate).Spec.Template.Spec
 	if ps.TerminationGracePeriodSeconds == nil {
 		t.Fatalf("TerminationGracePeriodSeconds not set")
 	}
 	if *ps.TerminationGracePeriodSeconds != 3600 {
 		t.Errorf("TerminationGracePeriodSeconds = %d, want 3600", *ps.TerminationGracePeriodSeconds)
 	}
+}
+
+// TestWorkerCertSourceVolumes asserts each cert source projects the expected
+// volume sources: pod-certificate keeps the podCertificate/clusterTrustBundle
+// projections, cert-manager swaps in the issued Secret plus the trust-manager
+// ConfigMaps at the same mount paths.
+func TestWorkerCertSourceVolumes(t *testing.T) {
+	findVolume := func(t *testing.T, ps *corev1ac.PodSpecApplyConfiguration, name string) *corev1ac.VolumeApplyConfiguration {
+		t.Helper()
+		for i := range ps.Volumes {
+			if ps.Volumes[i].Name != nil && *ps.Volumes[i].Name == name {
+				return &ps.Volumes[i]
+			}
+		}
+		t.Fatalf("volume %q not found", name)
+		return nil
+	}
+
+	t.Run("pod-certificate", func(t *testing.T) {
+		ps := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{}, WorkerCertSourcePodCertificate).Spec.Template.Spec
+
+		identity := findVolume(t, ps, atunnelIdentityVolume)
+		if len(identity.Projected.Sources) != 2 ||
+			identity.Projected.Sources[0].PodCertificate == nil ||
+			identity.Projected.Sources[1].ClusterTrustBundle == nil {
+			t.Errorf("identity sources = %+v, want podCertificate + clusterTrustBundle", identity.Projected.Sources)
+		}
+		egress := findVolume(t, ps, atunnelEgressTrustVolume)
+		if len(egress.Projected.Sources) != 1 || egress.Projected.Sources[0].ClusterTrustBundle == nil {
+			t.Errorf("egress trust sources = %+v, want clusterTrustBundle", egress.Projected.Sources)
+		}
+	})
+
+	t.Run("cert-manager", func(t *testing.T) {
+		ps := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{}, WorkerCertSourceCertManager).Spec.Template.Spec
+
+		identity := findVolume(t, ps, atunnelIdentityVolume)
+		if len(identity.Projected.Sources) != 2 {
+			t.Fatalf("identity sources = %+v, want secret + configMap", identity.Projected.Sources)
+		}
+		secret := identity.Projected.Sources[0].Secret
+		if secret == nil || secret.Name == nil || *secret.Name != workerCredentialSecretName ||
+			len(secret.Items) != 1 || *secret.Items[0].Key != combinedPEMKey || *secret.Items[0].Path != "credential-bundle.pem" {
+			t.Errorf("identity secret source = %+v, want %s %s->credential-bundle.pem", secret, workerCredentialSecretName, combinedPEMKey)
+		}
+		cm := identity.Projected.Sources[1].ConfigMap
+		if cm == nil || cm.Name == nil || *cm.Name != podIdentityCABundleConfigMap ||
+			len(cm.Items) != 1 || *cm.Items[0].Key != trustBundleKey || *cm.Items[0].Path != "trust-bundle.pem" {
+			t.Errorf("identity configMap source = %+v, want %s %s->trust-bundle.pem", cm, podIdentityCABundleConfigMap, trustBundleKey)
+		}
+
+		egress := findVolume(t, ps, atunnelEgressTrustVolume)
+		if len(egress.Projected.Sources) != 1 {
+			t.Fatalf("egress trust sources = %+v, want one configMap", egress.Projected.Sources)
+		}
+		egressCM := egress.Projected.Sources[0].ConfigMap
+		if egressCM == nil || egressCM.Name == nil || *egressCM.Name != servicednsCABundleConfigMap ||
+			len(egressCM.Items) != 1 || *egressCM.Items[0].Key != trustBundleKey || *egressCM.Items[0].Path != "trust-bundle.pem" {
+			t.Errorf("egress configMap source = %+v, want %s %s->trust-bundle.pem", egressCM, servicednsCABundleConfigMap, trustBundleKey)
+		}
+	})
 }
 
 // TestBuildDeploymentApplyConfigOTelEndpoint asserts the OTLP endpoint and the
@@ -355,7 +416,7 @@ func TestBuildDeploymentApplyConfigOTelEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{Endpoint: tt.endpoint}).
+			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{Endpoint: tt.endpoint}, WorkerCertSourcePodCertificate).
 				Spec.Template.Spec.Containers[0]
 			env := envByName(c.Env)
 
@@ -433,7 +494,7 @@ func TestBuildDeploymentApplyConfigMetricExportTuning(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel).
+			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel, WorkerCertSourcePodCertificate).
 				Spec.Template.Spec.Containers[0]
 			env := envByName(c.Env)
 			for _, k := range []string{"OTEL_METRIC_EXPORT_INTERVAL", "OTEL_METRIC_EXPORT_TIMEOUT"} {
@@ -490,7 +551,7 @@ func TestBuildDeploymentApplyConfigTracesSamplerPropagation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel).
+			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel, WorkerCertSourcePodCertificate).
 				Spec.Template.Spec.Containers[0]
 			env := envByName(c.Env)
 			for _, k := range []string{"OTEL_TRACES_SAMPLER", "OTEL_TRACES_SAMPLER_ARG"} {

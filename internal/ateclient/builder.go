@@ -49,6 +49,13 @@ const (
 	// mount to verify ateapi's serving cert.
 	serviceDNSSignerName = "servicedns.podcert.ate.dev/identity"
 	liveBundleSelector   = "podcert.ate.dev/canarying=live"
+
+	// caBundleConfigMapNamespace/Name/Key locate the trust-manager Bundle
+	// target used instead of ClusterTrustBundles on clusters without the
+	// ClusterTrustBundle API (see manifests/ate-install/cert-manager-pki).
+	caBundleConfigMapNamespace = "ate-system"
+	caBundleConfigMapName      = "servicedns-ca-bundle"
+	caBundleConfigMapKey       = "trust-bundle.pem"
 )
 
 // Client wraps the gRPC ControlClient and DebugClient and ensures the port-forward connection is closed when done.
@@ -200,11 +207,27 @@ func dialPortForward(ctx context.Context, kubeconfigPath, k8sContext string, tra
 }
 
 func serverTLSConfig(ctx context.Context, clientset kubernetes.Interface) (*tls.Config, error) {
+	pool, err := serverCAPool(ctx, clientset)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		RootCAs:    pool,
+		ServerName: apiServerName,
+	}, nil
+}
+
+// serverCAPool loads the CAs that sign ateapi's serving cert: from live
+// ClusterTrustBundles when the cluster serves that API, otherwise from the
+// trust-manager distributed ConfigMap the cert-manager-pki overlay installs.
+func serverCAPool(ctx context.Context, clientset kubernetes.Interface) (*x509.CertPool, error) {
 	ctbs, err := clientset.CertificatesV1beta1().ClusterTrustBundles().List(ctx, metav1.ListOptions{
 		LabelSelector: liveBundleSelector,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list ClusterTrustBundles: %w", err)
+		return serverCAPoolFromConfigMap(ctx, clientset, err)
 	}
 
 	pool := x509.NewCertPool()
@@ -219,14 +242,28 @@ func serverTLSConfig(ctx context.Context, clientset kubernetes.Interface) (*tls.
 		found = true
 	}
 	if !found {
-		return nil, fmt.Errorf("no live ClusterTrustBundle found for signer %q", serviceDNSSignerName)
+		return serverCAPoolFromConfigMap(ctx, clientset, fmt.Errorf("no live ClusterTrustBundle found for signer %q", serviceDNSSignerName))
 	}
+	return pool, nil
+}
 
-	return &tls.Config{
-		MinVersion: tls.VersionTLS13,
-		RootCAs:    pool,
-		ServerName: apiServerName,
-	}, nil
+// serverCAPoolFromConfigMap is the fallback CA source. ctbErr is the reason
+// the ClusterTrustBundle path was abandoned, folded into errors so both
+// causes surface when neither source works.
+func serverCAPoolFromConfigMap(ctx context.Context, clientset kubernetes.Interface, ctbErr error) (*x509.CertPool, error) {
+	cm, err := clientset.CoreV1().ConfigMaps(caBundleConfigMapNamespace).Get(ctx, caBundleConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the ateapi CA: ClusterTrustBundles unavailable (%v) and reading ConfigMap %s/%s failed: %w", ctbErr, caBundleConfigMapNamespace, caBundleConfigMapName, err)
+	}
+	pem, ok := cm.Data[caBundleConfigMapKey]
+	if !ok {
+		return nil, fmt.Errorf("ConfigMap %s/%s has no %q key", caBundleConfigMapNamespace, caBundleConfigMapName, caBundleConfigMapKey)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM([]byte(pem)) {
+		return nil, fmt.Errorf("ConfigMap %s/%s key %q contains no valid certificates", caBundleConfigMapNamespace, caBundleConfigMapName, caBundleConfigMapKey)
+	}
+	return pool, nil
 }
 
 // bearerTokenDialOption attaches a ServiceAccount token for the ate-client SA

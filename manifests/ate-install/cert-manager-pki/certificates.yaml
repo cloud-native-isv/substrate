@@ -1,0 +1,272 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Component certificates replacing the podCertificate projected-volume
+# sources. SPIFFE URIs mirror what the podidentity signer mints
+# (spiffe://cluster.local/ns/<ns>/sa/<serviceaccount>), so every identity
+# check in the code base (ateapi peer auth, atelet SPIFFE pinning, atunnel's
+# allowed client ID) keeps working unchanged.
+#
+# CombinedPEM writes tls-combined.pem (PKCS#8 key first, then the chain) into
+# each Secret — the exact layout internal/credbundle parses — which the
+# kustomization mounts as credential-bundle.pem at the original paths.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ateapi-servicedns
+  namespace: ate-system
+spec:
+  secretName: ateapi-servicedns-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  commonName: api.ate-system.svc
+  dnsNames:
+  - api.ate-system.svc
+  - api.ate-system.svc.cluster.local
+  usages:
+  - digital signature
+  - server auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: servicedns-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ateapi-podidentity
+  namespace: ate-system
+spec:
+  secretName: ateapi-podidentity-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  uris:
+  - spiffe://cluster.local/ns/ate-system/sa/ate-api-server
+  usages:
+  - digital signature
+  - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: podidentity-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# atelet serves gRPC with this cert; ateapi pins the SPIFFE ID below and
+# requires the serverAuth EKU (see verifyAteletServerCert in
+# cmd/ateapi/internal/controlapi/dialer.go, with
+# --atelet-require-pod-identity-ext=false).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: atelet-podidentity
+  namespace: ate-system
+spec:
+  secretName: atelet-podidentity-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  uris:
+  - spiffe://cluster.local/ns/ate-system/sa/atelet
+  usages:
+  - digital signature
+  - server auth
+  - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: podidentity-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ate-controller-podidentity
+  namespace: ate-system
+spec:
+  secretName: ate-controller-podidentity-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  uris:
+  - spiffe://cluster.local/ns/ate-system/sa/ate-controller
+  usages:
+  - digital signature
+  - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: podidentity-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Envoy's HTTPS listener cert.
+#
+# ⚠️ Actor data-plane traffic: e2bgw reverse-proxies to
+# https://<actor>.<atespace>.<actor-domain> and Go verifies that hostname
+# against this certificate. The names below cover only the Service — exactly
+# what the upstream servicedns signer does, since it derives SANs from the
+# Services covering the pod (cmd/podcertcontroller/internal/servicednssigner) —
+# so out of the box that dial fails hostname verification.
+#
+# One wildcard cannot fix it: an X.509 wildcard matches exactly one label, and
+# actor authorities carry two variable labels (<actor>.<atespace>.<suffix>).
+# "*.actors.resources.substrate.ate.dev" matches "<atespace>.actors..." but
+# never "<actor>.<atespace>.actors...". So pick one:
+#
+#   a) one wildcard per atespace served (preferred — hostname verification keeps
+#      binding traffic to the actor domain), e.g.
+#        - "*.ate-wasm.actors.resources.substrate.ate.dev"
+#        - "*.tenant-a.actors.resources.substrate.ate.dev"
+#   b) run e2bgw with --actor-tls-server-name=atenet-router.ate-system.svc,
+#      pinning verification to a name this cert already carries. Chain
+#      verification still applies, but the hostname no longer ties the
+#      connection to a specific actor domain.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: atenet-router-servicedns
+  namespace: ate-system
+spec:
+  secretName: atenet-router-servicedns-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  commonName: atenet-router.ate-system.svc
+  dnsNames:
+  - atenet-router.ate-system.svc
+  - atenet-router.ate-system.svc.cluster.local
+  # Option (a): uncomment one entry per atespace that serves actors.
+  # - "*.ate-wasm.actors.resources.substrate.ate.dev"
+  usages:
+  - digital signature
+  - server auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: servicedns-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# The router's client identity for ateapi and for the actor-facing upstream
+# mTLS to atunnel. The SPIFFE URI must stay in sync with ateom's
+# --atunnel-client-identity default.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: atenet-router-podidentity
+  namespace: ate-system
+spec:
+  secretName: atenet-router-podidentity-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  uris:
+  - spiffe://cluster.local/ns/ate-system/sa/atenet-router
+  usages:
+  - digital signature
+  - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: podidentity-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# valkey pods announce per-pod hostnames under the headless Service
+# (cluster-preferred-endpoint-type hostname), so the serving cert carries a
+# wildcard for them alongside the two Service names clients dial.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: valkey-servicedns
+  namespace: ate-system
+spec:
+  secretName: valkey-servicedns-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  commonName: valkey-cluster-service.ate-system.svc
+  dnsNames:
+  - valkey-cluster-service.ate-system.svc
+  - "*.valkey-cluster-service.ate-system.svc"
+  - valkey-cluster.ate-system.svc
+  - valkey-cluster-service.ate-system.svc.cluster.local
+  - "*.valkey-cluster-service.ate-system.svc.cluster.local"
+  - valkey-cluster.ate-system.svc.cluster.local
+  usages:
+  - digital signature
+  - server auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: servicedns-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Client identity for valkey pods (cluster-bus/replication dialing) and the
+# init Job. valkey pods run under the namespace default ServiceAccount.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: valkey-podidentity
+  namespace: ate-system
+spec:
+  secretName: valkey-podidentity-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  uris:
+  - spiffe://cluster.local/ns/ate-system/sa/default
+  usages:
+  - digital signature
+  - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: podidentity-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# e2bgw's client identity for dialing ateapi. Only needed when deploying the
+# E2B gateway (manifests/xuanji/e2bgw.yaml, plus the e2bgw-certmanager overlay
+# beside it); harmless otherwise. ateapi accepts any client certificate signed
+# by the podidentity CA and authorizes in its interceptor, so no allowlist
+# entry is required for this SPIFFE ID.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: e2bgw-podidentity
+  namespace: ate-system
+spec:
+  secretName: e2bgw-podidentity-cert
+  additionalOutputFormats:
+  - type: CombinedPEM
+  uris:
+  - spiffe://cluster.local/ns/ate-system/sa/e2bgw
+  usages:
+  - digital signature
+  - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: podidentity-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

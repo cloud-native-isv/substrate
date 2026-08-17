@@ -65,11 +65,41 @@ const (
 	atunnelEgressTrustMountPath = "/run/servicedns.podcert.ate.dev"
 )
 
+// WorkerCertSource selects where the TLS material mounted into worker pods
+// comes from.
+type WorkerCertSource string
+
+const (
+	// WorkerCertSourcePodCertificate projects podCertificate/clusterTrustBundle
+	// volume sources, served by the in-cluster podcertcontroller signer.
+	// Requires the PodCertificateRequest and ClusterTrustBundleProjection
+	// feature gates.
+	WorkerCertSourcePodCertificate WorkerCertSource = "pod-certificate"
+	// WorkerCertSourceCertManager mounts a cert-manager issued credential
+	// Secret and trust-manager distributed CA ConfigMaps instead, for clusters
+	// without PodCertificateRequest support. The mount paths and file names
+	// are identical, so the ateom container args do not change.
+	WorkerCertSourceCertManager WorkerCertSource = "cert-manager"
+)
+
+// Object names the cert-manager worker cert source mounts from the
+// WorkerPool's namespace. The Secret is produced by a cert-manager
+// Certificate (see manifests/ate-install/cert-manager-pki), the ConfigMaps by
+// trust-manager Bundles synced to every namespace.
+const (
+	workerCredentialSecretName   = "ate-worker-podidentity-cert"
+	podIdentityCABundleConfigMap = "podidentity-ca-bundle"
+	servicednsCABundleConfigMap  = "servicedns-ca-bundle"
+	combinedPEMKey               = "tls-combined.pem"
+	trustBundleKey               = "trust-bundle.pem"
+)
+
 // buildDeploymentApplyConfig constructs the SSA apply configuration for the
 // Deployment managed by a WorkerPool. Only fields owned by this controller
 // are declared here. otel, when it carries an endpoint, is propagated to the
-// ateom container so it pushes telemetry to that collector.
-func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettings) *appsv1ac.DeploymentApplyConfiguration {
+// ateom container so it pushes telemetry to that collector. certSource
+// selects the volume sources for the worker's TLS material.
+func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettings, certSource WorkerCertSource) *appsv1ac.DeploymentApplyConfiguration {
 	containerAC := corev1ac.Container().
 		WithName("ateom").
 		WithImage(wp.Spec.AteomImage).
@@ -115,31 +145,12 @@ func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettin
 			corev1ac.Volume().
 				WithName(atunnelIdentityVolume).
 				WithProjected(corev1ac.ProjectedVolumeSource().
-					WithSources(
-						corev1ac.VolumeProjection().
-							WithPodCertificate(corev1ac.PodCertificateProjection().
-								WithSignerName("podidentity.podcert.ate.dev/identity").
-								WithKeyType("ECDSAP256").
-								WithCredentialBundlePath("credential-bundle.pem")),
-						corev1ac.VolumeProjection().
-							WithClusterTrustBundle(corev1ac.ClusterTrustBundleProjection().
-								WithSignerName("podidentity.podcert.ate.dev/identity").
-								WithLabelSelector(metav1ac.LabelSelector().
-									WithMatchLabels(map[string]string{"podcert.ate.dev/canarying": "live"})).
-								WithPath("trust-bundle.pem")),
-					),
+					WithSources(atunnelIdentitySources(certSource)...),
 				),
 			corev1ac.Volume().
 				WithName(atunnelEgressTrustVolume).
 				WithProjected(corev1ac.ProjectedVolumeSource().
-					WithSources(
-						corev1ac.VolumeProjection().
-							WithClusterTrustBundle(corev1ac.ClusterTrustBundleProjection().
-								WithSignerName("servicedns.podcert.ate.dev/identity").
-								WithLabelSelector(metav1ac.LabelSelector().
-									WithMatchLabels(map[string]string{"podcert.ate.dev/canarying": "live"})).
-								WithPath("trust-bundle.pem")),
-					),
+					WithSources(atunnelEgressTrustSources(certSource)...),
 				),
 		)
 
@@ -165,6 +176,65 @@ func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettin
 					"ate.dev/worker-pool": wp.Name,
 				}).
 				WithSpec(podSpecAC)))
+}
+
+// atunnelIdentitySources returns the projected volume sources for the
+// worker's atunnel serving credential and the podidentity trust bundle,
+// according to certSource.
+func atunnelIdentitySources(certSource WorkerCertSource) []*corev1ac.VolumeProjectionApplyConfiguration {
+	if certSource == WorkerCertSourceCertManager {
+		return []*corev1ac.VolumeProjectionApplyConfiguration{
+			corev1ac.VolumeProjection().
+				WithSecret(corev1ac.SecretProjection().
+					WithName(workerCredentialSecretName).
+					WithItems(corev1ac.KeyToPath().
+						WithKey(combinedPEMKey).
+						WithPath("credential-bundle.pem"))),
+			corev1ac.VolumeProjection().
+				WithConfigMap(corev1ac.ConfigMapProjection().
+					WithName(podIdentityCABundleConfigMap).
+					WithItems(corev1ac.KeyToPath().
+						WithKey(trustBundleKey).
+						WithPath("trust-bundle.pem"))),
+		}
+	}
+	return []*corev1ac.VolumeProjectionApplyConfiguration{
+		corev1ac.VolumeProjection().
+			WithPodCertificate(corev1ac.PodCertificateProjection().
+				WithSignerName("podidentity.podcert.ate.dev/identity").
+				WithKeyType("ECDSAP256").
+				WithCredentialBundlePath("credential-bundle.pem")),
+		corev1ac.VolumeProjection().
+			WithClusterTrustBundle(corev1ac.ClusterTrustBundleProjection().
+				WithSignerName("podidentity.podcert.ate.dev/identity").
+				WithLabelSelector(metav1ac.LabelSelector().
+					WithMatchLabels(map[string]string{"podcert.ate.dev/canarying": "live"})).
+				WithPath("trust-bundle.pem")),
+	}
+}
+
+// atunnelEgressTrustSources returns the projected volume sources for the
+// servicedns trust bundle the worker's egress client validates the gateway
+// against, according to certSource.
+func atunnelEgressTrustSources(certSource WorkerCertSource) []*corev1ac.VolumeProjectionApplyConfiguration {
+	if certSource == WorkerCertSourceCertManager {
+		return []*corev1ac.VolumeProjectionApplyConfiguration{
+			corev1ac.VolumeProjection().
+				WithConfigMap(corev1ac.ConfigMapProjection().
+					WithName(servicednsCABundleConfigMap).
+					WithItems(corev1ac.KeyToPath().
+						WithKey(trustBundleKey).
+						WithPath("trust-bundle.pem"))),
+		}
+	}
+	return []*corev1ac.VolumeProjectionApplyConfiguration{
+		corev1ac.VolumeProjection().
+			WithClusterTrustBundle(corev1ac.ClusterTrustBundleProjection().
+				WithSignerName("servicedns.podcert.ate.dev/identity").
+				WithLabelSelector(metav1ac.LabelSelector().
+					WithMatchLabels(map[string]string{"podcert.ate.dev/canarying": "live"})).
+				WithPath("trust-bundle.pem")),
+	}
 }
 
 // ateomContainerEnv adds the OTLP endpoint and resource identity only when

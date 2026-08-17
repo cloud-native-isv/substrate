@@ -78,6 +78,8 @@ var (
 	podIdentityCACerts     = pflag.String("pod-identity-ca-certs", "", "The file that contains the pod-identity CA bundle, used both for verifying client certificates presented to the gRPC server and for verifying atelet serving certificates when dialing atelet. If empty, client-cert verification is disabled and atelet dials will fail.")
 	ateletClientCredBundle = pflag.String("atelet-client-cred-bundle", "", "Credential bundle presented as the client certificate when dialing atelet.")
 
+	ateletRequirePodIdentityExt = pflag.Bool("atelet-require-pod-identity-ext", true, "Require the PodIdentity X.509 extension (with the atelet's pod UID) on atelet serving certificates. Disable when certificates are issued by an external issuer such as cert-manager, which cannot embed the extension; the SPIFFE ID and chain checks still apply.")
+
 	drainDelay   = pflag.Duration("drain-delay", 13*time.Second, "How long to keep accepting new work after SIGTERM, before starting the gRPC drain.")
 	drainTimeout = pflag.Duration("drain-timeout", 15*time.Second, "Deadline for the graceful gRPC drain on shutdown. In-flight RPCs still running past it are forcefully cancelled.")
 
@@ -177,7 +179,17 @@ func main() {
 		serverboot.Fatal(ctx, "Failed to create metric instruments", err)
 	}
 
-	ateletDialer := controlapi.NewAteletDialer(workerPodInformer.GetIndexer(), ateletPodInformer.GetIndexer(), *ateletClientCredBundle, *podIdentityCACerts)
+	if !*ateletRequirePodIdentityExt {
+		slog.WarnContext(ctx, "atelet PodIdentity extension check DISABLED "+
+			"(--atelet-require-pod-identity-ext=false): atelet serving certificates are no longer "+
+			"pinned to the atelet pod UID. SPIFFE ID, chain and serverAuth EKU checks still apply, "+
+			"but with an external issuer every atelet shares one namespace-scoped credential, so a "+
+			"leaked atelet certificate can impersonate the atelet on any node. Intended only for "+
+			"clusters without PodCertificateRequest; re-enable by deploying the base manifests once "+
+			"the feature gate is available.")
+	}
+
+	ateletDialer := controlapi.NewAteletDialer(workerPodInformer.GetIndexer(), ateletPodInformer.GetIndexer(), *ateletClientCredBundle, *podIdentityCACerts, *ateletRequirePodIdentityExt)
 	sm := controlapi.NewService(redisPersistence, workerCache, actorTemplateLister, workerPoolLister, sandboxConfigLister, ateletDialer, clientset, instruments)
 
 	jwtIssuerDiscoveryClient := buildK8sServiceAccountIssuerDiscoveryClient(ctx, *clientJWTCAFile, *clientJWTIssuer)
