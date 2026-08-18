@@ -7,17 +7,25 @@ onto a smaller pool of ready "workers" (Pods), with sub-second suspend/resume vi
 full-state snapshots and gVisor/microVM sandboxing. Written in Go; binaries live in
 `cmd/` (ateapi, atelet, atenet, ateom-*, atecontroller, kubectl-ate, podcertcontroller).
 
-Dual-branch model (Constitution Principle I — non-negotiable): `main` mirrors upstream
-only; all custom development (E2B Protocol Plane, Wasm Sandbox) happens on `xuanji`,
-kept current by **rebase** onto `main`, with custom changes structured to survive rebases.
+Dual-branch model (Constitution Principle I — non-negotiable while upstream tracking is
+active): `main` mirrors upstream only; all custom development (E2B Protocol Plane, Wasm
+Sandbox) happens on `xuanji`, kept current by **rebase** onto `main`. How invasive a custom
+change may be is stage-dependent: in Stage 1 prefer new files and minimal upstream diff (a
+preference, not a rule); from Stage 2 rewriting upstream implementations is permitted, but
+**every modified upstream file MUST be registered in `xuanji.md`** — that registry, not diff
+minimalism, is the rebase conflict checklist. Contributing upstream is out of scope.
 
 **Technical exploration, not a product** (Constitution "Project Nature & Three-Stage
-Roadmap"): three stages — (1) absorb upstream's own definitions, (2) customize heavily on
-that base, (3) consolidate a new project identity. **Currently Stage 1 (absorb-dominant)**;
-`cmd/e2bgw` and the `wasm` sandbox class are exploratory Stage-2 pilots. Consequences:
-concepts are provisional (do not build compatibility shims for names expected to change),
-and working functionality outranks polish — only the mechanical gates (build, `make verify`,
-license headers) stay mandatory, because they protect rebase health.
+Roadmap"): (1) **Absorb** — primary work is documentation and curated external reference
+material, plus proposals for new solutions/requirements (ADR `Proposed`, Feature `Draft`);
+(2) **Fuse** — add E2B support and the Wasm Sandbox and modify substrate's original
+architecture where fusion requires it; (3) **Independent delivery** — begins at an explicitly
+declared **fork point** (recorded upstream commit) where rebase tracking stops and `main`
+freezes as historical reference. **Currently Stage 1 (absorb-dominant)**; `cmd/e2bgw` and the
+`wasm` sandbox class are exploratory Stage-2 pilots. Consequences: concepts are provisional
+(do not build compatibility shims for names expected to change), and working functionality
+outranks polish — only the mechanical gates (build, `make verify`, license headers) stay
+mandatory, because they protect rebase health.
 
 Entry points: `AGENTS.md` (layout rules + build/test), `README.md` (quickstart/demos),
 `docs/architecture.md` (system design), `.specify/memory/constitution.md` (governance).

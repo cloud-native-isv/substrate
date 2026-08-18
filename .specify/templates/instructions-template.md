@@ -36,19 +36,9 @@ Escalation rules:
 
 ## Task Complexity Rubric
 
-Right-size your thinking to the task. Under-thinking complex or high-stakes tasks causes defects and rework (a **quality** cost); over-thinking trivial tasks wastes time and adds noise (an **efficiency** cost). Aim for the lowest thinking depth that safely fits the task — escalate when in doubt, and do not default to maximal effort.
+Right-size your thinking to the task: under-thinking complex or high-stakes tasks causes defects and rework (a **quality** cost); over-thinking trivial tasks wastes time and adds noise (an **efficiency** cost). Classify each task by scope/size, uncertainty/novelty, blast radius/reversibility, cross-cutting impact, and requirements clarity, then adopt the matching depth — **Trivial → Minimal**, **Standard → Moderate**, **Complex → Deep**, **High-stakes/Ambiguous → Exhaustive**. Tie-break to the **higher tier** (blast radius and requirements clarity dominate); treat unclassifiable tasks as **Standard** (the default), and treat unclear/under-specified requirements as themselves a High-stakes signal — clarify before proceeding.
 
-Classify each task by these signals: scope/size, uncertainty/novelty, blast radius/reversibility, cross-cutting impact, and requirements clarity. Then adopt the matching tier's thinking depth:
-
-| Tier | Typical signals | Thinking depth (what to actually do) |
-|------|-----------------|--------------------------------------|
-| **Trivial** | Tiny, well-scoped edit; no uncertainty; easily reversible; no cross-cutting impact; requirements crystal-clear | **Minimal** — act directly; little to no exploration; no written plan; a light sanity check (build/lint or the one relevant test) |
-| **Standard** | One area or a few files; low uncertainty; moderate, reversible risk; little cross-cutting; requirements clear | **Moderate** — read the directly relevant files; form a brief internal plan; run the related tests |
-| **Complex** | Multiple files/modules; real uncertainty or design choices; harder to reverse; cross-cutting; requirements mostly clear | **Deep** — explore broadly before editing; write an explicit plan (consider plan mode); weigh alternatives; add/adjust tests and verify behavior |
-| **High-stakes / Ambiguous** | High blast radius (shared infra, data migration, security, public API); hard or irreversible; or requirements unclear/conflicting | **Exhaustive** — thorough exploration; explicit plan with user checkpoints; edge-case and adversarial analysis; strong verification; confirm before irreversible actions; resolve unclear requirements first |
-
-- **Tie-break**: when a task's signals span more than one tier, choose the **higher tier**. Blast-radius/reversibility and requirements clarity dominate — a tiny edit to a shared, irreversible, or security-sensitive surface is High-stakes, not Trivial.
-- **Default**: if a task cannot yet be classified, treat it as **Standard**; but when the reason is unclear or under-specified requirements, that is itself a High-stakes / Ambiguous signal — clarify before proceeding rather than guessing.
+Full tier table with signals and thinking-depth prescriptions: `.specify/shared/guidelines/task-complexity-rubric.md`.
 
 ## Token Efficiency Discipline
 
@@ -60,36 +50,12 @@ LLM token usage efficiency is a framework-level quality attribute. The full disc
 
 ## Dogfooding Practice
 
-Dogfooding means the people who build a product also rely on it in their real daily work — developer and user tightly linked, often the same team — so a smooth **use → feedback → iterate** loop forms naturally. A project that provides development-assistance capabilities proves them the way a compiler proves itself by self-hosting: only a tool that performs well in its own engineering has earned the credibility to assist others. This section identifies two loops that already exist — it adds no new tools, steps, or storage.
+Dogfooding — the people who build a product also rely on it in their real daily work, so a smooth **use → feedback → iterate** loop forms naturally — proves development-assistance capabilities the way self-hosting proves a compiler. Two loops already exist and add no new tools, steps, or storage:
 
-### Loop A — Feed your framework usage back upstream
+- **Loop A — feed framework usage upstream**: record real friction via `feedback-utils.py` (`--action record`); a threshold prompt invites (never forces) consolidated submission (`--action package`, manual delivery — **no automatic transmission** ever).
+- **Loop B — run the same loop for your own product**: reuse the framework's feedback / memory / history / review / task-record capabilities; adoption advice is advisory, never a gate — avoid the anti-patterns *formalism*, *echo chamber*, *dead-letter feedback*, *over-idealization*.
 
-Real friction you hit while using the framework's commands and skills is valuable. The built-in feedback chain carries it upstream:
-
-1. **Record** — commands/skills self-record optimization points at wrap-up; you can also record friction you personally hit: `python3 .specify/scripts/python/feedback-utils.py --action record --unit-id "/speckit.<command>" --unit-type command --run-id "<id>" --review "<what happened>" --points "<suggestion>"` (unit-id must be `/speckit.<command>` or `skill:<name>`).
-2. **Threshold prompt** — check accumulation with `--action status`; when the count crosses the threshold, a consolidated prompt invites (never forces) submission.
-3. **Package** — `--action package` bundles pending entries into a local archive.
-4. **Manual submission** — delivering the archive to the framework's install-source repository is a deliberate, manual step. There is **no automatic transmission** of any feedback data; nothing leaves your machine unless you send it.
-
-### Loop B — Build the same loop for your own product
-
-The framework's shipped capabilities are enough to run a Dogfooding loop for **your own product** — no extra tooling required:
-
-| Capability | Role in your product's loop |
-|------------|-----------------------------|
-| Feedback engine (`feedback-utils.py`) | Record real-use findings about your product with `--unit-id "skill:<scenario-name>"` (unit-id accepts `/speckit.<command>` or `skill:<name>`); track accumulation with `--action status` / `--action list` |
-| Memory (session/knowledge) | Persist working notes and distilled lessons from real usage |
-| History | Distill past project conversations into reusable knowledge |
-| Review | Periodic retrospective checkpoint where findings are revisited |
-| Task records (tasks/verification) | Trace each finding to the iteration that addressed it |
-
-**Adoption advice (advisory — never a gate):**
-
-- **Staged rollout**: start with the core team first, then widen; forcing 100% usage of an immature product hurts more than it helps (over-idealization).
-- **Tailor to your product's shape**: if daily self-use is not suited to your product (embedded firmware, consumer hardware), substitute periodic real-environment drills or a designated proxy user group instead of forcing it.
-- **Anti-patterns to avoid**: *formalism* (going through the motions without real reliance), *echo chamber* (only builders participate — bring in non-technical roles), *dead-letter feedback* (findings recorded but never acted on — close or resolve every entry deliberately), *over-idealization* (mandating full usage regardless of maturity).
-
-The test of a healthy loop is simple: do team members rely on the product for real tasks, and does what they report visibly change the next iteration?
+Operational steps, the capability table, and adoption advice: `.specify/shared/guidelines/dogfooding.md`.
 
 ## Tech Stack & Resources
 - **Project Name**: {{PROJECT_NAME}}
@@ -126,71 +92,22 @@ Note also: `.specify/memory/tools.md` (file) is the discovery inventory regenera
 
 ## Spec Kit Framework Map
 
-This file is a **map, not a manual**: it tells you *what* exists and *where* it lives; the *how* belongs to the documents each row points to. The framework state lives under `.specify/`:
+The `.specify/` layout is a **map, not a manual** — *what* exists and *where* it lives; the *how* belongs to the documents each row points to. Highlights: project memory `.specify/memory/` (constitution, features, glossary, `tools/` records), artifact templates `.specify/templates/`, automation scripts `.specify/scripts/`, installed skills `.specify/skills/` (guide: `.specify/skills.md`), agent layer `.specify/agents/` (templates/instances/execution), teams `.specify/teams/`, shared conventions `.specify/shared/`, feature specs `.specify/specs/<ID>-<slug>/`.
 
-| What | Where | Notes (what lives there — not how to use it) |
-|------|-------|-----------------------------------------------|
-| Project memory | `.specify/memory/` | constitution, features index + `features/<ID>.md`, glossary, `tools/` records, feedback store |
-| Artifact templates | `.specify/templates/` | requirements/plan/tasks/commands templates rendered by `/speckit.*` |
-| Automation scripts | `.specify/scripts/` | bash/python engines invoked by commands and skills |
-| Installed skills | `.specify/skills/` | one directory per skill (`SKILL.md` + references/ + scripts/) |
-| **Agent Templates** | `.specify/agents/templates/` | capability descriptions — shipped role set installed by `specify init`; each `.agent.md` is self-contained |
-| **Agent Instances** | `.specify/agents/instances/` | responsibility-bound agents authored in this project; reference a Template |
-| **Agent Execution** | `.specify/agents/execution/` | dispatch `configs/` + `scripts/` (tracked); runtime `logs/` (gitignored, never committed) |
-| Teams | `.specify/teams/<slug>/` | team definitions + `runs/` reports; run intermediates in git-ignored `.work/` |
-| Shared definitions & conventions | `.specify/shared/` | canonical concept docs — e.g. agent taxonomy (`definitions/agent-definitions.md`), subagent modes (`definitions/subagent-definitions.md`), tool definitions, workflow conventions |
-| Feature specs | `.specify/specs/<ID>-<slug>/` | requirements / plan / tasks / verification per feature |
-| This file | `.specify/instructions.md` | canonical AI instructions; per-tool files are symlinks |
-| [Other project-specific location] | [Path] | [What lives there] |
-
-> Agent layer taxonomy (Template → Instance → Execution) is defined once in `.specify/shared/definitions/agent-definitions.md` — consult it before creating/refining/running agents.
+Full table with per-row notes: `.specify/shared/definitions/framework-map.md`. Agent layer taxonomy (Template → Instance → Execution) is defined once in `.specify/shared/definitions/agent-definitions.md` — consult it before creating/refining/running agents.
 
 ## Spec Kit Runtime & Symlink Model
-- **Canonical instructions file**: `.specify/instructions.md` is the single source of truth for project-level AI instructions. Compatibility files such as `.github/copilot-instructions.md`, `CLAUDE.md`, `QODER.md`, and `AGENTS.md` are symlinks to this file. **Consumer note**: Qoder **CLI** (`qodercli`) loads the root `AGENTS.md` (plus `.qoder/rules/**/*.md`, additively — no documented override priority); `.qoder/project_rules.md` is the Qoder **IDE**'s old format, kept only for IDE compatibility and never read by the CLI. All aliases point at the same canonical file, so no divergence is possible.
-- **Canonical skills directory**: `.specify/skills/` is the primary location for installed Spec Kit skills. `.github/skills` is a compatibility symlink to `.specify/skills/` for tools that discover skills under `.github/skills`.
-- **Do not duplicate symlink targets**: Treat these compatibility paths as aliases, not independent source files or directories. When reading or editing instructions and skills, prefer the canonical `.specify/...` paths and avoid applying the same change separately through each symlink.
-- **Do NOT break the symlinks (applies to both users and AI agents)**: The compatibility files/directories above are symbolic links, NOT copies — this is easy to miss because they *look* like ordinary files. Editing their content is safe: changes write through to the canonical `.specify/...` target and stay consistent across every tool. But **deleting, renaming, moving, or replacing** a link (e.g. an editor's "save as new file", or a manual `rm` + recreate) SEVERS it; the affected tool then silently reads stale or independent content and updates diverge across tools. Never delete-and-recreate these paths by hand.
-- **Detect & repair symlinks**: List every symlink in the project with `find . -type l` (or inspect a single path with `ls -l <path>` / `readlink <path>`) before assuming a compatibility file is a real file. If a link was accidentally broken or replaced with a regular file, run `/speckit.instructions` to regenerate the canonical instructions and recreate all compatibility symlinks.
-- **Regeneration behavior**: `/speckit.instructions` refreshes the instructions content and recreates compatibility symlinks. If a compatibility path appears to contain the same content as `.specify/instructions.md` or `.specify/skills/`, verify whether it is a symlink before treating it as a separate file.
+
+`.specify/instructions.md` is the single source of truth for project-level AI instructions; compatibility files (`CLAUDE.md`, `QODER.md`, `AGENTS.md`, `.github/copilot-instructions.md`) and the skills alias `.github/skills` are **symlinks** into `.specify/`. Edit through canonical `.specify/...` paths — never delete/rename/recreate a link by hand (that severs it and the affected tool silently diverges). A broken or replaced link is repaired by running `/speckit.instructions`, which regenerates the canonical instructions and all compatibility symlinks.
+
+Full model (per-consumer notes incl. Qoder CLI vs IDE, detection commands, regeneration behavior): `.specify/shared/workflow/symlink-model.md`.
 
 ## Git Workflow
-Machine-maintained by the `git-workflow` skill. The branch roles recorded below are the **single source of truth** for every git operation in this project — no separate workflow document is generated. To rename a role, edit its `Branch` cell; the operational procedure (pre-checks, rebase sequences, push strategy, `.gitexcludes` subroutine, safety rules) lives in the skill and its references, not here.
+Branch roles (MAIN / PRE / DEV) are machine-maintained by the `git-workflow` skill in **`.specify/git-workflow.md`** — that managed block is the **single source of truth** for every git operation in this project. Do not edit it by hand and do not record branch information anywhere else; the operational procedure (pre-checks, rebase sequences, push strategy, `.gitexcludes` subroutine, safety rules) lives in the skill and its references.
 
-<!-- GIT_WORKFLOW_START -->
-<!-- Record one row per branch role (MAIN / PRE / DEV). While no workflow is established, keep the `None yet.` row. -->
-| Role | Branch | Tracking | Purpose |
-|------|--------|----------|---------|
-| None yet. | - | - | - |
+## Skills & Tools
+No registration tables are maintained — agents discover resources natively from the filesystem:
 
-- **Sync chain (rebase)**: `MAIN -> PRE -> DEV`
-- **Merge chain (PR)**: `MAIN <- PRE <- DEV`
-- **Last updated**: -
-<!-- GIT_WORKFLOW_END -->
-
-## Resource Registry
-Use this machine-maintained section to track reusable resource identifiers created by SpecKit commands. Keep entries deduplicated and sorted when updating this file. Record each resource as a single row in the corresponding horizontal Markdown table, and keep column names aligned with the corresponding agent/skill/tool templates. When no records exist, keep a single row with `None yet.` in the first column and `-` in the remaining columns.
-
-### Agents
-<!-- AGENTS_REGISTRY_START -->
-<!-- Record each agent as one table row with the columns below. -->
-| Agent Name | Agent ID | Description | Argument Hint | Target | User Invocable | Disable Model Invocation | Tools | Agents | Model | Handoffs | Canonical Path |
-|------------|----------|-------------|---------------|--------|----------------|--------------------------|-------|--------|-------|----------|----------------|
-| None yet. | - | - | - | - | - | - | - | - | - | - | - |
-<!-- AGENTS_REGISTRY_END -->
-
-### Skills
-<!-- SKILLS_REGISTRY_START -->
-<!-- Record each skill as one table row with the columns below. -->
-| Skill Name | Skill ID | Description | Argument Hint | User Invocable | Disable Model Invocation | Canonical Path |
-|------------|----------|-------------|---------------|----------------|--------------------------|----------------|
-| None yet. | - | - | - | - | - | - |
-<!-- SKILLS_REGISTRY_END -->
-
-### Tools
-<!-- TOOLS_REGISTRY_START -->
-<!-- Record each tool as one table row with the columns below. -->
-| Tool Name | Tool ID | Tool Type | Source Identifier | Aliases | Status | Last Updated | Description | Resource ID | Canonical Path |
-|-----------|---------|-----------|-------------------|---------|--------|--------------|-------------|-------------|----------------|
-| None yet. | - | - | - | - | - | - | - | - | - |
-<!-- TOOLS_REGISTRY_END -->
+- **Skills**: `.specify/skills/`, one directory per skill; system guide: `.specify/skills.md`. Create/improve via the `create-skills` / `improve-skills` skills.
+- **Tools**: `.specify/memory/tools/<name>.md` definition records; system guide: `.specify/tools.md`. Reuse a Tool before generating a script (`.specify/shared/workflow/tool-reuse-gate.md`); create/improve via the `create-tools` / `improve-tools` skills.
 

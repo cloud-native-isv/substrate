@@ -12,7 +12,8 @@ skills/draw-mermaid/scripts/render-mermaid.sh figure-01-order-flow.mmd figures/ 
 - 服务器地址可用 `MERMAID_SERVER=...` 指定（兼容 mermaid.ink 协议的内网服务）；
 - **内网自建渲染服务器**：仿照 plantuml-server 容器模式，技能内自带完整部署包 `../server/`（Dockerfile + server.js + docker-run.sh + README）——构建镜像、`-p 9696:9696` 运行、`export MERMAID_SERVER=http://<内网主机>:9696` 即接入；协议为 mermaid.ink 兼容的 `pako:` state（`/svg/pako:{b64}`、`/img/pako:{b64}?type=png`）；详见 `../server/README.md`；
 - 本地后端需 Chrome（puppeteer）：`PUPPETEER_EXECUTABLE_PATH=...` 指定；
-- PNG 失败时用 `svg-to-png-cjk.cjs` 从 SVG 转：`node svg-to-png-cjk.cjs x.svg x.png 2`。
+- PNG 失败时用 `svg-to-png-cjk.cjs` 从 SVG 转：`node svg-to-png-cjk.cjs x.svg x.png 2`；
+- **已知服务端限制**：sequence 图的子配置（`actorFontSize` / `messageFontSize` / `noteFontSize` 等）会被 mermaid.ink 服务器忽略，统一按默认值（约 16px）渲染——不要在远端后端上反复调试这些字号；需要精确控制时经用户同意切本地后端，或在 HTML 层缩放显示。
 
 ## 2. 匹配与微调
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """build-summary-input.py — derive a summarize-project input form from team artifacts.
 
-Contract: `.specify/specs/036-team-summary/contracts/team-project-form.contract.md`
+Contract: team-project-form (defined in the framework repo, spec 036)
 Mapping single source of truth: `../references/summary-mapping.md`
 
 The invoked skill (`summarize-project`) only accepts a user-authored form and blocks
@@ -335,6 +335,20 @@ CRITERIA_SPLIT = re.compile(r"[;；]|(?<=[。.])\s*")
 #: The goal archive. Read-only from this script — `goal-utils.py` is its only writer.
 ARCHIVE_DIRNAME = ".specify/goal"
 
+#: 038 — the ## Targets row grammar; identical to goal-utils' render grammar (D3).
+_TARGET_ROW = re.compile(r"^\| (T-\d{3}) \| (.+) \| (open|done|dropped) \|$")
+
+
+def _parse_targets_section(raw: str) -> list[dict[str, str]]:
+    """Rows not matching the engine grammar are skipped — validate owns flagging."""
+    targets: list[dict[str, str]] = []
+    for line in (raw or "").splitlines():
+        match = _TARGET_ROW.match(line.strip())
+        if match:
+            targets.append({"id": match.group(1), "statement": match.group(2),
+                            "status": match.group(3)})
+    return targets
+
 
 def load_goal_definition(repo_root: Path, goal_slug: str) -> dict[str, Any] | None:
     """Read the archived definition's objective and criteria, or None if absent.
@@ -375,6 +389,74 @@ def load_goal_definition(repo_root: Path, goal_slug: str) -> dict[str, Any] | No
         "relpath": f"{ARCHIVE_DIRNAME}/{goal_slug}/goal.md",
         "objective": " ".join(section("## Objective").split()),
         "criteria": criteria,
+        "targets": _parse_targets_section(section("## Targets")),
+    }
+
+
+def fold_targets_axis(per_team_items: dict[str, list[dict[str, Any]]],
+                      authored_targets: list[dict[str, str]], goal_slug: str,
+                      gaps: list[str]) -> dict[str, Any]:
+    """038 / D4 — fold optional `target_ref` ledger fields into the slice axis.
+
+    Single pass over already-folded rows (last-event-wins semantics is inherited
+    from fold_ledger, untouched). Invalid refs degrade to the goal as a whole and
+    are counted + declared (FR-014). The axis is reported separately from the
+    criteria axis and never derives `achieved` (SC-005).
+    """
+    valid = {t["id"] for t in authored_targets}
+    attributed: dict[str, list[dict[str, Any]]] = {tid: [] for tid in valid}
+    invalid_refs = 0
+    unattributed = 0
+    for rows in per_team_items.values():
+        for row in rows:
+            ref = row.get("target_ref")
+            if ref in (None, ""):
+                unattributed += 1
+            elif isinstance(ref, str) and ref in valid:
+                attributed[ref].append(row)
+            else:
+                invalid_refs += 1
+
+    items: list[dict[str, Any]] = []
+    for target in sorted(authored_targets, key=lambda t: t["id"]):
+        rows = attributed[target["id"]]
+        completed = sum(1 for r in rows if str(r.get("state")) == "completed")
+        pending = False
+        if target["status"] == "open" and rows and completed == len(rows):
+            pending = True
+            gaps.append(
+                f"待批准完成(FR-015):Target {target['id']} authored 仍 open,"
+                "但归属条目全部 completed——批准请经 /speckit.goal "
+                f"targets --set done --id {target['id']};折叠流程不自动翻转任何一侧"
+            )
+        elif target["status"] == "done" and rows and completed < len(rows):
+            pending = True
+            gaps.append(
+                f"复核提示(FR-015):Target {target['id']} authored 为 done,"
+                f"但归属条目未全部 completed({completed}/{len(rows)})——请复核证据"
+            )
+        items.append({
+            "id": target["id"],
+            "statement": target["statement"],
+            "authored_status": target["status"],
+            "attributed_items": len(rows),
+            "completed_items": completed,
+            "pending_approval": pending,
+        })
+
+    done_count = sum(1 for t in authored_targets if t["status"] == "done")
+    if invalid_refs:
+        gaps.append(
+            f"无效归属(FR-014):{invalid_refs} 行 target_ref 指向不存在的 Target 身份,"
+            "已按 goal 整体降级计入并声明,未臆造 Target"
+        )
+    return {
+        "goal_slug": goal_slug,
+        "axis_note": "切片轴(范围覆盖度)——与判据轴分列,不推导 achieved",
+        "items": items,
+        "coverage": f"{done_count}/{len(authored_targets)} done",
+        "unattributed_to_target": unattributed,
+        "invalid_refs": invalid_refs,
     }
 
 
@@ -780,6 +862,25 @@ def build_form(repo_root: Path, goal_slug: str, kind: str, teams: list[Team],
         }
         for i, text in enumerate(criteria, 1)
     ]
+    criteria_count = len(milestones)
+    # ------------------------------------------------------------------
+    # 038 — authored-done Targets join the milestones group carrying their
+    # own source marker; the distinction from the criteria projection rides
+    # the existing `source` column (D7) — summarize-project stays untouched.
+    # ------------------------------------------------------------------
+    done_targets = [
+        t for t in (definition or {}).get("targets", []) if t["status"] == "done"
+    ]
+    for target in sorted(done_targets, key=lambda t: t["id"]):
+        milestones.append(
+            {
+                "milestone_id": f"MS-{len(milestones) + 1:04d}",
+                "milestone_name": target["statement"][:60],
+                **({"anchor_item_id": anchor} if anchor else {}),
+                "status": "achieved",
+                "source": f"goal-target:{goal_slug}/goal.md#{target['id']}",
+            }
+        )
     if not milestones:
         if definition:
             # GD-8 — an empty criteria set is legal; declare it, never invent one.
@@ -789,6 +890,12 @@ def build_form(repo_root: Path, goal_slug: str, kind: str, teams: list[Team],
             )
         else:
             gaps.append("goal 正文未声明可验证成功判据,里程碑组为空(依赖 work_items 满足 R 档组级约束)")
+    elif criteria_count == 0 and done_targets:
+        gaps.append(
+            "判据为空而存在 done Target(FR-016):里程碑组由 Target 来源条目填充,"
+            "来源标记 " + ", ".join(
+                f"goal-target:{goal_slug}/goal.md#{t['id']}" for t in done_targets)
+        )
 
     # coverage — FG-8, always emitted
     truncated = sum(c for c in completed_per_phase.values() if c > AGGREGATE_COMPLETED_ABOVE)
@@ -815,6 +922,13 @@ def build_form(repo_root: Path, goal_slug: str, kind: str, teams: list[Team],
             "source_label": "团队条目台账 items.jsonl",
         },
     }
+    # ------------------------------------------------------------------
+    # 038 — the slice axis. Only when the archived definition carries a
+    # ## Targets section; a targetless goal's form stays byte-identical (SC-002).
+    # ------------------------------------------------------------------
+    if definition and definition.get("targets"):
+        form["targets"] = fold_targets_axis(
+            per_team_items, definition["targets"], goal_slug, gaps)
     # ------------------------------------------------------------------
     # multi-team coordination (FR-033..FR-042): derived roster + overlap findings.
     # Detection rides this refresh — no second trigger. It only reports; the

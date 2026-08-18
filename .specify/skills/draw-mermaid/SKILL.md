@@ -185,6 +185,7 @@ content from the user.
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** Read `should_prompt` from the `record` output
    (or run `--action status`). When it is `true`, surface a **single** consolidated
    notification inviting the user to submit collected feedback to the Spec Kit developers;

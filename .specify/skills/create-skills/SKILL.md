@@ -8,7 +8,7 @@ skill_id: "<SKILL:.specify/skills/create-skills/SKILL.md>"
 
 ## Goal
 
-Create a high-quality Spec Kit Skill from explicit user input or by distilling reusable workflows from the current conversation. The expected result is a well-structured `SKILL.md` with valid frontmatter, clear trigger descriptions, appropriate resource organization, and a deterministic registry entry.
+Create a high-quality Spec Kit Skill from explicit user input or by distilling reusable workflows from the current conversation. The expected result is a well-structured `SKILL.md` with valid frontmatter, clear trigger descriptions, appropriate resource organization, and a deterministic `skill_id`.
 
 ## Workflow
 
@@ -16,10 +16,10 @@ Create a high-quality Spec Kit Skill from explicit user input or by distilling r
 
 Spec Kit skills serve both code projects and non-code agent applications (e.g. QoderWork, Wukong, OpenClaw global skill directories). Before anything else, apply the canonical detection rule from `.specify/shared/workflow/runtime-mode.md`:
 
-- `${SKILL_WORKDIR}/.specify/` **exists** → **Spec Kit project mode**: run the full workflow below (scaffolding, registration, agent propagation, engine-backed Feedback).
+- `${SKILL_WORKDIR}/.specify/` **exists** → **Spec Kit project mode**: run the full workflow below (scaffolding, identity finalization, agent propagation, engine-backed Feedback).
 - `${SKILL_WORKDIR}/.specify/` **does not exist** → **standalone mode**: the target is a plain skills directory owned by the host application. In this mode:
   - `SKILL_HOME` is a sibling directory in the host skills directory; **align the new Skill's format with the existing skills there** (inspect one or two siblings first).
-  - **Skip** Step 5 (registration into `.specify/instructions.md`) and Step 7 (propagation to built-in role agents) — neither surface exists.
+  - **Skip** Step 7 (propagation to built-in role agents) — that surface does not exist. Step 5 (identity finalization) applies in both modes; use the host skills directory paths, not `.specify/**`.
   - In Step 3, emit a **self-contained** `## Feedback` section (gated reflection, no `feedback-utils.py` invocation) instead of the engine-backed canonical block.
   - Do not scaffold or reference any `.specify/**` path in the generated Skill.
 
@@ -89,7 +89,7 @@ Optional frontmatter (on demand):
 - Result goal
 - Key steps (executable, checkable)
 - Resource references (use relative paths: `./scripts/x.py`, `./references/details.md`)
-- A `## Feedback` section as the final workflow section (mandatory per Feature 028). In Spec Kit project mode, copy the canonical block from `.specify/shared/workflow/feedback-step.md` (it begins with the runtime-mode gate), substituting `skill:<name>` / `--unit-type skill`; in standalone mode, write a self-contained variant — keep the runtime-mode gate and the reflection steps, drop the `feedback-utils.py` invocation and threshold prompt. A new Skill lacking a `## Feedback` section is **non-conformant** and MUST fail validation.
+- A `## Feedback` section as the final workflow section (mandatory). In Spec Kit project mode, copy the canonical block from `.specify/shared/workflow/feedback-step.md` (it begins with the runtime-mode gate), substituting `skill:<name>` / `--unit-type skill`; in standalone mode, write a self-contained variant — keep the runtime-mode gate and the reflection steps, drop the `feedback-utils.py` invocation and threshold prompt. A new Skill lacking a `## Feedback` section is **non-conformant** and MUST fail validation.
 
 **Size control**: Keep `SKILL.md` under 500 lines. Move large details into `./references/`.
 
@@ -133,23 +133,16 @@ Iterate until:
 3. Resource directories are ready as needed
 4. All resource links use relative paths
 
-### 5. Register the Skill
+### 5. Finalize the Skill Identity (no registration)
 
-**Spec Kit project mode only** — in standalone mode skip this step entirely (the host application discovers skills by scanning its skills directory; there is no registry file).
+There is no registry file in any mode — agents discover skills by scanning the skills directory (see `.specify/skills.md`); Spec Kit project mode and standalone mode are the same here.
 
-Generate the Resource ID and persist:
+Finalize the identity inside `SKILL.md` itself:
 
 - **skill_id**: `<SKILL:.specify/skills/<name>/SKILL.md>`
 - **Canonical Path**: `.specify/skills/<name>/SKILL.md`
 
-Write to `.specify/instructions.md` → `### Skills` table:
-- `Skill Name`, `Skill ID`, `Description`, `Canonical Path`
-
-Constraints:
-- Do not write duplicate entries for the same `skill_id`
-- Keep the list sorted and deduplicated
-- Remove `None yet.` once real entries exist
-- **Insertion anchor rule**: when inserting the new row via file editing, use the complete unique text of the target's adjacent table row as the edit anchor — never a registry boundary/END marker or table separator, which risks silently deleting an adjacent row
+Discoverability is guaranteed by the directory plus valid frontmatter — do not write any registry row anywhere.
 
 ### 6. Validate the Skill
 
@@ -159,13 +152,13 @@ Minimum checks:
 - [ ] Frontmatter: `name` matches directory, `description` has triggers
 - [ ] Body: clear steps, no vague placeholders
 - [ ] Resources: relative paths, no broken links; standard generated resource directories are acceptable
-- [ ] Registry: one deduplicated row in `.specify/instructions.md` (Spec Kit project mode only; not applicable standalone)
+- [ ] Discoverability: `.specify/skills/<name>/SKILL.md` exists with valid frontmatter `name`/`description` — no registry to update
 - [ ] Size: `SKILL.md` < 500 lines
 - [ ] No unrelated documentation files
 - [ ] Topology & links (when the host keeps a skill-topology registry or fans Skills out to several agent load directories): registry updated, dangling-symlink scan returns zero, each load directory resolves to the new content, and description-caching host registries refreshed — see [name-collision-and-layering.md](./references/name-collision-and-layering.md) §3
-- [ ] Feedback: a `## Feedback` section is present as the final workflow section (Feature 028), beginning with the runtime-mode gate. Spec Kit project mode requires the canonical engine-backed block from `.specify/shared/workflow/feedback-step.md`; standalone mode requires the self-contained variant (no engine call). A Skill without the section is non-conformant — fix before reporting completion.
+- [ ] Feedback: a `## Feedback` section is present as the final workflow section, beginning with the runtime-mode gate. Spec Kit project mode requires the canonical engine-backed block from `.specify/shared/workflow/feedback-step.md`; standalone mode requires the self-contained variant (no engine call). A Skill without the section is non-conformant — fix before reporting completion.
 - [ ] Standalone mode only: format is consistent with sibling skills in the host directory, and no `.specify/**` path is referenced
-- [ ] Spec Kit project mode: **run the existing skill-conformance contract suite** (`pytest tests/contract/ -q -k "skill or runtime_mode"`) before reporting completion — new skills are subject to ALL pre-existing conformance contracts (runtime-mode gate, feedback-section shape, registry dedup); a later full-suite regression is the wrong place to discover a miss. **Fallback**: if the project has no `tests/` or `tests/contract/` directory, the suite is not applicable — verify conformance via the manual checklist items above (frontmatter / Feedback section / registry / size) and state "contract suite not applicable" explicitly in the completion report; do not spin on the missing suite or report it as a failure
+- [ ] Spec Kit project mode: **run the existing skill-conformance contract suite** (`pytest tests/contract/ -q -k "skill or runtime_mode"`) before reporting completion — new skills are subject to ALL pre-existing conformance contracts (runtime-mode gate, feedback-section shape); a later full-suite regression is the wrong place to discover a miss. **Fallback**: if the project has no `tests/` or `tests/contract/` directory, the suite is not applicable — verify conformance via the manual checklist items above (frontmatter / Feedback section / registry / size) and state "contract suite not applicable" explicitly in the completion report; do not spin on the missing suite or report it as a failure
 
 ### 6.5 Pressure Test (RED-GREEN)
 
@@ -179,7 +172,7 @@ Pure utility skills (deterministic script wrappers) may substitute a smoke invoc
 
 ### 7. Propagate the Skill to built-in agents
 
-Applies only when creating a **new** Skill **in Spec Kit project mode** — in standalone mode skip this step (no built-in role agents exist). Wire it into the built-in role agents so they prefer it for role-relevant work, following the Feature 026 Skill Enablement convention (see `docs/agents/command-and-skills.md`).
+Applies only when creating a **new** Skill **in Spec Kit project mode** — in standalone mode skip this step (no built-in role agents exist). Wire it into the built-in role agents so they prefer it for role-relevant work, following the Skill Enablement convention (the `## Skill Enablement` section pattern on the built-in role agents under `.specify/agents/templates/`).
 
 1. **Guard**: skip if the new Skill is non-declarable (reference-only/meta: `create-agent`, `improve-agent`, `create-skills`, `improve-skills`, `create-team`, `improve-team`, `create-tools`, `improve-tools`). Normal user-created Skills proceed.
 2. **Analyze**: read the 7 built-in role agents from `.specify/agents/templates/` (`requirements-analyst`, `system-designer`, `module-designer`, `test-engineer`, `qa-engineer`, `knowledge-manager`, `ux-analyst`) and judge each agent's role against the new Skill's capability + trigger keywords.
@@ -255,6 +248,7 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

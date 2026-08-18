@@ -10,7 +10,6 @@
 | Check for existing agents | `Bash`: `ls .specify/agents/{templates,instances}/*.agent.md 2>/dev/null` |
 | Test agent invocation | `Agent` tool with the new agent name to test it responds correctly |
 | Verify symlinks | `Bash`: `ls -la .github/agents/ .qoder/agents/ 2>/dev/null` |
-| Update instructions registry | `Edit` tool on `.specify/instructions.md` with precise string matching |
 
 ## Best Practices
 
@@ -18,7 +17,6 @@
 - Always read the existing agent file before editing to avoid stale `old_string` matches
 - After creating an agent, verify it's discoverable by checking symlink directories
 - Use `Agent` tool to test the new agent in a sandboxed context before reporting success
-- When updating the Resource Registry in `.specify/instructions.md`, match the exact existing table row to avoid clobbering
 
 ## Known Pitfalls
 
@@ -29,6 +27,6 @@
 
 ## Capability Notes
 
-- **Supported**: Full YAML frontmatter validation, file creation/editing, symlink verification, registry updates, agent testing via Agent tool
+- **Supported**: Full YAML frontmatter validation, file creation/editing, symlink verification, agent testing via Agent tool
 - **Limited**: Cannot test agent behavior in Copilot/Qoder context — only tests in Claude Code's own agent framework
 - **Unsupported**: Creating agents for unsupported providers; interactive agent picker testing

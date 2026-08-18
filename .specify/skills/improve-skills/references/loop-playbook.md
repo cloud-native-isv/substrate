@@ -106,7 +106,7 @@ Flag these as migration candidates and apply the Migration Mapping table from
 | `${SKILL_ROOT}/X` | `${SKILL_HOME}/X` |
 | Agent-specific install paths in prose (`${HOME}/.copilot/skills/<name>/...`, hard-coded `.specify/skills/<name>/...`) | `${SKILL_HOME}/...` |
 
-### Feedback-section conformance (Feature 028)
+### Feedback-section conformance
 
 Verify the Skill carries a `## Feedback` section as its final workflow section, beginning with
 the **runtime-mode gate** (`.specify/shared/workflow/runtime-mode.md`).
@@ -171,9 +171,10 @@ every downstream pointer moves with it. In this repo:
 1. Add the old name to `_OBSOLETE_SKILLS` in `src/specify_cli/__init__.py`, extending the
    rename-chain comment.
 2. Rename/realign the skill's contract-test file and its assertions, including guards that the
-   old name is gone (directory absent, obsolete-manifest entry, no stale registry rows).
-3. Update the `.specify/instructions.md` Skills registry row **and** the skills-count list in
-   the Key Directories section.
+   old name is gone (directory absent, obsolete-manifest entry, no second directory carrying
+   the same frontmatter `name`).
+3. Update the skills-count list in the instructions file's Key Directories section (no
+   registry row exists — discovery is by directory).
 4. Add a feature-history entry recording the rename and rationale.
 5. Fix stale pointers in artifacts the old skill dogfooded (e.g. report headers naming the
    predecessor skill).

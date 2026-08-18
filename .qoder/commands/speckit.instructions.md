@@ -43,7 +43,7 @@ Content guidelines for `.specify/instructions.md`:
 
 - **Map, not manual (地图而非手册)**: the file's job is to answer *what exists* and *where it lives*, then point to the owning document — never to teach *how*. Operational detail (workflows, step sequences, invocation rules) belongs in the documents the map points to (constitution, `docs/`, `.specify/shared/` definitions, skill/command files); when you are tempted to explain a procedure here, replace it with a pointer to the canonical doc that owns it.
 - If `.specify/instructions.md` already exists, merge intelligently: preserve valuable content and update only what is outdated
-- **Non-destructive guarantee**: The existing instructions may contain accumulated, hand-authored knowledge that is NOT reproducible from a fresh codebase scan (e.g., custom governance rules, tribal knowledge, decision rationale, registries). This content **MUST NOT** be lost. When the file already exists, the setup script keeps it **in place as the refresh base** (it does not render the template over it), so you **MUST** refresh it *in place, section by section* — updating only sections whose described state no longer matches project reality and preserving everything else verbatim (see the **Establish the Refresh Base** and **Section-by-section refresh** actions below).
+- **Non-destructive guarantee**: The existing instructions may contain accumulated, hand-authored knowledge that is NOT reproducible from a fresh codebase scan (e.g., custom governance rules, tribal knowledge, decision rationale). This content **MUST NOT** be lost. When the file already exists, the setup script keeps it **in place as the refresh base** (it does not render the template over it), so you **MUST** refresh it *in place, section by section* — updating only sections whose described state no longer matches project reality and preserving everything else verbatim (see the **Establish the Refresh Base** and **Section-by-section refresh** actions below).
 - Keep it concise and actionable (~20–50 lines) using Markdown structure
 - Use concrete examples from this repo when describing patterns
 - Avoid generic advice; document only this project’s specific approaches
@@ -58,18 +58,18 @@ This command runs as a **reconcile engine** over the instructions space (see `.s
 
 - **Tolerance band**: a section whose described state still matches project reality is marked consistent and left **byte-for-byte untouched** — never rewrite a section to change nothing, never churn cosmetic wording.
 - **Archive-not-delete**: user-authored content is never dropped; superseded snapshots live on as `.specify/instructions.md-<TIMESTAMP>` backups, and lost content is recovered from them (Action 3).
-- **Scope zones**: managed registry ranges (`AGENTS/SKILLS/TOOLS_REGISTRY`) are owned by their commands — observed but never converged here.
+- **Scope zones**: `.specify/git-workflow.md` is owned by the `git-workflow` skill — observed but never converged here. No managed registry ranges exist in the current template: skills and tools are discovered via their directories (`.specify/skills/`, `.specify/memory/tools/`), not registered.
 
 When `$ARGUMENTS` is empty (full reconcile), apply these rules:
 - **Auto-update sections**: Documentation Map, Spec Kit Framework Map, Tech Stack & Resources, Key Directories, Build/Test commands.
-- **Preserve sections**: project-specific custom notes, manually added governance rules, and registries.
+- **Preserve sections**: project-specific custom notes, manually added governance rules, and hand-authored lessons.
 - **Conflict policy**: If generated content conflicts with clearly user-authored content, preserve user-authored content and update only stale factual items.
 
 When `$ARGUMENTS` has content (partial update), modify only requested sections and keep unrelated sections untouched.
 
 ## Glossary Initialization
 
-Ensure the single project-wide glossary exists and seed it with observed domain terms (Feature 031 — see `.specify/shared/workflow/glossary.md`):
+Ensure the single project-wide glossary exists and seed it with observed domain terms (see `.specify/shared/workflow/glossary.md`):
 
 - The setup script creates `.specify/memory/glossary.md` from `.specify/templates/glossary-template.md` **only if absent** (non-destructive — never overwrite or discard an existing glossary; user-authored entries are authoritative).
 - Propose **project-specific** terms observed from the constitution, `features.md`, feature names, and high-frequency documentation phrases as `origin=auto`, `status=proposed`. **Exclude common everyday words.**
@@ -98,6 +98,7 @@ Fallback behavior:
 1. **Setup**: Run `.specify/scripts/bash/generate-instructions.sh` to ensure the basic directory structure, `.copilotignore`, and template `.specify/instructions.md` exist.
    - This script handles the "heavy lifting" of creating directories, ignoring files, establishing symlinks for supported AI tools (`.github`, `.qoder`, `.claude`), and cleaning up deprecated tool artifacts (`.clinerules`, `.lingma`, `.trae`, etc.).
    - It renders a fresh `.specify/instructions.md` from the template **only** when one does not already exist.
+   - It also creates `.specify/skills.md` and `.specify/tools.md` **only if absent** (copied from `.specify/templates/skills.md` / `.specify/templates/tools.md`) — the explanation docs for the skills/tools discovery model. Existing copies are never overwritten.
    - When `.specify/instructions.md` already exists, the script is **non-destructive**: it keeps the existing file **as the refresh base** (never rendering the template over it) and writes a non-clobbering timestamped backup (`.specify/instructions.md-<TIMESTAMP>`). It no longer fuses only `## Project Overview`; the full section-by-section refresh is performed by the steps below.
    - If the script returns non-zero, apply the **Error Handling** rules above instead of failing immediately.
 
@@ -105,13 +106,13 @@ Fallback behavior:
    - The existing `.specify/instructions.md` **IS** the refresh base — the setup script left it in place untouched, so you refresh it *in situ*. Do NOT regenerate from the template and do NOT rebuild the file from decomposed fragments.
    - **Safety net**: the setup script wrote a non-clobbering timestamped backup (`.specify/instructions.md-<TIMESTAMP>`) and never overwrites earlier ones, so `.specify/instructions.md-*` is a durable history. If the script did not run or produced no backup, copy the current file to such a snapshot before you start editing, so any mistaken edit is recoverable.
    - **Read for reconciliation**: read (a) the current `.specify/instructions.md` (the base) and (b) the latest `.specify/templates/instructions-template.md` (the target structure a fresh spec-kit version expects). The template tells you which sections/markers *should* exist; the base holds the authoritative user content.
-   - **Inventory sections (mandatory artifact — observation snapshot)**: list the base's top-level sections and note, for each, whether it is auto-derivable from a codebase scan (e.g., raw Tech Stack facts, Documentation Map paths) or hand-authored / non-reproducible (custom governance rules, recurring lessons, registries, decision rationale). Hand-authored sections are must-keep and are only touched to correct a clearly stale fact. This inventory is the diff baseline for Action 5 — without it the section-by-section refresh cannot classify sections.
+   - **Inventory sections (mandatory artifact — observation snapshot)**: list the base's top-level sections and note, for each, whether it is auto-derivable from a codebase scan (e.g., raw Tech Stack facts, Documentation Map paths) or hand-authored / non-reproducible (custom governance rules, recurring lessons, decision rationale). Hand-authored sections are must-keep and are only touched to correct a clearly stale fact. This inventory is the diff baseline for Action 5 — without it the section-by-section refresh cannot classify sections.
 
 3. **Recover content lost to older overwriting versions** (run whenever any `.specify/instructions.md-*` backup exists; this is the repair path for projects damaged before the non-destructive fix):
    - **Motivation**: earlier versions of the setup script rebuilt the file from the template and preserved **only** `## Project Overview`, silently dropping every other hand-authored section on each run. A project that ran those versions may have a current base that is already missing content which still survives in a backup.
    - **Gather the history**: list every `.specify/instructions.md-*` backup (there may be several timestamps). Treat the whole set as the recovery source — the most recent backup may itself be post-damage, so do **not** rely on it alone; scan older ones too.
-   - **Detect loss**: diff the current base against the backups. Flag any section, bullet block, or registry row that is present in some backup but **absent** from the current base.
-   - **Recover — additively, user-authored only**: re-inject flagged content that is clearly hand-authored / non-reproducible (custom governance rules, recurring lessons, registry rows, decision rationale, tribal knowledge). Restore the fullest surviving wording and recreate the containing section/heading if it no longer exists. Do **NOT** resurrect stale auto-derivable facts (old tech-stack numbers, moved doc paths, obsolete feature counts) — those are refreshed in the next steps.
+   - **Detect loss**: diff the current base against the backups. Flag any section or bullet block that is present in some backup but **absent** from the current base.
+   - **Recover — additively, user-authored only**: re-inject flagged content that is clearly hand-authored / non-reproducible (custom governance rules, recurring lessons, decision rationale, tribal knowledge). Restore the fullest surviving wording and recreate the containing section/heading if it no longer exists. Do **NOT** resurrect stale auto-derivable facts (old tech-stack numbers, moved doc paths, obsolete feature counts) or legacy registry tables — those are refreshed or superseded in the next steps.
    - **Reconciliation rules**: when backups disagree, prefer the fullest user-authored version; when a backup and the base describe the same item differently, keep the base unless the base is a clear truncation/loss, in which case restore from backup. This step is strictly **additive** — never delete or shrink current content while recovering.
    - If no backup exists, or the base already contains everything the backups do, skip.
 
@@ -125,17 +126,16 @@ Fallback behavior:
 
 5. **Section-by-section refresh** (the diff-and-converge pass — operate directly on the base file; a newly created file starts empty-of-user-content, so its sections are simply filled in):
    - **Iterate over the base file's sections in place.** For each existing section, decide the action by comparing its *described* state against current project reality (tolerance band first):
-     - **Matches reality (within tolerance)** → leave it untouched — do not enter the convergence set (this includes all hand-authored / non-reproducible sections: custom governance rules, recurring lessons, registries, decision rationale).
+     - **Matches reality (within tolerance)** → leave it untouched — do not enter the convergence set (this includes all hand-authored / non-reproducible sections: custom governance rules, recurring lessons, decision rationale).
      - **Drifted / stale** → update *only* the stale facts within that section, preserving the surrounding hand-authored prose and structure. Do not rewrite a whole section to change one fact.
      - **Placeholders** → replace any bracketed placeholders (e.g., `[Brief summary...]`, `[Detected tech stack...]`) with concrete details from your analysis.
    - **Documentation Map**: verify each row still points to a file that exists in the repo — run a scripted existence check (loop every Location cell through `test -e`) instead of eyeballing; fix paths that moved and add rows only for genuinely new canonical docs. Also re-verify numeric facts quoted in Key Content cells (e.g. feature counts) against their source files — these drift silently and have survived previous refreshes.
-   - **Spec Kit Framework Map**: keep this section a **map (what/where), never a manual (how)**. Verify each Where cell against the actual `.specify/` tree with the same scripted existence check — in particular the layered agent stores `.specify/agents/templates/` (shipped Agent Templates), `.specify/agents/instances/` (project-authored Agent Instances), and `.specify/agents/execution/` (dispatch configs/scripts tracked, `logs/` gitignored) — and drop or fix rows whose paths no longer exist. Add rows only for genuinely new framework locations observed on disk (e.g. `.specify/history/`, `.specify/review/` when present). If prose in this section starts explaining procedures, compress it back to a pointer at the owning document.
-   - **Add missing scaffolding**: if the latest `.specify/templates/instructions-template.md` defines a section (or a managed registry range) that is **absent** from the base, insert it at the structurally appropriate place. Never remove a base section merely because the template lacks it (e.g., project-specific sections like `## Recurring Operational Lessons` are kept).
-   - **Preserve managed ranges**: do NOT remove or overwrite the `## Agents`, `## Skills`, and `## Tools` managed ranges; keep the marker comments intact:
-     - `<!-- AGENTS_REGISTRY_START --> ... <!-- AGENTS_REGISTRY_END -->`
-     - `<!-- SKILLS_REGISTRY_START --> ... <!-- SKILLS_REGISTRY_END -->`
-     - `<!-- TOOLS_REGISTRY_START --> ... <!-- TOOLS_REGISTRY_END -->`
-     These ranges are reserved for the `agents`, `skills`, and `tools` commands.
+   - **Spec Kit Framework Map**: keep this section in the template's **summary + pointer** shape (short highlights paragraph linking `.specify/shared/definitions/framework-map.md`) — never expand it back into an inline table or manual. Verify the link target exists; add genuinely new framework locations to the external doc, not to this section. If prose here starts explaining procedures, compress it back to a pointer.
+   - **Add missing scaffolding**: if the latest `.specify/templates/instructions-template.md` defines a section that is **absent** from the base, insert it at the structurally appropriate place. Never remove a base section merely because the template lacks it (e.g., project-specific sections like `## Recurring Operational Lessons` are kept).
+   - **Supersede legacy registry/Git Workflow sections**: bases refreshed by older template versions may still carry a `## Resource Registry` section (`### Agents` / `### Skills` / `### Tools` marker-delimited tables) and an inline `## Git Workflow` block. These were **machine-maintained, not user-authored** — they no longer belong in the file. Converge them, don't preserve them:
+     - Migrate the inline `## Git Workflow` block's branch roles into `.specify/git-workflow.md` first (create it from the `git-workflow` skill's asset template if absent — the branch table is real data and MUST NOT be lost), then replace the section with the template's pointer paragraph.
+     - Replace the registry tables with the template's `## Skills & Tools` pointer section. The rows are re-derivable from `.specify/skills/` and `.specify/memory/tools/` directories, so dropping them loses nothing; note the removal in the residual report.
+     - Never delete hand-authored rows that clearly differ from machine-generated shape (e.g. a user-written note under `### Tools`); move such content into the owning section or report it as pending.
    - **Conflict policy**: when your fresh analysis conflicts with clearly user-authored content, keep the user-authored content and update only the stale factual item (mirrors the **Update Strategy** conflict policy).
    - **Incorporate User Input**: if `$ARGUMENTS` provided specific instructions or context, integrate them into the relevant sections.
    - **No wholesale replacement**: modify only what mismatches; everything else stays byte-for-byte.
@@ -143,7 +143,7 @@ Fallback behavior:
 6. **Validation**:
    - Ensure the file is well-formatted Markdown.
    - Verify that the resulting instructions clearly describe the project to a fresh AI instance.
-   - **Coverage check**: diff the result against **every** `.specify/instructions.md-*` backup and confirm no user-authored section or registry row present in the history was silently dropped. If any is missing, restore it from the backup before finishing.
+   - **Coverage check**: diff the result against **every** `.specify/instructions.md-*` backup and confirm no user-authored section present in the history was silently dropped. If any is missing, restore it from the backup before finishing.
 
 7. **Report (mandatory artifact — residual report)**:
    - Report the full path of the instructions file (`.specify/instructions.md`).
@@ -169,6 +169,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
@@ -186,5 +187,5 @@ At the same wrap-up point as the Feedback step, apply the docs-sync evaluation p
 
 **After running this command**:
 
-- Run `/speckit.skills` to populate the Tools and Skills sections based on the project scan.
+- Skills and tools need no population step — they are discovered via their directories (see `.specify/skills.md` / `.specify/tools.md`).
 - Invoke `memory-record` to persist the residual report and any durable conventions surfaced (Action 8), so the next refresh can recall what changed and why.

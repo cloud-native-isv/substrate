@@ -307,12 +307,14 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 Only)
+### MVP First
+
+**MVP scope rule**: the MVP is the smallest set of **same-priority** user stories whose checkpoints are each independently testable. With a single P1 story that is just User Story 1; when MULTIPLE P1 stories only together form an independently valuable increment (e.g. authoring without its consumption surface is half a mechanism), the MVP covers all of them. State the chosen MVP scope explicitly, and give every story phase a `**Checkpoint**` note describing its independent test.
 
 1. Complete Phase 1: Setup
 2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3: User Story 1
-4. **STOP and VALIDATE**: Test User Story 1 independently
+3. Complete the MVP story set (per the rule above)
+4. **STOP and VALIDATE**: test each MVP story independently per its checkpoint
 5. Deploy/demo if ready
 
 ### Incremental Delivery

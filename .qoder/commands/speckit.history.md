@@ -12,13 +12,21 @@ Process `$ARGUMENTS` per the [User Input Protocol](.specify/shared/workflow/user
 
 ## Outline
 
-`/speckit.history` distills the **current AI tool's** past conversations **for the current project** into a durable, theme-aggregated knowledge base at `.specify/history/`. It does **not** store transcripts verbatim — it extracts long-term value: decisions, reusable lessons, open TODOs, key interaction flows, and points of user↔model disagreement.
+`/speckit.history` distills the **current AI tool's** past conversations **for the current project** into a durable, theme-aggregated knowledge base at `.specify/history/`.
+
+**Scope & unit of work** — what makes this command distinct from `/speckit.session`:
+
+- **Scope = ALL history**: it reads the tool's *entire* past conversation record for this project (every session in the store), not one session. Runs are incremental only to avoid re-reading; the analytical horizon is always the full corpus.
+- **Unit of work = concepts/themes**: the output is mined *information* — decisions, lessons, TODOs, flows, conflicts — grouped into concepts or themes (one or many), each aggregating evidence across sessions. A concept may draw on 20 sessions; a session may feed 5 concepts.
+- **Counterpart**: operating on a *single* session as a data object (export, naming, archiving) is `/speckit.session`'s job — that command manages session **data** and does not parse content into concepts.
+
+This command does **not** store transcripts verbatim — it extracts long-term value: decisions, reusable lessons, open TODOs, key interaction flows, and points of user↔model disagreement.
 
 It is **incremental**: a manifest tracks which sessions were already distilled, so re-runs only process new ones and merge into the existing documents.
 
 ### Step 1: Identify Tool & Project
 
-1. **Identify the executing agent** following `.specify/shared/workflow/agent-configuration.md` → "Step 1: Identify Executing Agent" (Claude Code / Copilot / Qoder / opencode / Qwen / Codex / …).
+1. **Identify the executing agent** following `.specify/shared/workflow/agent-configuration.md` → "Step 1: Identify Executing Agent" (Claude Code / Copilot / Qoder / opencode / Codex / Hermes / …).
 2. Run `.specify/scripts/bash/collect-history.sh --json` from repo root. It auto-detects the tool and prints JSON:
    ```json
    {
@@ -27,7 +35,7 @@ It is **incremental**: a manifest tracks which sessions were already distilled, 
      "session_store": "<path or null>", "session_count": <int>,
      "output_dir": "<...>/.specify/history",
      "manifest_path": "<...>/.specify/history/.manifest.json",
-     "supported_tools": ["claude"], "note": "<explanation>"
+     "supported_tools": ["claude", "qoder"], "note": "<explanation>"
    }
    ```
    - If the detected `tool` is wrong, re-run with `--tool <key>` (append to the script call).
@@ -106,6 +114,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

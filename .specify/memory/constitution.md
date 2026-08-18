@@ -1,61 +1,67 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0.1 → 1.1.0.1 (MINOR — principle additions + deliberate scope
-contraction of the testing/quality principles)
+Version change: 1.1.0.1 → 1.2.0.1 (MINOR — roadmap section materially expanded; Principle I
+scope contracted from unconditional to stage-scoped; Principle XIII realigned)
+
+Bump reasoning: this is not a MAJOR rewrite (the principle set and governance structure are
+intact, numbering unchanged), but it is more than a clarification: Principle I's
+"NON-NEGOTIABLE ... indefinitely" upstream-tracking mandate is deliberately contracted to
+Stages 1–2 and terminated at a declared Stage 3 fork point, and its rebase-survival rule
+(prefer new files / minimal upstream diff) is dropped for Stage 2. Contracting a principle's
+scope is a MINOR bump per the versioning policy.
 
 Modified principles:
-- "VI. Test-First Development" → "VI. Pragmatic Testing (Exploration-Grade)": TDD demoted
-  from MUST to SHOULD; the "code lacking tests MUST NOT be merged" bar is REMOVED per the
-  project's functional-first exploration mandate. Declares Tests Mode default = OFF.
-- "VII. Integration & Contract Testing" → scope contracted: integration/E2E coverage is
-  opportunistic during exploration; `make e2e` no longer implied as a routine gate.
-- "IX. Continuous Integration & Quality Gates" → "IX. Mechanical Quality Gates": retains
-  only the low-cost machine-checkable gates (build, `make verify`, license headers) that
-  protect Principle I rebase health; human-judgment quality bars demoted to SHOULD.
+- "I. Upstream-First, Dual-Branch Discipline" → "I. Dual-Branch Discipline (Stage-Scoped)":
+  the dual-branch mechanic stays NON-NEGOTIABLE while upstream tracking is active, but
+  (a) Stage 2 now PERMITS rewriting upstream implementations and modifying upstream
+  architecture — the "prefer new files, keep upstream diff minimal" rule is RETIRED as a
+  constraint and demoted to a Stage-1 preference, and (b) tracking ENDS at the Stage 3 fork
+  point, after which `main` is frozen as historical reference.
+- "XIII. Staged Exploration Discipline" → realigned to the expanded roadmap: per-stage
+  primary work, proposal-friendliness in Stage 1, and the fork-point declaration procedure.
 
-Added principles:
-- XIII. Staged Exploration Discipline (three-stage model; concept instability tolerance)
-- XIV. Hybrid Stack Fusion (cloud-native K8s/E2B + AI-agent stack integration rules)
-- XV. Design Documents as Durable Reference Material (prior design/thinking docs are
-  maintained reference assets, not disposable artifacts)
+Added principles: none (I–XV numbering preserved).
 
-Added sections:
-- "Project Nature & Three-Stage Roadmap" (states the exploration mandate and current stage)
+Added sections: none. "Project Nature & Three-Stage Roadmap" is substantially expanded
+(per-stage focus / primary work / permitted-and-forbidden / exit criteria table).
 
-Removed sections: none
-
-Numbering note: new principles were APPENDED (XIII–XV) rather than inserted, deliberately
-preserving the existing I–XII numbers so that live references in
-`.specify/instructions.md` (Principle I) and `.specify/memory/features/*.md`
-(Principles I, VIII, XI) remain valid.
+Removed sections: none.
 
 Templates requiring updates:
-- ✅ .specify/templates/plan-template.md — Constitution Check renders principles
-  dynamically from this file; no edit needed
+- ✅ .specify/templates/plan-template.md — Constitution Check renders principles dynamically
+  from this file; no edit needed
 - ✅ .specify/templates/requirements-template.md — Feature binding references features.md
   with no hard-coded principle number; no edit needed
-- ✅ .specify/templates/tasks-template.md — Tests Mode derived dynamically; Principle VI
-  now states the default explicitly (OFF)
+- ✅ .specify/templates/tasks-template.md — Tests Mode derived dynamically; no edit needed
 - ✅ README.md — no constitution/principle references; no edit needed
 - ✅ docs/quickstart.md — does not exist; nothing to update
-- ✅ .specify/shared/workflow/feedback-step.md + .specify/skills/improve-{docs,team,agent,
-  skills,tools}/SKILL.md — PRE-EXISTING drift fixed: cited "Principle XIII" for
-  Better-Harness Orientation, which is Principle X here (and XIII is now a different
-  principle, so the stale refs would have become actively wrong)
+
+Propagated in this amendment (consequences of relaxing Principle I):
+- ✅ `xuanji.md` — convention paragraph rewritten: the "minimal upstream diff" rule is now
+  stated as a Stage-1 preference, and the registration duty is stated as mandatory and
+  stage-independent (it is what replaces diff minimalism).
+- ✅ `.specify/memory/features/001.md`, `.specify/memory/features/014.md` — "must stay
+  separable from upstream code" notes rewritten to the stage-scoped rule + registration duty.
+- ✅ `.specify/instructions.md` — dual-branch paragraph no longer claims unconditional
+  rebase-survival; three-stage summary now names each stage's primary work and the Stage 3
+  fork point.
 
 Follow-up TODOs:
-- TODO(TOOL_REUSE_PRINCIPLE_REF): `.specify/instructions.md`,
-  `.specify/templates/instructions-template.md`, and the generated
-  `.github/prompts/speckit.tools.prompt.md` / `.opencode/command/speckit.tools.md` cite
-  "Constitution Principle XII" for the tool-reuse gate, but Principle XII here is
-  "Complete & Correct Options, or None". This constitution declares no tool-reuse
-  principle; either add one or drop the citation. Left unresolved — inherited from the
-  upstream Spec Kit framework, not introduced by this amendment.
+- TODO(FEATURE_018_COMPAT_POLICY): `.specify/memory/features/018.md` assumes indefinite
+  upstream rebasing when defining API compatibility policy; it should account for the Stage 3
+  fork point. Refresh via `/speckit.feature`.
+- TODO(FEATURE_016_TRACKING_AUTOMATION): `.specify/memory/features/016.md` (upstream tracking
+  automation) is scoped to Stages 1–2 by this amendment and becomes obsolete at the fork
+  point; record that end-of-life condition.
+- TODO(TOOL_REUSE_PRINCIPLE_REF): inherited from upstream Spec Kit — generated command copies
+  cite "Constitution Principle XII" for the tool-reuse gate, but Principle XII here is
+  "Complete & Correct Options, or None"; this constitution declares no tool-reuse principle.
+  Cite `.specify/shared/workflow/tool-reuse-gate.md` instead.
 - TODO(GENERATED_PROMPT_COPIES): `.github/prompts/speckit.tasks.prompt.md` and
-  `.opencode/command/speckit.tasks.md` cite "Principle IV Test-First Development"
-  (Test-First is VI here, and is no longer NON-NEGOTIABLE). These are generated copies;
-  refresh via `/speckit.instructions` rather than hand-editing.
+  `.opencode/command/speckit.tasks.md` cite "Principle IV Test-First Development" (Test-First
+  is VI here and no longer NON-NEGOTIABLE). Generated copies — refresh via
+  `/speckit.instructions`.
 -->
 
 # Xuanji Substrate (Agent Substrate Fork) Constitution
@@ -63,18 +69,65 @@ Follow-up TODOs:
 ## Project Nature & Three-Stage Roadmap
 
 This project is a **technical exploration**, not a production product. It starts from the
-open-source Agent Substrate project and pursues its goal through three stages:
+open-source Agent Substrate project and pursues its goal through three stages. All custom
+work happens on the `xuanji` branch of this fork; **contributing back to upstream is
+explicitly out of scope** for the whole roadmap.
 
-1. **Stage 1 — Absorb**: digest and internalize the upstream open-source project's own
-   definitions, concepts, and mechanisms.
-2. **Stage 2 — Customize**: make substantial custom modifications on top of the upstream
-   base.
-3. **Stage 3 — Redefine**: consolidate the result into a new, coherent project identity of
-   its own.
+### Stage 1 — Absorb (current)
 
-**Current stage: Stage 1 (absorb-dominant).** Existing custom surfaces (`cmd/e2bgw`, the
-`wasm` sandbox class) are treated as exploratory pilots that probe Stage 2, not as evidence
-that Stage 1 is complete.
+**Goal**: internalize upstream's concepts and core structure well enough to modify them
+deliberately.
+
+- **Primary work**: producing documentation and curating external reference material —
+  concept explanations, architecture analysis, flow references, competitor/ecosystem
+  landscape. This is the stage's *deliverable*, not a side activity.
+- **Also permitted**: proposals for new solutions and requirements (design proposals, ADRs
+  in `Proposed` status, feature registry entries in `Draft`). A proposal is a legitimate
+  Stage 1 output even when nothing is implemented for it.
+- **Code work**: exploratory pilots are permitted (e.g. `cmd/e2bgw`, the `wasm` sandbox
+  class) but they probe Stage 2 and MUST NOT be read as evidence that Stage 1 is complete.
+  During this stage, keeping upstream files at minimal diff remains the PREFERRED style,
+  because understanding is still forming.
+- **Exit criteria**: upstream's core concepts and structure are documented accurately enough
+  (grounded in code per Principle V) that a modification can state what it changes and why.
+
+### Stage 2 — Fuse (customize upstream's architecture)
+
+**Goal**: add E2B support and the Wasm Sandbox to the substrate codebase and progressively
+fuse them with it, modifying upstream's original architecture where the fusion requires it.
+
+- **Primary work**: implementation. E2B protocol support and the Wasm sandbox runtime move
+  from pilot to integrated capability.
+- **Explicitly permitted** (this is the deliberate relaxation): rewriting upstream
+  implementations, restructuring upstream packages, and changing upstream architecture when
+  the fusion requires it. The Stage-1 preference for "new files only / minimal upstream
+  diff" is NOT a constraint here.
+- **Mandatory in exchange**: every modification to an upstream-owned file MUST be registered
+  in `xuanji.md` with what changed and why. As rewrites grow, that registry — not diff
+  minimalism — is what keeps rebases and the eventual fork decision tractable.
+- **Still forbidden**: pushing custom features to upstream `main` or proposing them upstream;
+  committing custom work to the local `main` branch.
+- **Exit criteria**: the custom capabilities are integrated rather than bolted on, and the
+  cost of continued upstream rebasing visibly exceeds its benefit.
+
+### Stage 3 — Independent Delivery (shed the substrate dependency)
+
+**Goal**: deliver the customized project on its own terms, progressively ending its
+dependence on upstream substrate.
+
+- **Primary work**: consolidating a coherent project identity — naming, boundaries, and
+  delivery artifacts that stand without reference to upstream.
+- **The fork point**: Stage 3 begins with an explicitly declared **fork point** — a recorded
+  upstream commit at which rebase tracking STOPS. After it, `main` is frozen as historical
+  reference, `xuanji` (or its successor trunk) becomes the sole line of development, and
+  upstream changes are no longer integrated as a matter of course.
+- **Declaring the fork point** is a constitutional amendment (see Governance): it records the
+  upstream commit, the date, and the rationale. Until that amendment lands, upstream tracking
+  per Principle I remains in force.
+- **Exit criteria**: the project is delivered and maintained independently, with no standing
+  obligation to upstream.
+
+**Current stage: Stage 1 (absorb-dominant).**
 
 Two consequences bind the whole constitution:
 
@@ -89,27 +142,37 @@ Two consequences bind the whole constitution:
 
 ## Core Principles
 
-### I. Upstream-First, Dual-Branch Discipline
-This project is a custom fork of the open-source Agent Substrate project, adding
-custom features ("E2B 协议面" / E2B protocol plane, "Wasm Sandbox") on top of
-upstream. The dual-branch workflow is NON-NEGOTIABLE:
-- `main` MUST continuously track the upstream open-source repository. Upstream
-  changes land on `main` only; no custom development is committed to `main`.
-- `xuanji` is the sole branch for custom development. `xuanji` MUST be kept
-  current by rebasing onto `main` (never by merging `main` into `xuanji`), so
-  upstream updates integrate cleanly and history stays linear.
-- Custom changes MUST be structured to survive rebases: prefer new files,
-  packages, and extension points over edits to upstream-owned files; where an
-  upstream file must change, keep the diff minimal and clearly attributable to
-  a custom feature.
-- Every commit on `xuanji` MUST be classifiable as either "upstream cherry-pick"
-  or "custom feature work"; mixed commits are forbidden.
+### I. Dual-Branch Discipline (Stage-Scoped)
+This project is a custom fork of the open-source Agent Substrate project, adding custom
+features (E2B protocol plane, Wasm Sandbox) on top of upstream, on the `xuanji` branch only.
 
-Rationale: rebase-based upstream tracking is only sustainable when custom code
-is separable from upstream code; this keeps merge friction low and upstream
-updates fast indefinitely. This principle stays NON-NEGOTIABLE even under the
-functional-first mandate, because a broken rebase story would end Stage 2 before
-it starts.
+**While upstream tracking is active (Stages 1–2), the dual-branch mechanic is
+NON-NEGOTIABLE:**
+- `main` MUST continuously track the upstream open-source repository. Upstream changes land
+  on `main` only; no custom development is committed to `main`.
+- `xuanji` is the sole branch for custom development. `xuanji` MUST be kept current by
+  rebasing onto `main` (never by merging `main` into `xuanji`), so upstream updates integrate
+  cleanly and history stays linear.
+- Every commit on `xuanji` MUST be classifiable as either "upstream cherry-pick" or "custom
+  feature work"; mixed commits are forbidden.
+- Custom features MUST NOT be pushed to, or proposed against, upstream `main`. Contributing
+  upstream is out of scope for this project.
+
+**How invasive custom changes may be is stage-dependent:**
+- **Stage 1**: prefer new files, packages, and extension points; keep any upstream-file diff
+  minimal. This is a PREFERENCE that protects a still-forming understanding, not a hard rule.
+- **Stage 2**: rewriting upstream implementations and modifying upstream architecture is
+  PERMITTED (see roadmap). In exchange, every modified upstream file MUST be registered in
+  `xuanji.md` with what changed and why.
+- **Stage 3**: upstream tracking ENDS at the declared fork point. From then on `main` is
+  frozen as historical reference and this principle's tracking obligations no longer apply;
+  the registry in `xuanji.md` becomes the record of divergence.
+
+Rationale: rebase-based tracking is a means, not an end — it exists to keep absorbing
+upstream cheap while we still benefit from it. Forbidding architectural change forever would
+make Stage 2 impossible, and tracking a project we intend to leave would be waste; so the
+obligation is scoped to the stages where it pays, and the registration duty grows as diff
+minimalism is given up.
 
 ### II. Feature-Centric Development
 Feature is the long-term core framework of the project:
@@ -143,8 +206,8 @@ coverage:
 Rationale: as agent capabilities grow, high-quality documentation becomes the
 primary knowledge context that lets LLMs understand a project accurately and
 reason effectively; it therefore ranks above testing in the principle
-hierarchy. In an exploration project this ranking is sharper still: understanding
-upstream (Stage 1) is a documentation problem, not a test-coverage problem.
+hierarchy. In Stage 1 this ranking is not merely a priority but the stage's
+definition of work: absorbing upstream IS a documentation deliverable.
 
 ### IV. Documentation Naming & Location Conventions
 - ALL-CAPS Markdown filenames are RESERVED for conventional,
@@ -176,8 +239,9 @@ locate and reason about documents without external indexes.
 
 Rationale: in a fast-moving fork that rebases upstream frequently, docs drift is
 inevitable; anchoring factual claims in code prevents decisions based on stale
-descriptions. This matters doubly for the reference material covered by
-Principle XV, which records past thinking that may never have been built.
+descriptions. This is also what makes Stage 1's documentation trustworthy: an
+absorbed concept counts as understood only when it was read out of the code, and
+Stage 1 proposals must not be mistaken for realized behavior.
 
 ### VI. Pragmatic Testing (Exploration-Grade)
 Testing is valued but is explicitly NOT a merge gate during technical
@@ -191,7 +255,9 @@ exploration:
   functional progress.
 - Changes MUST NOT knowingly break existing tests. When a change invalidates an
   upstream test, the test MUST be updated deliberately (with the reason stated),
-  never deleted to silence a failure (see Principle XI).
+  never deleted to silence a failure (see Principle XI). In Stage 2, rewriting an
+  upstream implementation legitimately invalidates its tests — rewrite them with
+  the change, and say so in the `xuanji.md` entry.
 - **Tests Mode default: OFF.** `/speckit.tasks` MUST default Tests Mode to OFF and
   cite this principle; a feature MAY opt in to ON when its own risk justifies it.
 
@@ -273,6 +339,9 @@ that exhibits them:
 - When a destructive operation is genuinely required (deletion, force-overwrite,
   `git rebase` on published history), it MUST be explicitly confirmed with the
   user before execution.
+- Stage 2 rewrites are NOT an exception: replacing an upstream implementation is
+  a deliberate, registered change (Principle I), not a licence to delete code
+  whose purpose is not yet understood.
 
 Rationale: destructive shortcuts destroy information and trust, and in a
 rebase-based fork can silently erase custom work; mandatory confirmation keeps
@@ -296,22 +365,31 @@ all.
 Work MUST be located within the three-stage roadmap declared above, and MUST
 respect the rules of the current stage:
 - **Stage awareness**: a change SHOULD be classifiable as absorbing upstream
-  (Stage 1), customizing on top of it (Stage 2), or consolidating a new identity
-  (Stage 3). Stage 2/3 work during Stage 1 is permitted as an exploratory pilot,
-  but MUST be labeled as such rather than presented as settled direction.
-- **Absorb before overriding**: during Stage 1, an upstream mechanism MUST be
-  understood and documented before it is replaced. "Understood" means grounded
-  in code per Principle V, not inferred from documentation alone.
+  (Stage 1), fusing custom capability into it (Stage 2), or consolidating an
+  independent identity (Stage 3). Work that belongs to a later stage is
+  permitted as an exploratory pilot, but MUST be labeled as such rather than
+  presented as settled direction.
+- **Absorb before overriding**: an upstream mechanism MUST be understood and
+  documented before it is rewritten. "Understood" means grounded in code per
+  Principle V, not inferred from documentation alone. This is what makes the
+  Stage 2 licence to rewrite safe rather than reckless.
+- **Proposals are first-class in Stage 1**: new solution and requirement
+  proposals are expected output, recorded as ADRs (`Proposed`) or Feature
+  entries (`Draft`). A proposal MUST NOT be presented as implemented behavior
+  (Principle V), and MUST NOT be silently dropped (Principle XV).
 - **Provisional concepts**: terminology and abstractions MUST be treated as
   provisional. Renaming churn, deprecation shims, and backward-compatibility
   layers for internal concepts MUST NOT be introduced merely to preserve a name
   that is expected to change in a later stage.
 - **Stage transitions** are recorded by amending the roadmap section of this
-  constitution, so "which stage are we in" always has one answer.
+  constitution, so "which stage are we in" always has one answer. The Stage 3
+  transition additionally records the fork point (upstream commit + date +
+  rationale).
 
 Rationale: an exploration project fails by drifting — either by rewriting
 upstream before understanding it, or by prematurely hardening vocabulary that
-the next stage will discard. Naming the stage makes both failures visible.
+the next stage will discard. Naming the stage makes both failures visible, and
+makes the Stage 2 relaxation conditional on Stage 1 actually having been done.
 
 ### XIV. Hybrid Stack Fusion
 This project deliberately fuses an established cloud-native stack (Kubernetes,
@@ -329,7 +407,8 @@ stack (E2B-compatible sandbox protocol, agent lifecycle and tooling surfaces):
 
 Rationale: most defects at this boundary are conceptual, not mechanical — two
 mature vocabularies describe overlapping things differently. Explicit mappings
-localize the translation cost instead of spreading it through the codebase.
+localize the translation cost instead of spreading it through the codebase, and
+they are the artifact Stage 2's fusion work is built on.
 
 ### XV. Design Documents as Durable Reference Material
 The repository carries a substantial body of prior design and exploratory
@@ -351,7 +430,9 @@ thinking. These documents are maintained reference assets:
 
 Rationale: in an exploration project the reasoning behind rejected and pending
 designs is a primary asset — it is what prevents the next stage from re-deriving
-or repeating past conclusions.
+or repeating past conclusions. Stage 1 deliberately produces documents and
+proposals faster than implementation, so their upkeep is the stage's main
+maintenance burden.
 
 ## Technology & Platform Constraints
 
@@ -365,10 +446,11 @@ or repeating past conclusions.
   packages in `internal/`, public packages in `pkg/`, public control-plane
   protos in `pkg/proto/`, internal protos in `internal/proto/`, dev scripts in
   `hack/`, standalone tools in `tools/<name>` (own `go.mod`).
-- **Custom feature surface**: the "E2B 协议面" (E2B protocol plane) and "Wasm
-  Sandbox" features are xuanji-branch-only capabilities. Their code MUST live
-  in clearly identifiable locations so upstream tracking (Principle I) is not
-  impeded; they MUST NOT be pushed to or proposed against upstream `main`.
+- **Custom feature surface**: the E2B protocol plane and Wasm Sandbox are
+  xuanji-branch-only capabilities and MUST NOT be pushed to or proposed against
+  upstream `main`. Through Stage 1 they stay in clearly identifiable locations;
+  from Stage 2 they may reach into upstream-owned code, with every such file
+  registered in `xuanji.md` (Principle I).
 - **Documentation space is published**: `docs/` doubles as a Hugo site root and
   everything under it is publishable to public remotes. Sensitive or
   internal-only material MUST NOT be placed there (Principle XV).
@@ -380,17 +462,23 @@ or repeating past conclusions.
 
 ## Development Workflow
 
-1. **Upstream sync**: fetch upstream and fast-forward `main`. `main` never
-   diverges from upstream.
+1. **Upstream sync** (Stages 1–2 only): fetch upstream and fast-forward `main`.
+   `main` never diverges from upstream. After the Stage 3 fork point this step
+   ceases and `main` is frozen.
 2. **Custom development**: all feature work happens on `xuanji` (or short-lived
    branches cut from `xuanji`, merged/rebased back into `xuanji`).
-3. **Rebase cadence**: after each upstream sync that matters to us, rebase
-   `xuanji` onto `main`. Resolve conflicts in favor of preserving upstream
-   intent for upstream-owned files, while re-applying minimal custom deltas.
-4. **Pre-review gates**: the build and `make verify` MUST pass locally before
+3. **Rebase cadence** (Stages 1–2): after each upstream sync that matters to us,
+   rebase `xuanji` onto `main`. Resolve conflicts in favor of preserving upstream
+   intent for upstream-owned files that we have not deliberately rewritten; for
+   files listed in `xuanji.md` as intentionally rewritten, our version wins and
+   the registry entry is updated.
+4. **Registering upstream edits**: any change to an upstream-owned file is
+   recorded in `xuanji.md` (what changed, why). This is the conflict checklist
+   for rebases and the divergence record for the eventual fork decision.
+5. **Pre-review gates**: the build and `make verify` MUST pass locally before
    review (Principle IX). `make test` is RECOMMENDED; `make e2e` only when the
    change touches lifecycle/scheduling/routing and a cluster is available.
-5. **Spec-driven custom features**: custom features follow the Spec Kit flow
+6. **Spec-driven custom features**: custom features follow the Spec Kit flow
    (`/speckit.feature` → `/speckit.requirements` → `/speckit.plan` →
    `/speckit.tasks` → implement) so that feature registry, requirements, and
    plans stay traceable per Principle II. Exploratory spikes MAY skip the flow,
@@ -411,7 +499,11 @@ or repeating past conclusions.
 - **Stage transitions**: advancing between the three roadmap stages is an
   amendment to the "Project Nature & Three-Stage Roadmap" section and MUST
   restate which rules newly apply — notably whether the relaxed quality bar
-  still holds.
+  still holds and how invasive custom changes may be (Principle I).
+- **Fork-point declaration**: entering Stage 3 requires an amendment recording
+  the upstream commit at which tracking stops, the date, and the rationale.
+  Until it lands, Principle I's tracking obligations remain in force; no
+  informal "we stopped rebasing" state is recognized.
 - **Principle numbering stability**: principle numbers are cited from other
   artifacts. New principles SHOULD be appended rather than inserted; when a
   renumber is unavoidable, every citing artifact MUST be updated in the same
@@ -421,4 +513,4 @@ or repeating past conclusions.
   Templates referencing principles MUST be kept in sync via the Sync Impact
   Report checklist.
 
-**Version**: 1.1.0.1 | **Ratified**: 2026-08-06 | **Last Amended**: 2026-08-12
+**Version**: 1.2.0.1 | **Ratified**: 2026-08-06 | **Last Amended**: 2026-08-12

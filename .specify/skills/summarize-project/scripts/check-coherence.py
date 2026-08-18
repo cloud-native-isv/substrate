@@ -151,7 +151,7 @@ def check_blocks(text: str, f: Findings, report: dict) -> None:
     report["blocks"] = []
     report["has_wbs"] = False
     if not blocks:
-        f.fail("CG-0", "报告中没有任何 plantuml 源码块（图表即文本原则要求源码嵌入）")
+        f.fail("CG-0", "没有任何 plantuml 图源（assets/ 无 .puml 且正文无源码块）→ 图源⇄渲染产物须同名配对交付")
         return
     for idx, src in enumerate(blocks, 1):
         kind = block_kind(src)
@@ -342,12 +342,15 @@ def check_dates(prose: str, f: Findings, report: dict) -> None:
         f.fail("DATE", f"非 yyyy-mm-dd 日期写法：{b}")
 
 
-def check_selfcontained(text: str, f: Findings, report: dict, base_dir: pathlib.Path) -> None:
+def check_selfcontained(text: str, f: Findings, report: dict, base_dir: pathlib.Path,
+                        puml_files: list | None = None) -> None:
     """目录自包含检查：报告以相对路径引用交付目录内的渲染图片（`![…](assets/x.svg)`）。
 
     - 相对路径引用的文件必须**存在于交付目录内**（以报告所在目录为根）；
     - 引用交付目录外的文件（`..` 逃逸、绝对路径）或外链 URL（http/https 等）→ FAIL；
-    - 每个 plantuml 源码块之后应有其渲染图引用（或渲染失败告示）。
+    - 每个 plantuml 源码块之后应有其渲染图引用（或渲染失败告示）；
+    - assets 形态（源码落 `assets/*.puml`）：引用图 ⇄ `.puml` 图源同名双向配对
+      （每张引用图有同名图源；每个图源被正文引用或有渲染失败告示）。
     """
     base = base_dir.resolve()
     imgs = re.findall(r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)", text)
@@ -395,6 +398,20 @@ def check_selfcontained(text: str, f: Findings, report: dict, base_dir: pathlib.
             f"{n_src} 个 plantuml 块，但只有 {n_img} 个渲染图引用 + {n_svg} 个内联 SVG + {n_warn} 条渲染失败告示"
             f" → 存在未渲染的裸源码块",
         )
+    if puml_files:
+        stems = {pf.stem for pf in puml_files}
+        for u in ok_refs:
+            if u.startswith("data:"):
+                continue
+            if pathlib.PurePosixPath(u).stem not in stems:
+                f.fail("SELF", f"引用图 `{u}` 在 assets/ 内无同名 `.puml` 图源 → 图源⇄渲染产物须同名配对")
+        # referenced = rendered refs (ok) + refs whose render artifact is missing
+        # (already flagged) — both prove the .puml is referenced by the body.
+        referenced_stems = {pathlib.PurePosixPath(u).stem
+                            for u in ok_refs + missing}
+        for pf in puml_files:
+            if pf.stem not in referenced_stems:
+                f.fail("SELF", f"assets/{pf.name} 未被正文渲染图引用（也无渲染失败告示）→ 图源⇄渲染产物须同名配对")
 
 
 def check_id_namespace(prose: str, f: Findings, report: dict) -> None:
@@ -435,11 +452,24 @@ def main() -> int:
 
     f = Findings()
     report: dict = {"report": str(path)}
-    check_blocks(text, f, report)          # 图元/图例：需要 plantuml 源码，用全文
+    # 图源优先读 assets/*.puml（consistency-rules：源码只作为 .puml 文件交付，正文不出现
+    # 源码块）；assets/ 无 .puml 时退回正文残留围栏块（旧单文件形态兼容）。
+    assets_dir = path.parent / "assets"
+    puml_files = sorted(assets_dir.glob("*.puml")) if assets_dir.is_dir() else []
+    if puml_files:
+        diagram_text = "\n".join(
+            "```plantuml\n" + pf.read_text(encoding="utf-8") + "\n```"
+            for pf in puml_files)
+        residual = len(re.findall(r"```plantuml\n", text))
+        if residual:
+            f.fail("SELF", f"正文残留 {residual} 个 plantuml 源码块 → 源码只作为 assets/*.puml 交付")
+    else:
+        diagram_text = text
+    check_blocks(diagram_text, f, report)  # 图元/图例：需要 plantuml 源码，用图源
     check_numbers(prose, f, report)        # 数字：用正文（已去代码块 + SVG）
     check_coverage(prose, f, report)       # 覆盖完整性：用正文
     check_dates(prose, f, report)          # 日期：用正文
-    check_selfcontained(text, f, report, path.parent)  # 目录自包含：相对引用须落在交付目录内，用全文
+    check_selfcontained(text, f, report, path.parent, puml_files)  # 目录自包含：相对引用须落在交付目录内，用全文
     check_id_namespace(prose, f, report)   # 裸编号：用正文
 
     c = f.counts()

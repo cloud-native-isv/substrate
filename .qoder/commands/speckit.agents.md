@@ -31,7 +31,7 @@ Agents are expressed with the **Role × Stage × Type** model (defined once in `
 **Routing flow**:
 
 1. **Recognize intent** from `$ARGUMENTS` and conversation/repo context: classify as `create`, `refine`, or `run`. If instead it is a **team** request (organize / run multiple agents), direct the user to `/speckit.team` and stop.
-2. **create** → resolve the target **layer** (template / instance / execution; ask if ambiguous), check `.specify/agents/{templates,instances}/<name>.agent.md` existence: absent → `create-agent`. Build the `AgentAuthoringRequest` (carrying the layer/kind), handle backup/preservation, write to the layer's store, verify per-file symlinks.
+2. **create** → resolve the target **layer** (template / instance / execution; ask if ambiguous), check `.specify/agents/{templates,instances}/<name>.agent.md` existence: absent → `create-agent`. Build the `AgentAuthoringRequest` (carrying the layer/kind), handle backup/preservation, write to the layer's store, re-render the tool agent directories (or advise `specify init`).
    - **Confirm the authoring mode** before generating when the request is not unambiguous: offer `role`, `supervisor`, `custom` (narrow, general-purpose), or `project-custom` (project-bound). Do NOT guess the mode silently.
    - **`project-custom`** produces an agent from `skills/create-agent/templates/agent-project-custom-template.md`. It MUST be marked with its bound project via the `project:` frontmatter field and MUST keep the `## Project Scope Guard` section, so it warns the user when later invoked in a different project. Its creation flow is intentionally flexible — no fixed section list beyond the guard.
 3. **refine** → resolve the target **layer**, then the artifact (`.specify/agents/templates/<name>.agent.md`, `.specify/agents/instances/<name>.agent.md`, or `.specify/agents/execution/configs/<name>.yaml`) exists → `improve-agent`. Load the existing definition and apply targeted, evidence-based edits.
@@ -60,7 +60,7 @@ The **run** mode turns the **Agent Instance** definition into a new, independent
 1. **Resolve the target agent** — identify the agent by name from `$ARGUMENTS` or conversation context. Load its definition from `.specify/agents/instances/<name>.agent.md`, falling back to `.specify/agents/templates/<name>.agent.md` (instance wins on collision); apply `.specify/agents/execution/configs/<name>.yaml` when present.
    - If the agent does not exist → report **"agent not found"** and offer to `create` it.
 2. **Confirm the task** — present the agent's `name`, `description`, and the task to be executed. Ask the user to confirm before dispatching.
-3. **Dispatch** — launch the agent as a subagent with its configured `tools`, `model`, `maxTurns`, and system prompt. Choose the execution mode per `.specify/shared/definitions/subagent-definitions.md` (**native** when the runtime supports subagents, **virtual** in-session when it does not, **external** CLI process for long-running/parallel work or per-dispatch model overrides); external CLI dispatch MUST follow that document's Visibility Contract (stream-json + compact filter + `.live.log`/`.jsonl`/`.status` triplet) — never redirect print-mode output into a silent log. The subagent executes the task autonomously within its defined scope.
+3. **Dispatch** — launch the agent as a subagent with its configured `capability-tools`, `model-tier`, and `run-turn-budget`, and system prompt. Choose the execution mode per `.specify/shared/definitions/subagent-definitions.md` (**native** when the runtime supports subagents, **virtual** in-session when it does not, **external** CLI process for long-running/parallel work or per-dispatch model overrides); external CLI dispatch MUST follow that document's Visibility Contract (stream-json + compact filter + `.live.log`/`.jsonl`/`.status` triplet) — never redirect print-mode output into a silent log. The subagent executes the task autonomously within its defined scope.
 4. **Report** — relay the subagent's result back to the user. If the subagent fails or hits its turn limit, report the partial result and the failure reason.
 
 **Scope boundary**: Run mode executes a **single** agent on a **single** task. For multi-agent orchestration (parallel dispatch, serial chains, iteration loops), use `/speckit.team`.
@@ -78,7 +78,7 @@ For organizing or running a **team** of agents (multiple agents collaborating), 
 ### Lifecycle: Temporary vs Persistent
 
 - **Temporary** agents live only in conversation context and are NOT written to the agent directory.
-- **Persistent** agents are written under `.specify/agents/templates/` (role Templates) or `.specify/agents/instances/` (Instances) and made available to **all officially supported tools** on initialization via per-file symlinks (e.g. `.qoder/agents/<slug>.agent.md` → `.specify/agents/templates/<slug>.agent.md`; instance wins on filename collision).
+- **Persistent** agents are written under `.specify/agents/templates/` (Meta Agent presets) or `.specify/agents/instances/` (Instances) and made available to **all officially supported tools** on initialization via per-tool rendering into real files (e.g. `.qoder/agents/<slug>.agent.md` in Qoder format; instance wins on filename collision).
 
 ### Authoring Rules
 
@@ -86,7 +86,7 @@ For organizing or running a **team** of agents (multiple agents collaborating), 
 - Concise, explicit instructions over narrative
 - Single responsibility per agent
 - Least-privilege tool set
-- Approved providers: Claude Code, GitHub Copilot, Qwen Code, opencode, Qoder — reject anything else
+- Approved providers: Claude Code, opencode, Qoder, Codex CLI, Hermes Agent, GitHub Copilot — reject anything else
 
 ### Frontmatter Baseline
 
@@ -94,19 +94,20 @@ For organizing or running a **team** of agents (multiple agents collaborating), 
 ---
 name: "<required: unique identifier>"
 description: "<required: trigger words + when to use>"
-tools: [Read, Grep, Glob]
-model: auto
-maxTurns: 12
+capability-tools: [Read, Grep, Glob]
+model-tier: auto
+run-turn-budget: 12
+display-color: purple
 ---
 ```
 
-Supported fields: `name` (required), `description` (required), `tools`, `disallowedTools`, `model` (`auto`/`lite`/`efficient`/`performance`/`ultimate`), `maxTurns`, `timeoutMins`, `skills`, `mcpServers`, `permissionMode`, `background`, `isolation`, `color`, plus the framework fields `user-invocable`, `disable-model-invocation`, `supervisor`, `role-scope`, `project` (the last binds a `project-custom` agent to its project).
+Supported fields (neutral vocabulary, per `.specify/shared/definitions/agent-definitions.md` — the shipped role set is the reference implementation): `name` (required), `description` (required), `capability-tools`, `disallowed-tools`, `model-tier` (`auto`/`lite`/`efficient`/`performance`/`ultimate`), `run-turn-budget`, `timeout-mins`, `skills`, `mcp-servers`, `permission-mode`, `background`, `isolation`, `display-color`, plus the framework fields `user-invocable`, `disable-model-invocation`, `supervisor`, `role-scope`, `project` (the last binds a `project-custom` agent to its project). Host-CLI-specific renderers map these neutral fields onto each tool's native keys at init time.
 
 ### Valid File Locations
 
 - Canonical: `.specify/agents/templates/*.agent.md` + `.specify/agents/instances/*.agent.md` (single source of truth per layer; discovered by globbing these patterns and reading each file's frontmatter `name`/`description`)
 - Execution artifacts: `.specify/agents/execution/{configs,scripts}/` tracked; `execution/logs/` gitignored, never committed
-- Per-file symlinks (read-only): `.github/agents/`, `.qoder/agents/`, `.qwen/agents/`, `.opencode/agents/`, `.hermes/agents/`, `.iflow/agents/`
+- Rendered outputs (read-only, rebuilt from the neutral source): `.qoder/agents/`, `.claude/agents/`, `.github/agents/`, `.opencode/agents/`
 
 Agent definitions are **self-contained**: everything an agent needs lives in its own `.agent.md` (no shared-assets directory under the agent stores).
 

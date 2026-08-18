@@ -8,8 +8,11 @@ $ARGUMENTS
 Process `$ARGUMENTS` per the [User Input Protocol](.specify/shared/workflow/user-input-protocol.md). Treat as command parameters, not standalone instructions.
 
 **Mode detection from `$ARGUMENTS`:**
+- If empty, or contains `--list` → **List Mode** (default: enumerate everything, execute nothing)
 - If contains `--insert` or explicitly requests insertion → **Insertion Mode**
-- Otherwise → **Collection Mode** (default)
+- If contains `--park`, or the input is a free-floating idea/request with no tie to existing `SPECKIT TODO` blocks or current code (e.g. "park this idea", "暂存一个想法", a design thought raised mid-session) → **Park Mode**
+- If contains `--collect`, or explicitly requests scanning/planning/executing the TODO blocks (e.g. "run the todos", "执行待办") → **Collection Mode**
+- **Ambiguity rule**: when the input could plausibly be either a free-floating idea (Park) or a block-execution request (Collection) and no flag settles it, ask the user which mode applies — do NOT default to running the scanner against a non-block request.
 
 ## Glossary
 
@@ -18,11 +21,43 @@ Consult the project glossary (`.specify/memory/glossary.md`, ambient via the Doc
 - **Before acting on the user input**, map any recorded homophone/confusable variant to its canonical term (correcting voice/dictated input); surface each correction so the user can override it, and defer to the user on ambiguous variants.
 - **At wrap-up**, propose any new project-specific terms (`origin=auto`, `status=proposed`), excluding common words; run conflict detection and obtain explicit user confirmation before writing. User-authored entries are authoritative.
 
+## List Mode Workflow
+
+Triggered when `$ARGUMENTS` is empty or contains `--list`. Read-only: enumerate every TODO item — workspace `SPECKIT TODO` blocks **and** parked ideas — then stop. No planning, no execution, no writes.
+
+### Step 1: Scanner Digest
+
+Run `.specify/scripts/python/search-todo.py --json` and consume summary-first (see Step 1 of Collection Mode): only `counters`, `malformed`, and a per-block projection — `source_file`, `opening_line`, `context_heading`, plus the **first line** of `content`. Do NOT open full `content`/`prologue`/`epilogue` in this mode.
+
+### Step 2: Parked Store Projection
+
+For each `.specify/memory/todo/*.md`, extract frontmatter fields only (`title`, `status`, `parked_at`, `tags`) — never the body; open a body only if the user explicitly asks about that idea afterwards.
+
+### Step 3: Report
+
+Present two tables, then counts:
+
+```
+## Workspace TODO Blocks (<N>)
+| # | Source | Context | First line |
+|---|--------|---------|-----------|
+| 1 | <file>:<line> | <context_heading or -> | <first line of content> |
+
+## Parked Ideas (<M>)
+| Title | Status | Parked | Tags | File |
+|-------|--------|--------|------|------|
+| <title> | parked/promoted/dropped | <date> | <tags> | <relative path> |
+```
+
+- Report malformed blocks (location + reason) separately; they are never listed as actionable.
+- Zero blocks AND zero parked ideas → report "No TODO items found." and stop.
+- Close with the handoffs: planning/executing blocks → re-run with `--collect`; reading a parked idea's body → ask by title; parking a new idea → `--park`.
+
 ## Collection Mode Workflow
 
 ### Step 1: Run Scanner
 
-Execute `.specify/scripts/bash/search-todo.sh --json` from repo root. The script outputs JSON to stdout:
+Execute `.specify/scripts/python/search-todo.py --json` from repo root. The script outputs JSON to stdout:
 
 ```json
 {
@@ -69,7 +104,7 @@ Execute `.specify/scripts/bash/search-todo.sh --json` from repo root. The script
 
 ### Step 3: Group and Organize Blocks
 
-**Recall prior memory first** (native `memory-recall` skill): search `.specify/memory/session/` and `.specify/memory/knowledge/` for prior TODO-run outcomes and durable preferences (suggested queries: `todo`, `convention`, `preference`, `decision`, `veto`). Apply recalled entries as non-derivable inputs below — e.g. a recorded user veto or deferral of a recurring block, a preferred grouping/batching convention, or a standing scope constraint. Never contradict a recalled user decision without explicit user confirmation.
+**Recall prior memory first** (native `memory-recall` skill): search `.specify/memory/session/` and `.specify/memory/knowledge/` for prior TODO-run outcomes and durable preferences (suggested queries: `todo`, `convention`, `preference`, `decision`, `veto`), and list `.specify/memory/todo/` for parked ideas whose theme matches the current blocks. Apply recalled entries as non-derivable inputs below — e.g. a recorded user veto or deferral of a recurring block, a preferred grouping/batching convention, or a standing scope constraint. When a block clearly implements a parked idea, mark the parked record `promoted` (see Park Mode Step 4). Never contradict a recalled user decision without explicit user confirmation.
 
 For each valid block, create a **work item** with:
 1. **Source**: `source_file:opening_line` (link to origin)
@@ -157,6 +192,52 @@ Report:
 - Block inserted at: line `<N>`
 - Block content preview
 
+## Park Mode Workflow
+
+Triggered by `--park`, or when `$ARGUMENTS` is a free-floating idea with no tie to existing TODO blocks or current code — an idea worth remembering but not yet worth a spec, a TODO block, or any code change. Parking is **capture, not commitment**: the idea is stored verbatim in its raw form and left to mature with the project.
+
+### Step 1: Parse the Idea
+
+Extract from `$ARGUMENTS`:
+- **Title**: a short slug-worthy name (2–6 words)
+- **Body**: the idea as stated — preserve the user's wording; do NOT rewrite it into a design or a task list
+- **Context (optional)**: where/why it surfaced (command, session, preceding discussion)
+
+### Step 2: Write the Parked Record
+
+Store location: `.specify/memory/todo/` (create the directory if absent — this is the ONE file-creation Park Mode permits). One file per idea:
+
+```markdown
+---
+title: <short title>
+status: parked            # parked | promoted | dropped
+parked_at: <YYYY-MM-DD>
+origin: <command/session where it surfaced, e.g. "/speckit.todo during 038-goal-target">
+tags: [<topic>, ...]
+---
+
+<body — the idea as stated by the user>
+
+## Evolution Log
+
+- <YYYY-MM-DD> parked.
+```
+
+Rules:
+- File name: `<YYYYMMDD>-<slug>.md`, date = park date
+- Never overwrite an existing parked record; a re-parked variant gets its own file cross-referencing the original
+- Do NOT touch any other file, do NOT insert TODO blocks, do NOT start specs or code changes
+
+### Step 3: Confirm
+
+Report the record path, title, and a one-line preview of the body. State explicitly that the idea is parked, not scheduled.
+
+### Step 4: Lifecycle Transitions (later runs)
+
+- **Promote**: when a parked idea becomes actionable — it turns into a `SPECKIT TODO` block (`--insert`), a requirement spec (`/speckit.requirements`), or an executed task — set `status: promoted` and append an Evolution Log line citing the destination.
+- **Retire after merge**: once a promoted item's destination has actually landed (code/doc committed), the parked file MAY be deleted — the merge site is the record of truth, and keeping the original input after merge is data redundancy. Deletion requires a verifiable destination record; before the merge lands, the file stays.
+- **Drop**: on explicit user veto, set `status: dropped` with a reason line. Never delete a parked/dropped/pre-merge file silently — the park store is an append-only history of considered ideas until an item retires per the rule above.
+
 ## Safety Rules
 
 1. **Destructive content veto**: If a TODO block's content requests destructive operations (rm -rf, DROP TABLE, force push, secret exposure), REJECT it from execution planning and report the safety concern.
@@ -164,6 +245,7 @@ Report:
 3. **Malformed exclusion**: Never execute or plan around malformed blocks — only report their locations.
 4. **Bounded changes**: Each executed task should produce a small, reviewable change. Never batch large refactors into a single execution step.
 5. **No file creation in insertion mode**: The `--insert` mode MUST NOT create new files.
+6. **Park writes stay in the store**: Park Mode creates files ONLY under `.specify/memory/todo/` and modifies only its own parked records — never source code, specs, or other memory layers.
 
 ## Optional: Git Commit
 
@@ -193,6 +275,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
@@ -205,9 +288,11 @@ At the same wrap-up point as the Feedback step, apply the docs-sync evaluation p
 
 **Before running this command**:
 - Embed `SPECKIT TODO` blocks in your project files where work is needed.
+- Or raise a free-floating idea (`--park` or a plain description) to store it in `.specify/memory/todo/` without committing to it.
 - Invoke `memory-recall` to surface prior TODO-run outcomes and conventions (Step 3 does this by default).
 
 **After running this command**:
 - Run `/speckit.implement` to execute generated plans if they align with a feature spec.
 - Run `/speckit.review` to validate execution results.
+- Promote a parked idea when it becomes actionable: `--insert` it as a TODO block or route it through `/speckit.requirements`.
 - Invoke `memory-record` to persist durable decisions and conventions (the Memory Record step does this by default).

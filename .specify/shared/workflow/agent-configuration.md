@@ -24,17 +24,15 @@ If you cannot identify your agent, skip agent-specific guidance and proceed with
 - **File creation**: Use `Write` tool for new files. Use `Edit` for modifications to existing files (preserves surrounding content).
 - **Script execution**: Use `Bash` tool. Check exit code explicitly — scripts may exit 0 on partial failure.
 - **YAML validation**: `python -c "import yaml; yaml.safe_load(open('file').read().split('---')[1])"`
-- **Symlink verification**: `ls -la .github/agents/ .qoder/agents/ 2>/dev/null`
-- **Registry updates**: Use `Edit` with precise `old_string` matching to avoid clobbering other entries.
+- **Render verification**: `ls -la .github/agents/ .qoder/agents/ 2>/dev/null` (rendered real files, no symlinks expected)
 - **Subagent delegation**: Use `Agent` tool with `subagent_type` to test newly created artifacts.
 
 ### GitHub Copilot
 
 - **File operations**: Use workspace edit for creation and updates. For multi-file changes, make changes sequentially.
 - **Script execution**: Use `@terminal` to run scripts. Copy JSON output from terminal to chat.
-- **Symlink handling**: Copilot cannot create symlinks directly. Advise user to run `specify init` from terminal.
+- **Render handling**: agent distribution happens via `specify init` rendering. Advise user to run `specify init` from terminal.
 - **Model field**: Default to `GPT-5 (copilot)` for the `model` frontmatter field.
-- **Registry updates**: Use workspace edit. Be cautious of partial content replacement in large files.
 
 ## Step 3: Capture Execution Feedback
 

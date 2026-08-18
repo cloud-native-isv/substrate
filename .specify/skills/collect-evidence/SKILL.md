@@ -88,6 +88,7 @@ At wrap-up, perform the agent self-reflection step per the canonical convention 
      --run-id "<stable-run-id>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 
 6. If `should_prompt` is true, surface the consolidated submission prompt; below threshold, do not prompt.
 

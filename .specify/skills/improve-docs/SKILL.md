@@ -13,7 +13,7 @@ Improve **one existing document** in the managed documentation space so the next
 
 Edits are **section-level**: load the document, change only what the evidence justifies, verify, report. Never regenerate a document from an outline and never rewrite a page wholesale to "clean it up" — that discards accumulated, hard-won wording and silently drops facts.
 
-Goal anchor (Constitution Principle X): this skill is a Better-Harness instrument — a document that states the system correctly strengthens **Task Understanding**, and folding reader feedback back into it closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
+Goal anchor (Constitution Principle XIII): this skill is a Better-Harness instrument — a document that states the system correctly strengthens **Task Understanding**, and folding reader feedback back into it closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
 
 ### Ownership boundary (do not cross)
 
@@ -143,6 +143,7 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

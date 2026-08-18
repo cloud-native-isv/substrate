@@ -12,7 +12,7 @@ Adjust and optimize an **existing** agent team. `improve-team` is the team-domai
 
 Editing a team's **goal** is a first-class modify that **cascades into structure realignment** — follow `references/goal-editing.md`. For a **`continuous`** team, the operating discipline you tune (maturity level, cadence, budget/circuit-breaker, constraints file, independent verifier, state spine) is defined in `../create-team/references/operating-loops.md`.
 
-Goal anchor (Constitution Principle X): this skill is a Better-Harness instrument — improving a team strengthens the **Controlled Execution** and **Reliable Delivery** dimensions (sound orchestration, independent verification, bounded autonomy) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
+Goal anchor (Constitution Principle XIII): this skill is a Better-Harness instrument — improving a team strengthens the **Controlled Execution** and **Reliable Delivery** dimensions (sound orchestration, independent verification, bounded autonomy) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
 
 ## Inputs
 
@@ -82,6 +82,7 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

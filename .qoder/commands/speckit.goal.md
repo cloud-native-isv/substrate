@@ -27,9 +27,12 @@ Mode is inferred from `$ARGUMENTS` and **confirmed with the user before any writ
 |------|---------|--------|
 | `create` | archive a new goal definition | `.specify/goal/<goal-slug>/goal.md` |
 | `view` | list the archive, or show one goal | nothing |
-| `modify` | change objective, criteria, or lifecycle state | the same definition file |
+| `modify` | change objective, criteria, lifecycle state, or Targets | the same definition file |
+| `targets` | add / list / transition the goal's Targets (run-assignable scope slices) | the same definition file |
 | `migrate` | derive a definition from a team's inline goal and switch that team to a reference | new `goal.md` + that `team.md` |
 | `coordinate` | propose a territory re-division across teams sharing one goal | nothing until ratified, then each `team.md` |
+
+`targets` is a modify-intent route: Target authorization, listing, and state transitions all land through this single authoring entry — no other surface writes the `## Targets` section. Concept: link `.specify/shared/definitions/goal-definitions.md` (Target Decomposition), never restate.
 
 ## Outline
 
@@ -45,13 +48,18 @@ Mode is inferred from `$ARGUMENTS` and **confirmed with the user before any writ
    python3 .specify/scripts/python/goal-utils.py create <goal-slug> \
      --objective "<desired end outcome>" \
      --criterion "<verifiable condition>" --criterion "<...>" --json
-   python3 .specify/scripts/python/goal-utils.py view   # → `list`
+   python3 .specify/scripts/python/goal-utils.py list    # archive listing (no `view` action)
    python3 .specify/scripts/python/goal-utils.py validate <goal-slug>
    python3 .specify/scripts/python/goal-utils.py status <goal-slug> --set achieved
    python3 .specify/scripts/python/goal-utils.py criteria <goal-slug> --criterion "<new>"
+   python3 .specify/scripts/python/goal-utils.py targets <goal-slug> --add "<sub-outcome statement>"
+   python3 .specify/scripts/python/goal-utils.py targets <goal-slug> --list
+   python3 .specify/scripts/python/goal-utils.py targets <goal-slug> --set done --id T-001
    ```
 
    Exit codes: `0` ok · `2` input error (rejection) · `3` not found · `4` validation failed. A non-zero exit is a **verdict**: report it, never argue around it.
+
+   `targets` notes: the engine renders the `## Targets` section (never hand-edit it); statements pass the same GD-2/GD-3 shape check at slice scale and must not restate a success criterion; terminal goals are read-only; terminal Target identities are never reused. A terminal-state Target reported by a run is a **review bifurcation**: verify by hand — if genuinely done, stop; if evidence contradicts, reopen via `targets <slug> --set open --id <T-nnn>` and re-issue the run. There is no terminal-execution bypass.
 
 5. **Interview for `create`** — collect exactly three things, and nothing else. Ask them per the interview pattern (`.specify/shared/patterns/interview-pattern.md`): **open** questions carrying their context, no option menus and no recommended answers (the objective is the user's to state, not yours to propose), facts looked up rather than asked, each answer written through before the next round.
    - the **objective**: the desired end *outcome*. If the user describes steps, say so and ask for the outcome instead (the engine rejects task lists as GD-2).
@@ -84,6 +92,7 @@ python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action
   --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
   --review "<review prose>" --points-file "<points file>"
 ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 
 If the returned `should_prompt` is `true`, surface one consolidated submission prompt; on confirmation run `--action mark-submitted`.
 

@@ -54,8 +54,7 @@ Resolve these before writing anything. Mandatory fields have **no default** — 
 5. **Capture the verified environment.** Fill `## Environment Applicability` with what was actually observed: the version the contract was verified against, any version-specific flag differences, OS/architecture applicability and per-platform differences, a fallback when the primary source is unavailable, and a cheap preflight check. **Never claim a version, platform, or architecture that was not verified** — state what you verified and leave the rest blank. Where variance is known but one invocation cannot cover it, put the branch in the relevant field rather than silently pinning one form. Omit the section entirely when the capability genuinely does not vary.
 6. **Validate before persisting.** Confirm: `tool_type` is canonical; `name`, `source_identifier`, `description` are non-empty; behavioral-rule keywords are valid; and if `status: Verified`, at least one of `arguments` / `returns` is populated. If the source path/endpoint does not exist, warn the user but still allow creation as `Draft`. Contradictory user rules are persisted as-is with an advisory note — the user is the authority. Also check token-efficiency compliance per `.specify/shared/guidelines/token-efficiency.md`: behavioral rules must not direct whole-file injection of machine-managed data into LLM context; deterministic checks belong on the tool's program side.
 7. **Persist and generate the `tool_id`.** Write to `.specify/memory/tools/<name>.md`. The `tool_id` is the canonical form `<TOOL:.specify/memory/tools/<name>.md>` — generate it from the workspace-relative path, never hand-type it.
-8. **Register.** Add one row for the tool in the `### Tools` table of `.specify/instructions.md` (`## Resource Registry`), inside the `<!-- TOOLS_REGISTRY_START -->` / `<!-- TOOLS_REGISTRY_END -->` range. Keep rows deduplicated and sorted, and keep the columns aligned with the table header. This range is owned by the tools domain — `/speckit.instructions` does not reconcile it.
-9. **Report.** State the record path, the `tool_id`, the resolved `status`, and — when the record is `Draft` — exactly which fields the user must supply to reach `Verified`.
+8. **Report.** State the record path, the `tool_id`, the resolved `status`, and — when the record is `Draft` — exactly which fields the user must supply to reach `Verified`. No registration table exists — the record file is the single source of truth (see `.specify/tools.md`).
 
 ## Constraints
 
@@ -157,6 +156,7 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

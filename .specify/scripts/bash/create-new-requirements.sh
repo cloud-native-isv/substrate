@@ -24,6 +24,7 @@ fi
 
 JSON_MODE=false
 SHORT_NAME=""
+FORCE=false
 ARGS=()
 i=1
 while [ $i -le $# ]; do
@@ -31,6 +32,9 @@ while [ $i -le $# ]; do
     case "$arg" in
         --json) 
             JSON_MODE=true 
+            ;;
+        --force)
+            FORCE=true
             ;;
         --short-name)
             if [ $((i + 1)) -gt $# ]; then
@@ -52,6 +56,8 @@ while [ $i -le $# ]; do
             echo "Options:"
             echo "  --json              Output in JSON format"
             echo "  --short-name <name> Provide a custom short name (2-4 words) for the branch"
+            echo "  --force             Overwrite an existing requirements.md with the template"
+            echo "                      (default: no-clobber — an existing spec file is kept)"
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Behavior:"
@@ -242,7 +248,11 @@ mkdir -p "$REQUIREMENTS_DIR"
 
 TEMPLATE="$REPO_ROOT/.specify/templates/requirements-template.md"
 SPEC_FILE="$REQUIREMENTS_DIR/requirements.md"
-if [ -f "$TEMPLATE" ]; then 
+if [ -f "$SPEC_FILE" ] && [ "$FORCE" != true ]; then
+    # No-clobber guard: re-entering the flow on an existing spec dir (e.g. a
+    # manually scaffolded spec) MUST NOT destroy the existing specification.
+    >&2 echo "[specify] Warning: $SPEC_FILE already exists — kept unchanged (no-clobber). Pass --force to overwrite with the template."
+elif [ -f "$TEMPLATE" ]; then 
     cp "$TEMPLATE" "$SPEC_FILE"
     
     # Replace placeholder with actual description

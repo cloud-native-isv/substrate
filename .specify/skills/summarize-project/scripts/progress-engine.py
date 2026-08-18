@@ -1518,7 +1518,13 @@ def coverage_block(data: dict, items: list):
     excluded = int(cov.get("excluded", 0) or 0)
     truncated = int(cov.get("granularity_truncated", 0) or 0)
     unattributed = int(cov.get("unattributed", 0) or 0)
-    tree_items = len([it for it in items if it["type"] != "milestone"])
+    # Phases are inferred groupings, not ledger candidates (the candidate_total
+    # counts source-label-level entries only) — counting phase nodes into the
+    # closure tree against an items-only total produced a permanent false
+    # warning (feedback consume 2026-08-17). They are reported separately.
+    phase_nodes = len([it for it in items if it.get("type") == "phase"])
+    tree_items = len([it for it in items
+                      if it["type"] not in ("milestone", "phase")])
     expected = total - excluded - truncated
     denom = total - excluded
     attributed = denom - unattributed
@@ -1529,6 +1535,7 @@ def coverage_block(data: dict, items: list):
         "granularity_truncated": truncated,
         "unattributed": unattributed,
         "tree_items": tree_items,
+        "phase_nodes": phase_nodes,
         "closure_equation": "%d − %d − %d = %d" % (total, excluded, truncated, expected),
         "closure_ok": expected == tree_items,
         "closure_note": (

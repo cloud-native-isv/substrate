@@ -541,6 +541,56 @@ option = {
 };
 ```
 
+**State-box variant (roundRect nodes + colored transition edges)** — the high-reuse shape for dense state machines where states read better as boxes than circles:
+
+```javascript
+series: [{
+  type: 'graph',
+  layout: 'none',                          // hand-placed coordinates: states on a left→right timeline
+  data: [
+    // roundRect state boxes; width carries the label, height stays uniform
+    { name: 'PENDING',   x: 80,  y: 140, symbol: 'roundRect', symbolSize: [92, 40], category: 0 },
+    { name: 'RUNNING',   x: 260, y: 140, symbol: 'roundRect', symbolSize: [92, 40], category: 0 },
+    { name: 'SUSPENDED', x: 260, y: 260, symbol: 'roundRect', symbolSize: [92, 40], category: 1 },
+    { name: 'FAILED',    x: 440, y: 260, symbol: 'roundRect', symbolSize: [92, 40], category: 2 },
+    { name: 'DONE',      x: 440, y: 140, symbol: 'roundRect', symbolSize: [92, 40], category: 3 }
+  ],
+  links: [
+    // edges colored BY TRANSITION CATEGORY — the legend then explains edge meaning, not just nodes
+    { source: 'PENDING',   target: 'RUNNING',   category: 0 },
+    { source: 'RUNNING',   target: 'DONE',      category: 0 },
+    { source: 'RUNNING',   target: 'SUSPENDED', category: 1 },
+    { source: 'SUSPENDED', target: 'RUNNING',   category: 1 },
+    { source: 'RUNNING',   target: 'FAILED',    category: 2 },
+    { source: 'SUSPENDED', target: 'FAILED',    category: 2 }
+  ],
+  categories: [
+    { name: '正向流转', itemStyle: { color: '#91cc75' }, lineStyle: { color: '#91cc75' } },
+    { name: '挂起/恢复', itemStyle: { color: '#fac858' }, lineStyle: { color: '#fac858' } },
+    { name: '失败',     itemStyle: { color: '#ee6666' }, lineStyle: { color: '#ee6666' } },
+    { name: '完成',     itemStyle: { color: '#73c0de' }, lineStyle: { color: '#73c0de' } }
+  ],
+  label: { show: true, color: '#fff' },     // label inside the box
+  edgeLabel: { show: false },
+  emphasis: { edgeLabel: { show: true } },  // transition names on hover, not always-on
+  lineStyle: { curveness: 0.15 },
+  edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 8
+}]
+```
+
+Rules of this variant: `symbolSize: [w, h]` must fit the longest state name (measure, do not guess — overflow clips silently); keep one height for all boxes so the timeline reads; `categories[].lineStyle.color` is what makes edges legend-explainable — coloring edges only via per-link `lineStyle` loses the legend.
+
+**Always-on vs hover edge labels — the one switch.** The default discipline is `edgeLabel.show: false` + `emphasis.edgeLabel.show: true` (hover-only). When the user explicitly wants always-on labels, flip exactly one place:
+
+```javascript
+// Always-on (dense graphs: pair with labelLayout.hideOverlap to survive occlusion)
+edgeLabel: { show: true, fontSize: 10 },
+labelLayout: { hideOverlap: true },
+emphasis: { edgeLabel: { show: true } }     // keep hover emphasis as-is
+```
+
+Never achieve "labels visible" by removing the emphasis block or by duplicating labels into `links[].name` tooltips — the switch is `edgeLabel.show` alone.
+
 ## Styling
 
 ### Color Palette

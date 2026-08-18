@@ -67,6 +67,7 @@ For each category below, mark status (Clear / Partial / Missing):
 
 After each accepted answer:
 - Ensure `## Clarifications` exists (create after highest-level overview section). Under it, `### Session YYYY-MM-DD`.
+- **Coexistence with pre-session-format rows**: specs may already carry legacy loose `- Q: …` bullets without a session heading. Those rows are historical record — leave them untouched and append the new `### Session YYYY-MM-DD` block after them. NEVER "normalize" legacy rows into a session heading (that rewrites history); the append-only invariant below applies to them as well.
 - Append: `- Q: <question> → A: <final answer>`
 - Apply to most appropriate section:
   - Feature linkage → Update `Related Feature` with `Feature ID` and `Feature Name`. When the answer is a **new** Feature, the obligation continues: allocate the next ID from `.specify/memory/features.md`, add the index row (Draft) and `features/<ID>.md` detail, and add the reverse cross-reference in the neighbouring Feature — otherwise the spec points at an unregistered Feature that `/speckit.analyze` will flag.

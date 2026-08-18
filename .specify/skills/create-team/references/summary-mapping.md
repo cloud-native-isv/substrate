@@ -97,6 +97,7 @@ tracked、append-only、JSON Lines。每行一个**条目状态事件**。只由
 | `supersedes` | string | 否 | 被本行归并的推断身份 ID,用于两态交接 |
 | `excluded_reason` | string | 否 | 计入被排除口径的理由;非空即不计入延期/未完成 |
 | `maturity_at_event` | string | 否 | 事件发生时的成熟度(L1/L2/L3),锚定状态语义 |
+| `target_ref` | string | 否 | 归属的 Target 身份(038)。**局部形** `T-\d{3}`,goal 由团队绑定隐含;缺省 = 归属 goal 整体。见 §6.5 |
 
 示例行:
 
@@ -139,6 +140,17 @@ tracked、append-only、JSON Lines。每行一个**条目状态事件**。只由
 
 维护 `STATE.md` 的团队 MUST 在其被跟踪条目上内联 `[TI-nnnn]` 标记,供人交叉引用。台账仍是机器解析面;该标记不对 `STATE.md` 的散文形态施加 schema。
 
+### 6.5 `target_ref` 归属折叠(038)
+
+可选 [[STR-003]] 把条目归属到绑定 goal 的一个 Target(目标切片,概念见 `shared/definitions/goal-definitions.md` Target Decomposition,授权面是 `/speckit.goal targets`):
+
+- **归属**:行携带合法局部形且该身份存在于绑定 goal 的 `## Targets` 节 → 计入该 Target 的归属集合;末行定态语义(IL-2)不变——同一 `item_id` 以最后事件为准。
+- **降级**:指向不存在身份(或限定形等非法形态)→ 按 goal 整体降级计入,表单 `targets.invalid_refs` 计数并显式声明;MUST NOT 臆造 Target(FR-014)。
+- **缺省**:无 `target_ref` → 归属 goal 整体(`targets.unattributed_to_target` 计数);存量行语义不变。
+- **正交性**:团队命名空间前缀(`<team-slug>.TI-nnnn`,§6.2)照常加;`target_ref` 仍为局部形,二者互不影响。
+- **表单产出**:goal 定义存在 `## Targets` 节 → 表单新增 `targets:` 块——每 Target 的 `authored_status` / `attributed_items` / `completed_items` / `pending_approval`、按 authored 终态计的 `coverage`(n/m)、`unattributed_to_target`、`invalid_refs`。切片轴与判据轴**分列**,MUST NOT 由 Target 完成度推导 goal `achieved`(SC-005)。authored 与证据不一致(open/全完成 或 done/未完成)→ `pending_approval: true` 并列为待批准/复核项,两侧均不自动翻转(FR-015)。
+- **无节 goal**:表单 MUST 不含 `targets:` 块,既有输出逐字节不变(SC-002)。
+
 ## 7. 出处纪律(FR-010 / FR-011)
 
 - 每个状态与进度数值 MUST 携带 `source`,指向一个具体的 tracked 团队工件路径;无出处的数值 MUST 被拒绝,而非以默认值落库。
@@ -170,6 +182,8 @@ tracked、append-only、JSON Lines。每行一个**条目状态事件**。只由
 2. 未声明 → 取该团队自身的 `slug`,身份类型 `inferred`,并在派生数据的 `inferred_fields` 与报告元信息中标记为推断(FR-034)。
 
 `goal_slug` MUST 同时满足 §6.2 的 DDL 字面量文法与路径片段安全(不含 `/`、不为 `.` / `..`)。
+
+> 042 note: team.md 的可选字段 `focus_target`(默认聚焦 Target)**不参与**本节两级身份解析——它只是 run 级 `--target` 的预填,不构成第三级,也不影响 summary 归属与交付目录。
 
 **不变式**:
 - **GI-1**:取值 MUST NOT 由 goal 正文派生。改写 goal 正文不改变它,故不迁移交付目录(FR-019);正文变更本身记入元信息。

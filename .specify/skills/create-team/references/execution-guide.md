@@ -22,6 +22,15 @@ Rules:
 - The run workspace is created on demand by the orchestrator at run time; it is transient and safe to delete. Do not rely on it across runs — durable knowledge belongs in the tracked report.
 - Token efficiency (see `.specify/shared/guidelines/token-efficiency.md`): agent prompts and stage handoffs carry digests/paths, never whole machine-managed data files; deterministic checks (counting, diff, pattern match) run as program steps, not LLM judgments — validate this when persisting a team.
 
+### Target-Focused Runs (`--target`, 038) & Default Focus (`focus_target`, 042)
+
+A run may be issued with `--target T-<nnn>` to focus on one authorized Target (scope slice) of the bound goal. Resolution order: **显式 `--target` > team.md `focus_target` > 无** — resolved via `resolve_effective_target` (`scripts/python/goal-utils.py`), which is pure resolution; the five preview checks stay the sole judge. Runtime discipline:
+
+- **Focus, not rebind.** The assignment steers the run's work toward that slice; the Goal–Team binding, identity resolution, and the summary delivery directory are unchanged. It is not a write-scope claim. `focus_target` is exactly the same semantics pre-filled: the team's **default** focus — an explicit `--target` always overrides, and a run on a team without the field (and without `--target`) is byte-equivalent to the pre-042 flow (`source=none`).
+- **Preview verdicts are final.** Dangling, terminal, cross-goal, and goal-terminal references stop the run before the gate with zero execution trace; a terminal Target triggers the review bifurcation (verify by hand; reopen via `/speckit.goal targets --set open --id <T-nnn>` if the evidence contradicts). There is no terminal-execution bypass — including when the terminal Target arrived via `focus_target`. A malformed `focus_target` value is an `input-error` stop (fix via improve-team), never silently ignored.
+- **Disclosure and report.** The confirmation gate discloses `本次 Target: T-<nnn> — <statement>(<status>)` — appending the source marker `(团队默认)` when the resolution source is `team-default` — or `本次 Target: 无(对 goal 整体运行)`; the run report carries `**Target 指派**: T-<nnn>(<statement>)` (or `无(goal 整体)`), with the same source marker on the team-default path.
+- **Ledger attribution is the supervisor's write.** New ledger entries produced by a Target-assigned run carry `"target_ref": "T-<nnn>"` (local form; the resolved `effective` value, explicit or team-default alike) — written **only by the Team Supervisor**, like every ledger field; sub-agents MUST NOT write it. Entries without the field attribute to the goal as a whole. When the focused Target later turns terminal, re-focus via `improve-team` (modify `focus_target`) or reopen via `/speckit.goal`.
+
 ---
 
 ## Shared Protocols

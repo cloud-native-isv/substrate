@@ -12,7 +12,7 @@ Improve **one existing tool definition record** under `.specify/memory/tools/` s
 
 Edits are **field-level**: load the record, change only what the evidence justifies, re-validate, re-persist. Never regenerate a record from a template — that discards the user's accumulated authoritative knowledge.
 
-Goal anchor (Constitution Principle X): this skill is a Better-Harness instrument — improving a tool record strengthens the **Controlled Execution** dimension (correct, safe, repeatable invocations) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
+Goal anchor (Constitution Principle XIII): this skill is a Better-Harness instrument — improving a tool record strengthens the **Controlled Execution** dimension (correct, safe, repeatable invocations) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
 
 ## Input Contract
 
@@ -39,7 +39,7 @@ The input is a description of the tool to improve. Interpret it as follows:
 
 4. **Apply the minimal field-level edit.** Change only the fields the evidence supports. Preserve every unmodified field verbatim — including `behavioral_rules`, `aliases`, `discovery_origin`, and the record's section order. Do not reorder or drop sections, and do not clear a mandatory field (`name` / `tool_type` / `source_identifier` / `description`): clearing one is an error, not an edit.
 5. **Re-validate and re-persist.** Run the same validation `create-tools` applies: canonical `tool_type`, non-empty mandatory fields, valid rule keywords, and the `Verified` ⇒ `arguments or returns` invariant. Refresh `last_updated`. If the edit invalidates the contract, demote to `Draft` and say so explicitly rather than persisting an inconsistent `Verified` record.
-6. **Sync the registry.** Update the tool's row in the `### Tools` table of `.specify/instructions.md` when `name`, `tool_type`, `source_identifier`, `aliases`, `status`, `description`, or the canonical path changed. On rename, move the row rather than adding a second one — the registry MUST NOT carry two rows for one tool.
+6. **No registry to sync.** No registration table exists — the record file `.specify/memory/tools/<name>.md` is the single source of truth (see `.specify/tools.md`). On rename, the old record directory MUST be removed so directory discovery cannot surface two records for one tool.
 7. **Report.** State which record changed, the fields before → after, the resulting `status`, and any follow-up the user must do (e.g. fields still missing for `Verified`, or a stale reference to an old name).
 
 ## Constraints
@@ -142,6 +142,7 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

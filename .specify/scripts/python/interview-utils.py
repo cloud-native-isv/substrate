@@ -513,7 +513,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("frontier", parents=[common])
     sub.add_parser("order", parents=[common])
     sub.add_parser("status", parents=[common])
-    sub.add_parser("render", parents=[common])
+    p_render = sub.add_parser("render", parents=[common])
+    p_render.add_argument("--out", default=None, help="write rendered ledger to this file instead of stdout")
 
     p_desc = sub.add_parser("descendants", parents=[common])
     p_desc.add_argument("decision_id")
@@ -549,6 +550,10 @@ def main(argv: list[str] | None = None) -> int:
             payload = act_status(ledger)
         elif args.action == "render":
             payload = render(ledger)
+            if getattr(args, "out", None):
+                from pathlib import Path as _P
+                _P(args.out).write_text(str(payload), encoding="utf-8")
+                payload = {"written": args.out}
         elif args.action == "descendants":
             data = load(ledger)
             payload = {"action": "descendants", "id": args.decision_id,

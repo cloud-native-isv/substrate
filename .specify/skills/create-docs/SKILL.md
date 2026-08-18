@@ -130,7 +130,7 @@ Invariants the scaffold guarantees, and that this skill MUST NOT break:
 
 ### Notes Lifecycle Automation
 
-Deterministic, repeatable outside the chat (contract: `.specify/specs/033-docs-command/contracts/docs-utils-cli.md`):
+Deterministic, repeatable outside the chat (engine: `docs-utils.py`; actions audit/plan/converge/validate; JSON I/O; the full CLI contract lives in the framework repo, spec 033):
 
 ```bash
 python3 ${SKILL_WORKDIR}/.specify/scripts/python/docs-utils.py --action scan --root .           # 分组报告 + invalid 修复建议
@@ -164,7 +164,7 @@ This Skill follows the canonical path conventions defined in `templates/commands
 
 ### References (`${SKILL_HOME}/references/`)
 - `hugo-site.md` — Hugo layer in full: ownership map, mount rationale (`index.md` → `_index.md`), link/image render hooks, publish scope, commands, CI guidance, troubleshooting.
-- Engine semantics: `.specify/shared/patterns/reconcile-pattern.md`; engine CLI contract: `.specify/specs/033-docs-command/contracts/docs-utils-cli.md`.
+- Engine semantics: `.specify/shared/patterns/reconcile-pattern.md`; engine CLI contract: `docs-utils.py --help` in the framework repo (spec 033 defines the original contract).
 
 ### Assets (`${SKILL_HOME}/assets/hugo/`)
 - `hugo.toml.tmpl` — site config template (`{{SITE_TITLE}}` / `{{SITE_DESCRIPTION}}` / `{{MOUNTS}}`).
@@ -190,6 +190,7 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

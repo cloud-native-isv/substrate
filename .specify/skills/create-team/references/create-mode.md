@@ -17,6 +17,33 @@ Produce a team from a user **goal** and (unless one-shot) persist it as `.specif
 
 ---
 
+## Goal-based create branch
+
+When the user's input names an **already-defined goal**, create runs through this branch instead of re-eliciting the goal as free text. Concept anchor: `.specify/shared/definitions/goal-definitions.md` (Goal / Target / binding — linked, never restated).
+
+1. **Recognize (deterministic, zero semantic guessing)** — run `python3 scripts/python/goal-utils.py list --json` for the archive slug set; a token that **exactly matches** a slug (or a path to its `goal.md`) enters the branch after user confirmation. Near-misses (case/hyphen variants) are **not** hits; no match → continue with the free-text procedure above, unchanged. The verdict comes from the engine enumeration, never from agent memory.
+2. **Load and restate** — read the definition via `parse_goal` (`scripts/python/goal-utils.py`): objective, criteria (including the `None provided.` missing state), status, targets, history; restate to the user for confirmation.
+   - **Dangling reference** (user names a slug absent from `list`): error with the verbatim prefix `goal 未定义:`, pointing to `/speckit.goal create`; zero artifacts, zero writes — MUST NOT silently degrade to inline goal creation.
+   - **Terminal goal** (`achieved`/`abandoned`): report the terminal state explicitly and refuse to create. Both rejections stop without needing confirmation — they are stops, not writes.
+3. **Four-element analysis (advisory, not a gate)** — present before any derivation, each element with rationale: **维度** (the plane the goal's object lives on), **判据覆盖** (criteria listed, or the missing state declared — never invented), **既有 Target** (open/done/dropped inventory — the reuse baseline), **可达成性** (single-team short-term achievable vs broad-needs-decomposition, conclusion + basis). The conclusion is a recommendation: the user adjudicates single-team vs decomposition; forcing single-team on a broad goal is not blocked, but the adjudication is recorded in the confirmation preview.
+4. **Decomposition proposal & batch approval (decomposition path)** — when the analysis says broad and the user adjudicates decomposition:
+   - **Drafting discipline** — each candidate is an outcome-form statement (GD-2 slice scale) subordinate to the same goal; a candidate that stands alone as an independent end-state is directed to **another goal** (GD-3 litmus) and leaves the proposal set; MUST NOT restate the goal's success criteria or any spec's SC-xxx. The set is **unordered** — no dependency edges, no numbering semantics; identities are issued monotonically by the engine at landing time.
+   - **Dry-run validation** — before presentation, run `python3 scripts/python/goal-utils.py targets <slug> --check "<candidate>"` per statement (zero writes; same-source validators as `--add`). Every statement MUST pass (exit 0) before the gate; rejected entries are rewritten and rechecked or dropped.
+   - **Presentation** — one `分解提议` section presents the full set: each statement + its rationale + the `--check` verdict.
+   - **Approval & landing** — one **merged confirmation** covers the whole set; then execute `targets <slug> --add` **per statement**. Each verdict is respected immediately: an exit-2 rejection is reported verbatim → revise and re-run `--check` before resubmitting, or explicitly abandon; never bypass the engine, never hand-write `## Targets`.
+   - **Reuse baseline** — existing Targets are the baseline: `open` entries are reused directly (they become the group-creation objects); semantically duplicate statements are never re-authorized; `done`/`dropped` entries are shown but their identities are never reused and they are never reopened in passing (reopen only via `/speckit.goal targets --set open`, human-initiated). Proposals only fill gaps; an empty proposal set goes straight to group creation.
+   - **Mid-abort** — landed entries are kept (they are legal authorizations), the rest are dropped; a re-run reuses the baseline with zero duplicate authorization.
+5. **Single-team path (adjudicated)** — derive roster + pattern with the loaded goal narrative as input through the existing machinery (step 2 preset matching + step 3 pattern tree of the procedure above); derivation reasons MUST enter the confirmation preview; a strong preset match recommends reuse.
+6. **Group creation path (N teams : 1 Goal)** — after decomposition approval (or when the reuse baseline already holds), create one team per open Target:
+   - every team declares the **same `goal_slug`**; `focus_target: T-<nnn>` points at that team's slice (**inserted after `goal_slug`** in the frontmatter order below); before landing, the field MUST exist in the bound goal's `## Targets` and be `open`, otherwise creation is refused;
+   - roster + pattern derive from the **Target statement** through the existing machinery (`match-team-preset.py --goal "<statement>"` + pattern tree); derivation reasons enter the confirmation preview;
+   - team slug derives as `<goal-slug>-t<nnn>` (lowercase, zero-padded three digits, e.g. `log-split-t003`), checked for uniqueness against `.specify/teams/`; collisions are rewritten and echoed; the user may rename at the gate;
+   - **territory discipline** — present a pairwise-disjoint territory proposal based on the slices; before landing run `python3 skills/create-team/scripts/verify-territory-disjoint.py --input <proposals.json> --json` (proposed ∪ existing same-`goal_slug` teams): `exit 0` → land; `exit 4` → disclose the contested/undeclared parties, re-divide and re-run, or hand off to `/speckit.goal coordinate` — never silently land a known overlap. When other teams already exist under the goal, the single-team path MUST run the same verify;
+   - the confirmation gate discloses in one place: the branch verdict, the analysis conclusion, the path decision, the proposal set or reuse statement, and the territory division (with the verify verdict). Existing teams under the same `goal_slug` (scan `.specify/teams/*/team.md` frontmatter) MUST be detected and offered for reuse or handed to `/speckit.goal coordinate` — never duplicate silently.
+7. **Landing invariants** — frontmatter declares `goal_slug` (reference, not a content copy); an inline `goal` field, if kept, is readability rendering only — the definition is authoritative, and any mismatch is surfaced for human adjudication, never forked into a second authoritative narrative. The branch writes `team.md` only; it performs **zero writes to `goal.md`** (`## Targets` / `## History` are rendered only by the `/speckit.goal` engine).
+
+---
+
 ## Persisted `team.md` schema
 
 Each persistent team owns a **directory** `.specify/teams/<slug>/` (no per-tool symlink — framework-internal). The definition is stored at `.specify/teams/<slug>/team.md`; per-run reports accumulate under `.specify/teams/<slug>/runs/`:
@@ -28,6 +55,11 @@ slug: <kebab-slug>
 description: <one-line label>
 goal: <overall final objective + success criteria / threshold>
 goal_slug: <kebab-slug>        # optional — the GOAL's identity; distinct from `slug` (the team's identity). See references/summary-mapping.md
+focus_target: T-<nnn>         # optional (042) — the team's default focus Target under the bound goal;
+                               #   a PREFILL of run-level --target: explicit --target always overrides, a run without
+                               #   --target resolves to it (disclosed as "(团队默认)"). NOT a write-scope claim, NOT a
+                               #   Goal–Team binding change. Written by goal-based create and modify (improve-team);
+                               # at creation it MUST reference an existing OPEN Target of the bound goal.
 territory:                     # optional — TEAM-level coverage; all four patterns. Lifts member Territory Division one level up
   write:                       #   paths this team may create/modify (glob / brace / relative all normalised before compare)
     - <path-or-glob>

@@ -23,7 +23,7 @@ project:
 | global/user skills library (e.g. a `config/skills/<name>` managed tree) | entity owned by a config repo rather than a code project |
 | agent load directories (`~/.<agent>/skills`, host app skill dirs) | links named `<name>` pointing at any of the above |
 | other code projects' `.specify/skills/<name>` | the same capability vendored per project |
-| registries (`.specify/instructions.md` Skills table, host app skill DBs/JSON) | a row/record already claiming the name |
+| name-field scan (every discovered `SKILL.md` frontmatter `name`, host app skill DBs/JSON) | a `name` value already claiming the word (directories are the registry — scan them) |
 
 Report the finding as **entity location + who references it**. That pair decides
 the path below; a bare "it exists" is not enough to choose.
@@ -33,9 +33,9 @@ the path below; a bare "it exists" is not enough to choose.
 | Path | When | Consequence |
 |------|------|-------------|
 | **Improve in place** | same scope, same purpose | go to `improve-skills`; do not create a duplicate |
-| **Adopt the existing entity** | the entity belongs elsewhere but is generic and portable, and its owner should keep it | leave the entity, wire a link from the current scope, register it; no copy |
+| **Adopt the existing entity** | the entity belongs elsewhere but is generic and portable, and its owner should keep it | leave the entity, wire a link from the current scope so directory discovery finds it; no copy |
 | **Split into layers** | the entity's home cannot hold everything the capability needs (see §2) | rename/keep the lower layer where it lives, create a front door in the current scope |
-| **Rename the new Skill** | genuinely different capability that merely wanted the same word | pick a distinct name; note both in the registry so the boundary is visible |
+| **Rename the new Skill** | genuinely different capability that merely wanted the same word | pick a distinct name; note the boundary in each SKILL.md's description so triggers stay disjoint |
 
 Ask the user which path applies **only** after presenting the scan result and the
 consequence of each path. Never resolve a collision silently.

@@ -24,11 +24,11 @@ Use this checklist to validate a newly created Skill before reporting completion
 - [ ] `scripts/`, `references/`, `assets/` contents are relevant when checked in; empty standard directories are acceptable
 - [ ] No unrelated documents (README.md, CHANGELOG.md, INSTALLATION_GUIDE.md)
 
-## Registry & Discoverability
+## Discoverability (no registry)
 
-- [ ] `.specify/instructions.md` Skills table has one deduplicated row
-- [ ] `Skill Name`, `Skill ID`, `Description`, and `Canonical Path` columns are populated
-- [ ] `None yet.` placeholder is removed if this is the first entry
+- [ ] `.specify/skills/<name>/SKILL.md` exists and is discoverable by directory scan (the discovery mechanism — see `.specify/skills.md`)
+- [ ] Frontmatter `name` matches the directory name; no other directory under `.specify/skills/` carries the same `name` value
+- [ ] No registration table is written — skills are found via their directories, not registered
 
 ## Anti-Pattern Prevention
 

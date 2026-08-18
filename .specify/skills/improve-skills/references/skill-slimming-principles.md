@@ -142,7 +142,7 @@ When slimming removes a capability description from the body (e.g. an intra-doma
 - `frontmatter.description` — drop sentences that referenced the removed capability; do not leave promotional text without a corresponding section.
 - `frontmatter.version` — bump for any user-visible scope change (per the project's semver convention).
 - `package.json.description` (if the Skill has one) — must match `frontmatter.description`.
-- Skill registry rows in `.specify/instructions.md` — re-check.
+- Discoverability invariants — directory name and frontmatter `name` still agree after the slim (no registry table exists to re-check).
 
 **Failure mode prevented**: the Skill is triggered by a phrase the description still advertises, but the body no longer contains the matching workflow.
 
@@ -207,3 +207,18 @@ A slim `SKILL.md` makes the agent's behavior **predictable and auditable**:
 Slimming also has a **measured compliance payoff**. Skill loading is progressive across four levels: **L0** frontmatter `description` (always in context), **L1** `SKILL.md` body (loaded on trigger; keep ≤ ~5K tokens), **L2** `references/` (read on demand), **L3** `scripts/` (executed, near-zero token cost). Hard constraints buried mid-way through a bloated L1 body sit in the attention low-zone and get violated at a measurably higher rate (~72–80% vs ~100% when kept compact and well-placed — see [constraint-placement.md](./constraint-placement.md)). Every manual paragraph left in L1 dilutes the rules that must survive there; moving it to L2/L3 is compliance protection, not just tidiness.
 
 Slimming is not a one-time refactor; it is a steady-state discipline applied every time the Skill changes.
+
+## No History Narration
+
+A Skill document states current facts for the next executor. Corrections replace the
+wrong claim outright; they do not report the replacement.
+
+- WRONG (history narration — delete): `> 旧文档断言「个人身份消息无法撤回」已证伪——实测该表明示不要重试。`
+- RIGHT (current fact only): `个人身份消息撤回按平台返回码分诊：不支持时直接告知用户，不要重试。`
+- WRONG: `（重要勘误：本条不再是限制）`
+- RIGHT: delete the line; if a misuse guard is genuinely needed, state it forward: `X 命令已下线，改用 Y。`
+
+Keep two forward-looking markers — they describe current state, not change history:
+
+- confidence markers: `未实测（待验证）`, `文档口径，待二进制实测校准`
+- misuse guards: `该 flag 位置与实测不符，以实测为准（示例见下）`

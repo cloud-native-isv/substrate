@@ -1,1 +1,0 @@
-../../.specify/agents/templates/ux-analyst.agent.md

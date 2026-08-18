@@ -1,1 +1,0 @@
-../../.specify/agents/templates/requirements-analyst.agent.md

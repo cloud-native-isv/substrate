@@ -1,8 +1,8 @@
 # Canonical `## Feedback` Step
 
-**Feature 028 — Framework Feedback Mechanism.** This file is the single source of
+This file is the single source of
 truth for the `## Feedback` step that every qualifying unit embeds. Skills embed it
-as their final workflow section; the 13 **complex** command templates embed it at
+as their final workflow section; the 19 **complex** command templates embed it at
 their wrap-up / Git-commit-prompt stage. Simple commands MUST NOT embed it.
 
 ## Positioning & Red Lines
@@ -23,7 +23,7 @@ These four facts govern every part of the mechanism and outrank any embedded wor
 4. **Local workaround value.** Until a Spec Kit version update lands, past entries are a
    reference for working around recurring issues — see *Workaround lookup* below.
 
-**Goal anchor (Constitution Principle X — Better-Harness Orientation).** Feedback is one
+**Goal anchor (Constitution Principle XIII — Better-Harness Orientation).** Feedback is one
 of the framework's Better-Harness instruments: it strengthens the **Learning Capture**
 dimension of the goal model defined once in `.specify/shared/guidelines/better-harness.md`.
 Vocabulary note: the "harness" in red line 1 means the agent CLI/runtime (the host); the
@@ -66,9 +66,14 @@ content from the user.
    ```bash
    python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
      --unit-id "<skill:NAME | /speckit.COMMAND>" --unit-type "<skill|command>" \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
+     --run-id "<stable-run-id>" --feature "<requirement-key-if-any>" \
+     [--feature-id "<Feature-registry-ID-if-any>"] \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
+   Identifier discipline: `--feature` carries the **requirement key** (e.g.
+   `038-goal-target`); `--feature-id` carries the **Feature registry ID** (e.g.
+   `041`). Different number spaces — never overload one field with both.
 6. **Consolidated submission prompt.** Read `should_prompt` from the `record` output
    (or run `--action status`). When it is `true`, surface a **single** consolidated
    notification inviting the user to submit collected feedback to the Spec Kit developers;
@@ -104,7 +109,10 @@ When `should_prompt` is `true`, surface **one** prompt offering exactly three ch
    guidance (GitHub: issue attachment; GitLab: issue attachment or MR to the feedback
    intake directory). **The agent never sends the zip itself.** After the user confirms
    the batch is dealt with (sent — or deliberately discarded), run
-   `--action mark-submitted` to reset the local counter.
+   `--action mark-submitted [--notes "<disposition summary>"]`: the engine
+   archives the pending batch into `packages/` (with the optional disposition
+   record as `SUBMISSION-NOTES.md` inside the zip) and then resets the local
+   counter — every reset therefore leaves an auditable package artifact behind.
 2. **Skip this time** — do nothing; the prompt will naturally reappear only after more
    entries accumulate.
 3. **Stop prompting** — raise the threshold (`--threshold <N>` or
@@ -134,7 +142,8 @@ workaround applied. This is a read-only aid — it never gates execution.
   top of the canonical block MUST be kept verbatim; detection semantics live in
   `.specify/shared/workflow/runtime-mode.md`. Commands (`/speckit.*`) only ever run
   inside a Spec Kit project, so the gate is a no-op for them.
-- **Skills**: `--unit-id "skill:<name>"`, `--unit-type skill`. The section is the last
+- **Skills**: `--unit-id "skill:<name>"`, `--unit-type skill`.
+- **External custom units** (host-project skills/agents/commands with an injected `ext-*` probe): `--unit-id custom:<owner>/<name>`, `--unit-type custom-unit`. Entries stay host-project-local (never packaged upstream) — see `/speckit.feedback` Mode 3. The section is the last
   workflow section of `SKILL.md`.
 - **Complex commands**: `--unit-id "/speckit.<command>"`, `--unit-type command`. Place the
   section next to `## Optional: Git Commit`, never mid-flow.

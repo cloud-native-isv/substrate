@@ -84,14 +84,12 @@ Use this checklist when improving a Skill after a real execution. The focus is e
 - `./assets/` contains static templates or reusable output files only.
 - Resource references are relative to the Skill root and do not form deep reference chains.
 
-## Compatibility and Registry
+## Compatibility and Discoverability
 
 - `.specify/skills/<name>/` is the primary copy.
 - `.github/skills/<name>` is a compatibility entrypoint, preferably a symlink or placeholder, not an independent divergent copy; a directory-level `.github/skills -> ../.specify/skills` symlink is also valid.
-- `.specify/instructions.md` has one deduplicated Skills registry row per canonical `skill_id`.
-- If `skill_id` metadata is added or corrected, the Skills registry row is checked and updated in the same improvement loop.
-- Registry rows are sorted and no `None yet.` placeholder remains once real entries exist.
-- `/speckit.skills` prompt sources use `./scripts/` for Skill-owned scripts and call `refresh-tools.sh` with explicit source flags before `--json`.
+- No registration table exists (see `.specify/skills.md`): discoverability means `.specify/skills/<name>/SKILL.md` exists, its frontmatter `name` matches the directory, and no other skill directory carries the same `name` value.
+- If `skill_id` metadata is added or corrected, re-verify that discoverability in the same improvement loop.
 
 ## Token Efficiency (纪律引用: `.specify/shared/guidelines/token-efficiency.md`)
 

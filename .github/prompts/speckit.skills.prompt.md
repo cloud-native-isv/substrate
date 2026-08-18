@@ -34,7 +34,7 @@ Check `.specify/skills/<name>/SKILL.md` exists (canonical source).
    - Frontmatter: `name`, `description` (with triggers), `skill_id`
    - Path conventions: `${SKILL_HOME}/` for Skill-owned resources, `${SKILL_WORKDIR}/` for runtime paths
    - Legacy idiom migration: `./X` → `${SKILL_HOME}/X`, `${SKILL_ROOT}/X` → `${SKILL_HOME}/X`
-   - Registry: one deduplicated row in `.specify/instructions.md` `### Skills`
+   - Discoverability: `.specify/skills/<name>/SKILL.md` present with valid frontmatter — no registration table exists (see `.specify/skills.md`)
    - Hygiene: SKILL.md under 500 lines; oversize → `references/`
 
 2. **Phase B — User-requested refinement**: Standard `improve-skills` workflow.
@@ -43,10 +43,10 @@ For detailed path conventions (`${SKILL_HOME}` / `${SKILL_WORKDIR}` semantics, c
 
 ### Step 4: Propagate to built-in agents (create path only)
 
-After a **new** Skill is created (skip on the `improve-skills` path), wire it into the built-in role agents so they prefer it for role-relevant work (Feature 026 Skill Enablement convention; see `docs/agents/command-and-skills.md`).
+After a **new** Skill is created (skip on the `improve-skills` path), wire it into the built-in role agents so they prefer it for role-relevant work (Skill Enablement convention: the `## Skill Enablement` section pattern carried by the built-in role agents under `.specify/agents/templates/`).
 
 1. **Guard**: skip if the new Skill is non-declarable (reference-only/meta: `create-agent`, `improve-agent`, `create-skills`, `improve-skills`, `create-team`, `improve-team`). Normal user-created Skills proceed.
-2. **Analyze**: read the 7 built-in role agents from `.specify/agents/templates/` (`requirements-analyst`, `system-designer`, `module-designer`, `test-engineer`, `qa-engineer`, `knowledge-manager`, `ux-analyst`). Judge each agent's role (Identity & Responsibilities) against the new Skill's capability + trigger keywords.
+2. **Analyze**: read the Meta Agent preset set from `.specify/agents/templates/` and the 7 Worker role capability templates from `skills/create-agent/templates/` (`requirements-analyst`, `system-designer`, `module-designer`, `test-engineer`, `qa-engineer`, `knowledge-manager`, `ux-analyst`). Judge each agent's role (Identity & Responsibilities) against the new Skill's capability + trigger keywords.
 3. **Match**: select the agents whose role operations the Skill covers and draft a one-line "when to use" per match. If none match, report "no role-relevant agents" and skip edits (no forced use).
 4. **Propose**: present a `| Agent | Skill | When to use |` table and wait for user confirmation before editing.
 5. **Apply** (on confirm): for each matched agent, edit BOTH `agents/<slug>.agent.md` and `.specify/agents/templates/<slug>.agent.md`:
@@ -58,8 +58,8 @@ After a **new** Skill is created (skip on the `improve-skills` path), wire it in
 
 - Confirm frontmatter valid (`name`, `description`, `skill_id`)
 - Verify canonical path matches `.specify/skills/<name>/SKILL.md`
-- Verify Skills registry includes deduplicated row
-- Report: paths, skill_id, registry edits, modernization results, and (create path) which built-in agents the Skill was propagated to
+- Verify the skill is discoverable from the filesystem (`.specify/skills/<name>/SKILL.md`, valid frontmatter)
+- Report: paths, skill_id, modernization results, and (create path) which built-in agents the Skill was propagated to
 
 For agent-specific operational guidance, see `.specify/shared/workflow/agent-configuration.md`.
 
@@ -78,6 +78,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

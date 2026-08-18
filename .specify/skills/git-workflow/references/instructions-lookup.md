@@ -1,35 +1,33 @@
-# 归口 instructions 文件查找与 Git Workflow 块写入
+# Git Workflow 状态文件定位与写入
 
-本技能把三层分支信息写入**归口 instructions 文件**的 `## Git Workflow` 块，不生成独立的工作流文档。
+本技能把三层分支信息写入独立状态文件 **`${SKILL_WORKDIR}/.specify/git-workflow.md`** 的 Git Workflow 托管块，不写入 instructions 文件，也不生成其他工作流文档（`.specify/instructions.md` 的 `## Git Workflow` 章节只保留指向本文件的指针，由 `/speckit.instructions` 维护）。
 
-## 查找优先级
+## 目标文件
 
-1. `${SKILL_WORKDIR}/.specify/instructions.md`（优先，Spec Kit 项目的规范位置）
-2. 当前 AI 工具对应的 instructions 文件（找到第一个即停止）：
-
-| 工具 | 兼容性 instructions 文件 |
-|------|--------------------------|
-| GitHub Copilot | `${SKILL_WORKDIR}/.github/copilot-instructions.md` |
-| Claude Code | `${SKILL_WORKDIR}/CLAUDE.md` |
-| Qoder CLI (`qodercli`) | `${SKILL_WORKDIR}/AGENTS.md`（CLI 只读 AGENTS.md，不读 project_rules.md） |
-| Qoder IDE | `${SKILL_WORKDIR}/QODER.md` 或 `${SKILL_WORKDIR}/.qoder/project_rules.md`（IDE 旧格式） |
-| opencode | `${SKILL_WORKDIR}/AGENTS.md` |
-
-3. 若以上文件均不存在，创建 `${SKILL_WORKDIR}/.specify/instructions.md` 并写入 `## Git Workflow` 章节。
-
-> **符号链接注意**：在 Spec Kit 项目中，`CLAUDE.md` / `QODER.md` / `AGENTS.md` / `.github/copilot-instructions.md` 通常是指向 `.specify/instructions.md` 的**符号链接**。写入任一别名都会写穿到同一个规范文件——因此只写一次，**不要**对多个别名重复写入，也不要删除重建这些链接。
+- 固定路径：`${SKILL_WORKDIR}/.specify/git-workflow.md`；文件不存在时用 `${SKILL_HOME}/assets/git-workflow-block.md` 渲染整文件创建。
+- 不要对 instructions 别名（`CLAUDE.md` / `AGENTS.md` / `QODER.md` 等）做任何写入。
 
 ## 写入规则
 
 ```bash
 # 判断块是否已存在
-grep -q '<!-- GIT_WORKFLOW_START -->' "<instructions-file>" && echo "block present" || echo "block missing"
+grep -q '<!-- GIT_WORKFLOW_START -->' "${SKILL_WORKDIR:-.}/.specify/git-workflow.md" && echo "block present" || echo "block missing"
 ```
 
-- **块已存在**：只替换 `<!-- GIT_WORKFLOW_START -->` 与 `<!-- GIT_WORKFLOW_END -->` **之间**的内容；标记本身与块外内容保持字节不变。
-- **块不存在**：在 `## Resource Registry` 章节之前插入完整章节（标题 + 说明句 + 标记 + 表格）。文件没有 `## Resource Registry` 时追加到文件末尾。
+- **文件已存在**：只替换 `<!-- GIT_WORKFLOW_START -->` 与 `<!-- GIT_WORKFLOW_END -->` **之间**的内容；标记本身与块外内容保持字节不变。
+- **文件不存在**：读取 `${SKILL_HOME}/assets/git-workflow-block.md`，替换占位符后整文件写入。
 - **占位状态**：未建立工作流时块内保留 `| None yet. | - | - | - |` 行——这一行即 Bootstrap 作用域的判定依据。
-- **单一数据源**：分支信息只写入该块。不要同时在 Documentation Map 里加引用行（无独立文档可引用），也不要另建 `docs/git-workflow.md` 或 `.specify/memory/git-workflow.md`。
+- **单一数据源**：分支信息只写入该文件。不要写进 instructions 文件，也不要另建 `docs/git-workflow.md` 或 `.specify/memory/git-workflow.md`。
+
+## 旧版块迁移（升级场景）
+
+早期版本把托管块写在 `.specify/instructions.md` 的 `## Git Workflow` 章节内。检测：
+
+```bash
+grep -q '<!-- GIT_WORKFLOW_START -->' "${SKILL_WORKDIR:-.}/.specify/instructions.md" && echo "legacy block in instructions"
+```
+
+命中时：先把该块内容原样迁入 `.specify/git-workflow.md`（文件缺失时先创建），再把 instructions 文件中的整个旧 `## Git Workflow` 章节替换为指针句（"分支角色唯一事实源在 `.specify/git-workflow.md`，由 git-workflow 技能机器维护"），并在报告中说明已迁移。遗留 `docs/git-workflow.md` / `.specify/memory/git-workflow.md` 仍按 Phase 0 规则处理。
 
 ## 块内容
 
@@ -54,8 +52,8 @@ grep -q '<!-- GIT_WORKFLOW_START -->' "<instructions-file>" && echo "block prese
 
 ```bash
 # 提取三层分支名（Branch 列反引号内的值）
-awk '/<!-- GIT_WORKFLOW_START -->/,/<!-- GIT_WORKFLOW_END -->/' "<instructions-file>" \
+awk '/<!-- GIT_WORKFLOW_START -->/,/<!-- GIT_WORKFLOW_END -->/' "${SKILL_WORKDIR:-.}/.specify/git-workflow.md" \
   | awk -F'|' '$2 ~ /MAIN|PRE|DEV/ {gsub(/[ `]/, "", $2); gsub(/[ `]/, "", $3); print $2"="$3}'
 ```
 
-输出形如 `MAIN=master` / `PRE=xuanji/prepub` / `DEV=xuanji/hanzhi`，供后续 git 操作使用。若某行的 Branch 为空或仍是 `None yet.`，视为块未填写 → 进入 Bootstrap。
+输出形如 `MAIN=master` / `PRE=xuanji/prepub` / `DEV=xuanji/hanzhi`，供后续 git 操作使用。若文件缺失、或某行的 Branch 为空 / 仍是 `None yet.`，视为块未填写 → 进入 Bootstrap。

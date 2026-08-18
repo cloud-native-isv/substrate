@@ -10,7 +10,7 @@ skill_id: "<SKILL:.specify/skills/improve-skills/SKILL.md>"
 
 Continuously improve one existing local SpecKit Skill from a user-provided Skill description and evidence from real executions. The expected result is a focused Skill update that fixes observed problems, captures reusable lessons, and makes the next execution more reliable.
 
-Goal anchor (Constitution Principle X): this skill is a Better-Harness instrument — improving a Skill strengthens the **Controlled Execution** dimension (the supported, repeatable path the Skill provides) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
+Goal anchor (Constitution Principle XIII): this skill is a Better-Harness instrument — improving a Skill strengthens the **Controlled Execution** dimension (the supported, repeatable path the Skill provides) and closes the **Learning Capture** loop; goal model in `.specify/shared/guidelines/better-harness.md`.
 
 ## Input Contract
 
@@ -49,7 +49,7 @@ Batch procedure, ownership resolution, and routing rationale: [`./references/loo
    - **Run the matching fact-check gate before writing any capability or data claim** (delegation capability / data tables / tier-coverage tables) — verify the real surface, never write values or capabilities from memory. Gates: [`./references/loop-playbook.md`](./references/loop-playbook.md) `## Step 3`.
    - When an item must be **deferred for lack of evidence**, record which concrete evidence would unlock it. Discard one-off environment noise unless the Skill should handle it next run. Detail: same reference.
    - **Legacy path idioms** (bare relative paths, `${SKILL_ROOT}/X`, agent-specific install paths in prose) → rewrite as `${SKILL_HOME}/...`; mapping table in the same reference.
-   - **Feedback-section conformance (Feature 028)**: verify the Skill's final workflow section is `## Feedback` opening with the runtime-mode gate; repair if missing or malformed, and apply to both mirrors. Malformed-criteria list, canonical-block source, and the standalone-mode exception: same reference, `### Feedback-section conformance`.
+   - **Feedback-section conformance**: verify the Skill's final workflow section is `## Feedback` opening with the runtime-mode gate; repair if missing or malformed, and apply to both mirrors. Malformed-criteria list, canonical-block source, and the standalone-mode exception: same reference, `### Feedback-section conformance`.
 
 4. **Correct the root causes with minimal changes**
    - Fix the instruction that caused the observed failure first (wrong arguments, nonexistent paths, invalid expected formats, incompatible metadata, missing prerequisite checks). For inefficiency, replace the inefficient step with a more direct method, deterministic script, or clearer decision branch.
@@ -71,13 +71,14 @@ Batch procedure, ownership resolution, and routing rationale: [`./references/loo
    - Update `./references/`, `./scripts/`, or `./assets/` only when the evidence shows they will reduce future mistakes.
    - When Step 4 extracted deterministic logic into a new `${SKILL_HOME}/scripts/` script, list that script in the Resources table so the executable resource stays discoverable.
    - Avoid adding process logs, changelogs, or full retrospectives to the Skill; distill only reusable lessons.
-   - **Rename/removal downstream-wiring checklist**: a rename/consolidation/removal is not done until every downstream pointer moves with it (obsolete-skills list, contract tests, instructions registry row + count, feature history, dogfooded artifacts), and both mirrors are synced and verified byte-equal. Five-step checklist and the move-then-edit ordering rule: [`./references/loop-playbook.md`](./references/loop-playbook.md) `## Step 5`.
+   - **Never narrate the document's own history**: corrections state the current fact only — never `旧文档断言…已证伪` / `重要勘误` / `本条不再是限制` frames (exceptions: confidence markers, misuse guards). Rewrite examples: [`./references/skill-slimming-principles.md`](./references/skill-slimming-principles.md) `## No History Narration`.
+   - **Rename/removal downstream-wiring checklist**: a rename/consolidation/removal is not done until every downstream pointer moves with it (obsolete-skills list, contract tests, skills-count list, feature history, dogfooded artifacts), and both mirrors are synced and verified byte-equal. Five-step checklist and the move-then-edit ordering rule: [`./references/loop-playbook.md`](./references/loop-playbook.md) `## Step 5`.
 
 6. **Validate the improvement loop**
    - Re-read the changed Skill and verify that each edit maps to an observed execution issue.
    - **Run the shape gate on every `SKILL.md` you touched**: `python3 ${SKILL_HOME}/scripts/skill-shape.py <SKILL.md>`. Exit `0` = contract-shaped; exit `10` = blocking findings. A run that ends with the target still at exit `10` MUST either slim until it passes or state the explicit reason it cannot (a contract-mandated inline section, or a deliberate exception recorded in the report). Never finish an improvement loop having grown a body past the gate without saying so — that is the defect this gate exists to catch.
    - **When an edit touches reference code or example snippets, validate that the code actually RUNS — not merely that the file exists or parses.** Execute it (or the smallest reproducing harness) against a real target, or trace it line-by-line against the documented API to confirm the control flow does what the prose claims. Files-exist / links-resolve checks do not catch a snippet that throws, loops incorrectly, or no-ops; those surface only at runtime. If you cannot run it this loop, say so and mark it as needing runtime validation in the next real execution rather than reporting it as verified.
-   - Check frontmatter, resource paths, line count, compatibility entry, and registry row when metadata changed. If `skill_id` is added or corrected, ensure `.specify/instructions.md` has one deduplicated Skills registry row for the canonical Skill.
+   - Check frontmatter, resource paths, line count, compatibility entry, and discoverability when metadata changed. If `skill_id` is added or corrected, ensure the directory name and frontmatter `name` agree and no other skill directory carries the same `name` (no registration table — see `.specify/skills.md`).
    - Accept a directory-level `.github/skills -> ../.specify/skills` symlink as a valid compatibility entrypoint; do not require a separate per-Skill symlink when the directory symlink already exposes the Skill.
    - **After any structural edit to a SKILL.md or its references (moving/renaming/removing a section or file), run the affected contract tests** (`tests/contract/` for the feature that governs the skill) — not just grep for headings. A slimming move can silently break a heading-presence contract test; only executing the tests proves it still passes.
    - **When the suite has pre-existing failures, prove zero regression with a clean-baseline failure-set diff** — capture the sorted `FAILED|ERROR` set, rerun the same suite on a clean `HEAD` baseline (prefer `git worktree`, not `git stash`), and diff the two sets. Counts eyeballed from a red suite are not proof. Method: [`./references/loop-playbook.md`](./references/loop-playbook.md) `## Step 6`.
@@ -171,9 +172,10 @@ Objective conditions for finishing a loop. Each is checkable, not a matter of ju
 2. **New detail lands in L2/L3 by default.** Do not add worked examples, full command sequences, or multi-line snippets to `SKILL.md` — write them into `./references/` or `./scripts/` and leave a one-line pointer with an anchor in the body.
 3. **Evidence before defect.** Do not label anything a defect without an observed symptom (error text, wrong output, user correction, artifact). `Unobserved` findings are recorded only; counting signals alone never becomes an optimization point.
 4. **Capability verified before it is documented.** Before writing a delegation path, data table, or coverage claim, read the delegate's real surface (`--help`, contract, cached facts) and encode honest limitation branches. Do not write values or capabilities from memory.
-5. **Reference code is executed, not eyeballed.** Any snippet or script added/changed must be run (or traced line-by-line against the documented API). "File exists" and "links resolve" are not validation — state explicitly when runtime validation is deferred.
+5. **Reference code is executed, not eyeballed.** Any snippet or script added/changed must be run (or traced line-by-line against the documented API). "File exists" and "links resolve" are not validation — state explicitly when runtime validation is deferred. For detection scripts also run a **reverse case on a domain-legitimate sample** (must NOT flag required syntax) — catching bad samples alone can induce deleting required syntax.
 6. **Removal preserves content.** Every slimming move is delete-and-absorb in the same edit; never delete a section and defer relocating its substance.
 7. **No claim of "fixed" without before/after.** Improvement outcomes are decided by the intervention ledger's next-run comparison, not by asserting the edit works.
+8. **Wrap-up commits verify the staging area.** Before any loop-end commit, `git status --short` and confirm only this loop's files are staged; unstage unrelated pre-staged entries or commit by explicit pathspec — never `git add -A`.
 
 ## Feedback
 
@@ -194,6 +196,7 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
      --review "<review prose>" --points-file "<points file>"
    ```
+   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

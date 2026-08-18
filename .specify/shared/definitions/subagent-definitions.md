@@ -66,8 +66,11 @@ Every external subagent dispatch MUST therefore:
    - `<label>.jsonl` — raw stream-json events, kept for forensics
    - `<label>.status` — `<label> exit=<code>` recorded at completion
 4. **Monitor liveness** — watch `.live.log` growth (bytes/lines); stalled growth beyond the team's stall threshold means a stalled agent, triggering the team's recovery protocol (wait / nudge / terminate / reassign).
+5. **Trace the session** — none of the supported agent CLIs exposes an official session-naming/rename mechanism (verified against each tool's official documentation surface; sessions carry auto-generated IDs only). Traceability therefore rides a convention, not a CLI flag:
+   - give every dispatch a stable **label** (`<team-slug>--<run-stamp>--<member-role>`) that names the triplet files, and open the dispatched prompt with that label as a prefix line so the session's own transcript is self-identifying;
+   - record the dispatch mapping (label → CLI → member → workspace) in the run report — the mapping table, not a renamed session, is the canonical cross-reference surface.
 
-**Reference implementation**: `skills/create-team/scripts/dispatch.sh` (+ `stream-filter.py`) — a generic, CLI-agnostic wrapper implementing all four points (works with `qodercli` and `claude`; override via `DISPATCH_CLI`). Team runbooks and command workflows SHOULD reuse it instead of re-rolling per-run dispatch scripts.
+**Reference implementation**: `skills/create-team/scripts/dispatch.sh` (+ `stream-filter.py`) — a generic, CLI-agnostic wrapper implementing the four observability points above (works with `qodercli` and `claude`; override via `DISPATCH_CLI`; the label convention of point 5 is the caller's responsibility). Team runbooks and command workflows SHOULD reuse it instead of re-rolling per-run dispatch scripts.
 
 ## Terminology Boundaries
 

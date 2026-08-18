@@ -1,1 +1,0 @@
-../../.specify/agents/templates/qa-engineer.agent.md

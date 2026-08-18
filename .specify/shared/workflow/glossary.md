@@ -1,6 +1,6 @@
 # Glossary Protocol (Correction · Enrichment · Conflict)
 
-**Feature 031 — Glossary Mechanism.** This file is the single source of truth for how
+This file is the single source of truth for how
 `/speckit.*` commands use the project glossary at `.specify/memory/glossary.md`. Commands
 embed a lightweight `## Glossary` step that points here (modeled on the `## Feedback` step).
 
