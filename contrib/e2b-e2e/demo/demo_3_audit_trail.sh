@@ -105,17 +105,18 @@ echo "$RESP" | jq -r 'select(.type=="stdout") | .text' 2>/dev/null | while IFS= 
 done
 
 echo ""
-echo "    ── 同时刻 kubectl logs 取证（worker Pod 审计告警）──"
-show_cmd "kubectl logs ${WORKER_POD:-<pod>} -n ate-wasm --since=10s | grep BLOCKED"
-sleep 1
-WORKER_POD=$(kubectl get pods -n ate-wasm -l ate.dev/worker-pool=wasm-pool \
-    --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-kubectl logs "$WORKER_POD" -n ate-wasm --since=15s 2>/dev/null \
-    | grep -i "blocked" | tail -3 | while IFS= read -r line; do
-    TS=$(echo "$line" | jq -r '.timestamp' 2>/dev/null | head -c 23)
-    URL=$(echo "$line" | jq -r '.fields.url' 2>/dev/null)
-    METHOD=$(echo "$line" | jq -r '.fields.method' 2>/dev/null)
-    printf '      %s ⚠️  BLOCKED %s %s\n' "$TS" "$METHOD" "$URL"
+echo "    ── kubectl logs 取证（所有 worker Pod 审计告警）──"
+show_cmd "kubectl logs -n ate-wasm -l ate.dev/worker-pool=wasm-pool --since=30s | grep BLOCKED"
+sleep 2
+for WPOD in $(kubectl get pods -n ate-wasm -l ate.dev/worker-pool=wasm-pool \
+    --field-selector=status.phase=Running -o jsonpath='{.items[*].metadata.name}'); do
+    kubectl logs "$WPOD" -n ate-wasm --since=30s 2>/dev/null \
+        | grep -i "blocked" | tail -3 | while IFS= read -r line; do
+        TS=$(echo "$line" | jq -r '.timestamp' 2>/dev/null | head -c 23)
+        URL=$(echo "$line" | jq -r '.fields.url' 2>/dev/null)
+        METHOD=$(echo "$line" | jq -r '.fields.method' 2>/dev/null)
+        printf '      %s ⚠️  BLOCKED %s %s\n' "$TS" "$METHOD" "$URL"
+    done
 done
 
 echo ""

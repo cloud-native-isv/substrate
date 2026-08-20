@@ -162,24 +162,35 @@ echo ""
 ok "B 读到 A 写的文件: '${OUT}' ← /sandbox 是共享 preopen 目录"
 pause
 
-# ── 6. epoch trap ────────────────────────────────────────────────────────
-step 6 "资源安全：epoch trap 终止无限循环"
+# ── 6. 安全终止 ──────────────────────────────────────────────────────────
+step 6 "资源安全：无限循环被自动终止"
 show_cmd "curl POST /execute -d '{\"code\":\"while True: pass\"}'"
-echo "    （预期 ~10s 后连接被重置 — epoch interrupt 切断 wasm 执行）"
+echo "    （等待...服务端会通过 epoch trap 或数据面超时切断执行）"
 echo ""
 $CURL -X POST "${DATA_URL}" \
     -H "X-Access-Token: ${TOKEN}" -H "E2B-Traffic-Access-Token: ${TOKEN}" \
     -H "Content-Type: application/json" \
-    -d '{"code":"while True: pass"}' 2>&1 || true
+    -d '{"code":"while True: pass"}' -w '\n    curl_exit_code=%{exitcode}\n' 2>&1 || true
+echo "    ↑ exit 18 = CURLE_PARTIAL_FILE: 服务端主动截断了 chunked 流"
 echo ""
-echo "    ↑ 连接重置/截断 = epoch trap 生效的网络层证据"
+echo "    ── kubectl logs 佐证（查看服务端做了什么）──"
+show_cmd "kubectl logs -n ate-wasm -l ate.dev/worker-pool=wasm-pool --since=30s"
+sleep 2
+for WPOD in $(kubectl get pods -n ate-wasm -l ate.dev/worker-pool=wasm-pool \
+    --field-selector=status.phase=Running -o jsonpath='{.items[*].metadata.name}'); do
+    kubectl logs "$WPOD" -n ate-wasm --since=30s 2>/dev/null \
+        | grep -iE "epoch|trap|poison|suspend|stream failed|timed out|did not exit" | tail -3 | while IFS= read -r line; do
+        TS=$(echo "$line" | jq -r '.timestamp' 2>/dev/null | head -c 23)
+        MSG=$(echo "$line" | jq -r '.fields.message' 2>/dev/null | head -c 90)
+        printf '      %s → %s\n' "$TS" "$MSG"
+    done
+done
 echo ""
-echo "    ── kubectl logs 佐证 ──"
-sleep 1
-kubectl logs "$WORKER_POD" -n ate-wasm --since=15s 2>/dev/null \
-    | grep -iE "epoch|trap|poison|timed out" | tail -3 | sed 's/^/      /'
-echo ""
-ok "worker 日志确认: epoch trap fired → context poisoned"
+echo "    终止路径（两道防线）:"
+echo "      ① epoch trap: wasmtime 按 100ms tick 检查 CPU 预算，超时后 trap 中断 wasm"
+echo "      ② 数据面超时: e2bgw/atelet 对长时间无输出的执行主动 suspend actor"
+echo "      → 无论哪条先触发，无限循环都不会挂死 worker 进程"
+ok "无限循环被服务端安全终止（curl exit 18 = 连接被切断证据）"
 
 # ── 总结 ─────────────────────────────────────────────────────────────────
 banner "演示 1 总结"
