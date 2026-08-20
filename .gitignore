@@ -55,3 +55,7 @@ Thumbs.db
 /validate-image-cache
 .specify/tools/*.json
 .specify/instructions.md-*
+
+# E2B e2e secrets & generated env (credentials, never commit)
+contrib/e2b-e2e/.secrets/
+contrib/e2b-e2e/demo/.env
