@@ -38,7 +38,7 @@ RESP=$($CURL -X POST "${API}/sandboxes" \
     -d "{\"templateID\":\"${E2B_TEMPLATE}\"}")
 echo ""
 echo "    原始响应:"
-echo "$RESP" | jq '.' 2>/dev/null | sed 's/^/    /'
+echo "$RESP" | jq '.' 2>/dev/null | sed 's/^/    /' || true
 echo ""
 
 SID=$(echo "$RESP" | jq -r '.sandboxID')
@@ -74,10 +74,11 @@ ok "解读: stdout 帧 text='${OUT}' ← Python print 输出"
 
 echo ""
 echo "    ── kubectl logs 佐证（同时刻 worker Pod 日志）──"
-WORKER_POD=$(kubectl get pods -n ate-wasm -l ate.dev/worker-pool=wasm-pool \
-    --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-kubectl logs "$WORKER_POD" -n ate-wasm --since=10s 2>/dev/null \
-    | grep -E "execute|dispatching" | tail -2 | sed 's/^/      /'
+for WPOD in $(kubectl get pods -n ate-wasm -l ate.dev/worker-pool=wasm-pool \
+    --field-selector=status.phase=Running -o jsonpath='{.items[*].metadata.name}'); do
+    kubectl logs "$WPOD" -n ate-wasm --since=10s 2>/dev/null \
+        | grep -E "execute|dispatching" | tail -2 | sed 's/^/      /' || true
+done
 pause
 
 # ── 3. 变量保持（Jupyter 语义）───────────────────────────────────────────
@@ -183,7 +184,7 @@ for WPOD in $(kubectl get pods -n ate-wasm -l ate.dev/worker-pool=wasm-pool \
         TS=$(echo "$line" | jq -r '.timestamp' 2>/dev/null | head -c 23)
         MSG=$(echo "$line" | jq -r '.fields.message' 2>/dev/null | head -c 90)
         printf '      %s → %s\n' "$TS" "$MSG"
-    done
+    done || true
 done
 echo ""
 echo "    终止路径（两道防线）:"
