@@ -98,7 +98,7 @@ RESP=$($CURL -X POST "${DATA_URL}" \
 
 echo ""
 echo "    原始 NDJSON:"
-echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done
+echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done || true
 OUT=$(echo "$RESP" | jq -r 'select(.type=="stdout") | .text' 2>/dev/null | tr -d '\n')
 echo ""
 ok "stdout='${OUT}' ← 跨调用变量保持，同一 kernel 实例"
@@ -136,7 +136,7 @@ RESP=$($CURL -X POST "${DATA_URL}" \
     -d "{\"code\":\"print(x_a)\", \"context_id\":\"${CTX_B}\"}")
 echo ""
 echo "    原始 NDJSON:"
-echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done
+echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done || true
 ERR=$(echo "$RESP" | jq -r 'select(.type=="error") | "\(.name): \(.value)"' 2>/dev/null | head -1)
 echo ""
 ok "error 帧: ${ERR} ← B 看不到 A 的变量（隔离证据）"
@@ -156,7 +156,7 @@ RESP=$($CURL -X POST "${DATA_URL}" \
     -H "Content-Type: application/json" \
     -d "{\"code\":\"print(open('/sandbox/f.txt').read())\", \"context_id\":\"${CTX_B}\"}")
 echo "    原始 NDJSON:"
-echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done
+echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done || true
 OUT=$(echo "$RESP" | jq -r 'select(.type=="stdout") | .text' 2>/dev/null | tr -d '\n')
 echo ""
 ok "B 读到 A 写的文件: '${OUT}' ← /sandbox 是共享 preopen 目录"

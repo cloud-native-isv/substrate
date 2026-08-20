@@ -84,7 +84,7 @@ for POD in $WORKER_PODS; do
     kubectl logs "$POD" -n ate-wasm 2>/dev/null \
         | grep -E "compiled|cache hit|pre-linked" | tail -3 | while IFS= read -r line; do
         echo "      $line"
-    done
+    done || true
     break
 done
 

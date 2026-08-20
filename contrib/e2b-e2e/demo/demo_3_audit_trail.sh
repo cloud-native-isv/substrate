@@ -67,7 +67,7 @@ show_cmd "curl POST /execute -d '{\"code\":\"import host_proxy; ...\"}'"
 RESP=$(execute "$CODE")
 echo ""
 echo "    原始 NDJSON 响应:"
-echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done
+echo "$RESP" | while IFS= read -r line; do [ -n "$line" ] && echo "      $line"; done || true
 echo ""
 echo "    解读: 请求经 HostProxy 放行（allowed=true）并代理执行"
 echo "    审计记录: {url: httpbin.org/get, method: GET, allowed: true, status: 200}"
@@ -102,7 +102,7 @@ echo ""
 echo "    原始 NDJSON 响应（沙箱 stdout 输出）:"
 echo "$RESP" | jq -r 'select(.type=="stdout") | .text' 2>/dev/null | while IFS= read -r line; do
     [ -n "$line" ] && echo "      $line"
-done
+done || true
 
 echo ""
 echo "    ── kubectl logs 取证（所有 worker Pod 审计告警）──"
@@ -116,8 +116,8 @@ for WPOD in $(kubectl get pods -n ate-wasm -l ate.dev/worker-pool=wasm-pool \
         URL=$(echo "$line" | jq -r '.fields.url' 2>/dev/null)
         METHOD=$(echo "$line" | jq -r '.fields.method' 2>/dev/null)
         printf '      %s ⚠️  BLOCKED %s %s\n' "$TS" "$METHOD" "$URL"
-    done
-done
+    done || true
+done || true
 
 echo ""
 echo "    证据链:"
@@ -154,7 +154,7 @@ echo "$RESP" | while IFS= read -r line; do
                 echo "      $line" ;;
         esac
     fi
-done
+done || true
 echo ""
 echo "    宿主看到:"
 echo "      • 代码全文（POST body）"
@@ -170,13 +170,13 @@ echo ""
 
 echo "    Step 1: 准备数据"
 show_cmd "curl POST /execute -d '{\"code\":\"data = {\\\"DAU\\\": 12580}\"}'"
-execute 'data = {"DAU": 12580}; print("数据准备完成")' | jq -r 'select(.type=="stdout").text' 2>/dev/null | sed 's/^/      stdout: /'
+execute 'data = {"DAU": 12580}; print("数据准备完成")' | jq -r 'select(.type=="stdout").text' 2>/dev/null | sed 's/^/      stdout: /' || true
 echo "      审计: NDJSON 记录代码+输出，无出网"
 
 echo ""
 echo "    Step 2: 分析计算"
 show_cmd "curl POST /execute -d '{\"code\":\"growth = data[\\\"DAU\\\"] * 0.15; print(growth)\"}'"
-execute 'growth = data["DAU"] * 0.15; print(f"growth={growth:.0f}")' | jq -r 'select(.type=="stdout").text' 2>/dev/null | sed 's/^/      stdout: /'
+execute 'growth = data["DAU"] * 0.15; print(f"growth={growth:.0f}")' | jq -r 'select(.type=="stdout").text' 2>/dev/null | sed 's/^/      stdout: /' || true
 echo "      审计: NDJSON 记录代码+输出，无出网"
 
 echo ""
@@ -188,7 +188,7 @@ try:
     print(f"status={s}")
 except Exception as e:
     print(f"error: {e}")')
-echo "$RESP" | jq -r 'select(.type=="stdout").text' 2>/dev/null | sed 's/^/      stdout: /'
+echo "$RESP" | jq -r 'select(.type=="stdout").text' 2>/dev/null | sed 's/^/      stdout: /' || true
 echo "      审计: NDJSON + HostProxy.log_request{url,method,allowed,status}"
 echo ""
 echo "    → 每一步代码+输出+出网全链条，不可绕过、不可删除"
