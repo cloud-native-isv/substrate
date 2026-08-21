@@ -5,7 +5,7 @@
   <ul class="section-cards">
     {{- range .Site.Home.Sections.ByTitle }}
     <li>
-      <a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>
+      <a href="{{ .RelPermalink }}">{{ partial "title.html" . }}</a>
       <span class="count">{{ len .RegularPagesRecursive }} pages</span>
     </li>
     {{- end }}

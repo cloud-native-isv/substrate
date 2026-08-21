@@ -331,8 +331,14 @@ def action_record(args: argparse.Namespace) -> Dict[str, Any]:
     registry = load_probe_registry(workspace_root)
     probe = None
     if registry["available"]:
-        probe = resolve_probe(registry, unit_id)
+        lifecycle_point = (getattr(args, "lifecycle_point", None) or "").strip() or None
+        probe = resolve_probe(registry, unit_id, lifecycle_point)
         if probe is None:
+            if lifecycle_point:
+                raise FeedbackError(
+                    f"no probe object for unit: {unit_id} "
+                    f"with lifecycle_point: {lifecycle_point}"
+                )
             raise FeedbackError(f"no probe object for unit: {unit_id}")
 
     index = load_index(workspace_root)
@@ -891,7 +897,14 @@ def merged_probe_objects(registry: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
-def resolve_probe(registry: Dict[str, Any], unit_id: str) -> Optional[Dict[str, Any]]:
+def resolve_probe(
+    registry: Dict[str, Any], unit_id: str, lifecycle_point: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    if lifecycle_point:
+        for obj in merged_probe_objects(registry):
+            if obj["unit"] == unit_id and obj["lifecycle_point"] == lifecycle_point:
+                return obj
+        return None
     for obj in merged_probe_objects(registry):
         if obj["unit"] == unit_id:
             return obj
@@ -924,9 +937,16 @@ def action_probes(args: argparse.Namespace) -> Dict[str, Any]:
         if args.reconcile:
             embeds = scan_embed_units(workspace_root)
             declared = {o.get("unit", ""): o for o in registry["objects"]}
+            wrapup_classes = {
+                c.get("class_id", "")
+                for c in registry["classes"]
+                if c.get("insertion_type", "") == "wrap-up"
+            }
             for unit in sorted(u for u in embeds if u not in declared):
                 errors.append(f"embed without probe object: {unit} ({embeds[unit]})")
             for obj in registry["objects"]:
+                if obj.get("class_id", "") not in wrapup_classes:
+                    continue
                 if obj.get("unit", "") not in embeds:
                     errors.append(
                         f"probe object without embed: {obj.get('object_id', '')} "
@@ -1398,7 +1418,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--unit", default=None,
                         help="probe-inject: target custom unit custom:<owner>/<name>")
     parser.add_argument("--lifecycle-point", default=None,
-                        help="probe-inject: lifecycle point (default wrap-up)")
+                        help="record: resolve the probe object by (unit, lifecycle_point), "
+                             "e.g. gate-<slug> for gate probes; "
+                             "probe-inject: lifecycle point (default wrap-up)")
     parser.add_argument("--notes-file", default=None,
                         help="probe-inject: collection-intent note file")
     parser.add_argument("--plan-file", default=None,

@@ -28,6 +28,8 @@ Xuanji Substrate 是 Agent Substrate 的定制 fork（`main` 镜像 upstream，`
 | [docs/reference/actor-lifecycle-flows.md](docs/reference/actor-lifecycle-flows.md) | 关键流程精确参考（时序图 + 契约速查） |
 | [docs/concepts/sandbox-landscape.md](docs/concepts/sandbox-landscape.md) | Agent 沙箱竞品格局与 Substrate 定位（公开来源对标） |
 | [docs/reference/e2b-api-surface.md](docs/reference/e2b-api-surface.md) | E2B 接口面 × `cmd/e2bgw` 覆盖矩阵（代码核实） |
+| [docs/reference/upstream-evolution-research.md](docs/reference/upstream-evolution-research.md) | **upstream 演进研究**（xuanji 演进支持）：漂移主题、新子系统、in-flight 分支、rebase 风险与吸收清单 |
+| [docs/reference/xuanji-evolution-survey.md](docs/reference/xuanji-evolution-survey.md) | **xuanji 分支演进调研**：三阶段框架、试点解剖、preflight M4 管线、阶段转换决策点 |
 | [docs/architecture.md](docs/architecture.md) | 完整系统架构（upstream 原始文档） |
 | [docs/api-guide.md](docs/api-guide.md) | API 配置参考 |
 | [docs/api-style-guide.md](docs/api-style-guide.md) / [docs/code-style-guide.md](docs/code-style-guide.md) | API / 代码风格指南 |

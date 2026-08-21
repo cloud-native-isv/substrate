@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """scaffold-hugo.py — deterministic Hugo project scaffolder for a docs/ space.
 
-Owned by the create-docs skill. Stdlib-only; prints exactly one JSON object to
-stdout per invocation.
+Owned by the create-pages skill (mount mode). Stdlib-only; prints exactly one JSON
+object to stdout per invocation.
 
 docs/ is both the Hugo project root and the single content source: every content
 path is *mounted* into Hugo (module mounts), never copied, so the Markdown tree

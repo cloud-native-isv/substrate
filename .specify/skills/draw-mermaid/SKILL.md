@@ -188,8 +188,7 @@ content from the user.
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** Read `should_prompt` from the `record` output
    (or run `--action status`). When it is `true`, surface a **single** consolidated
-   notification inviting the user to submit collected feedback to the Spec Kit developers;
-   on user confirmation run `--action mark-submitted`. Below threshold, do NOT prompt.
+   non-blocking notification inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); the wrap-up MUST NOT pause for the choice and MUST NOT trigger any automated transmission (silence = skip). Below threshold, do NOT prompt.
    The detailed prompt semantics (package → manual send → mark-submitted, plus the
    skip / silence options) live in the canonical protocol:
    `.specify/shared/workflow/feedback-step.md` § *Threshold prompt protocol*.

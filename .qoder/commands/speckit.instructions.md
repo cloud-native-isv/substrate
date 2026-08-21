@@ -1,3 +1,6 @@
+---
+description: 生成或更新项目指令文件与各工具兼容符号链接
+---
 <!-- AUTO-GENERATED from templates/commands/instructions.md — do not edit; edit the source template, then run scripts/python/regen-command-copies.py -->
 ## User Input
 
@@ -73,7 +76,7 @@ Ensure the single project-wide glossary exists and seed it with observed domain 
 
 - The setup script creates `.specify/memory/glossary.md` from `.specify/templates/glossary-template.md` **only if absent** (non-destructive — never overwrite or discard an existing glossary; user-authored entries are authoritative).
 - Propose **project-specific** terms observed from the constitution, `features.md`, feature names, and high-frequency documentation phrases as `origin=auto`, `status=proposed`. **Exclude common everyday words.**
-- Record proposals via `python3 .specify/scripts/python/glossary-utils.py --action add --canonical "<T>" --meaning "<M>" --origin auto --status proposed`, routing any detected conflict through explicit user confirmation before writing.
+- Record proposals via `python3 .specify/scripts/python/glossary-utils.py --action add --canonical "<T>" --meaning "<M>" --origin auto --status proposed`, writing non-conflicting terms directly (non-blocking, merged into the wrap-up report); only conflicts or overwrites of user entries go through user resolution before writing.
 - Confirm the generated `.specify/instructions.md` Documentation Map includes the **Glossary** row so the glossary is ambient for every command.
 
 ## Error Handling
@@ -121,7 +124,7 @@ Fallback behavior:
    - Inspect configuration files (`pyproject.toml`, `package.json`, `pom.xml`, `Makefile`, etc.) to determine the tech stack.
    - Check `.specify/memory/constitution.md` (if exists) to identify any mandated project rules.
    - Check `.specify/memory/features.md` (if exists) for feature status reference.
-   - **Recall prior project memory** (native `memory-recall` skill): retrieve recorded conventions, user preferences, durable decisions, and prior-run outcomes from `.specify/memory/session/` and `.specify/memory/knowledge/` (suggested queries: `convention`, `preference`, `decision`, `instructions`, plus project-specific terms observed above). Treat recalled entries as hand-authored / non-derivable inputs to Action 5 — they are must-keep knowledge on par with content recovered from backups (e.g., a recorded workflow convention belongs in `## Recurring Operational Lessons` or the relevant workflow section). Never contradict a recalled user decision without explicit user confirmation.
+   - **Recall prior project memory** (native `memory-recall` skill): retrieve recorded conventions, user preferences, durable decisions, and prior-run outcomes from `.specify/memory/session/` and `.specify/memory/knowledge/` (suggested queries: `convention`, `preference`, `decision`, `instructions`, plus project-specific terms observed above). Treat recalled entries as hand-authored / non-derivable inputs to Action 5 — they are must-keep knowledge on par with content recovered from backups (e.g., a recorded workflow convention belongs in `## Recurring Operational Lessons` or the relevant workflow section). Never contradict a recalled user decision — pause and ask the user first (user-decision protection, kept).
    - **Check `.specify/` Directory**: When referencing the `.specify/` directory (if exists), **ONLY** consider the one in the **project root** (same level as `README.md`/`pyproject.toml`). Ignore any `.specify/` directories found inside subdirectories or submodules (as they belong to other projects).
 
 5. **Section-by-section refresh** (the diff-and-converge pass — operate directly on the base file; a newly created file starts empty-of-user-content, so its sections are simply filled in):
@@ -170,7 +173,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
 

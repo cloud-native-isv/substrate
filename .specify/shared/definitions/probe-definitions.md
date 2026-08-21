@@ -24,12 +24,20 @@
 | command-wrapup | internal | 命令单次运行的回顾与 ≥1 条单元级优化点 | commands | record→threshold→package→manual→mark-submitted | wrap-up |
 | skill-wrapup | internal | 技能单次运行的回顾与 ≥1 条单元级优化点 | skills | record→threshold→package→manual→mark-submitted | wrap-up |
 | external-custom | external | 宿主项目自定义单元运行的回顾与优化点 | host-custom | record→local-consumption(不上送) | wrap-up |
+| command-gate | internal | 保留确认点触发后的用户决定观察事实(门控必要性证据) | commands | record→threshold→package→manual→mark-submitted | confirm-gate |
+| skill-gate | internal | 保留确认点触发后的用户决定观察事实(门控必要性证据) | skills | record→threshold→package→manual→mark-submitted | confirm-gate |
 
 ## Objects
 
 > 既有 49 个隐式埋点(31 skills + 18 复杂命令 wrap-up)与嵌入点清单一一对应
 > (SC-001 对账基准);`/speckit.feedback` 命令自身的第 50 个 Object 随命令模板
 > 落地同变更登记(见 contracts/probe-registry.md C-3.4)。
+>
+> 51–70 行为 044 Phase 7 的门控必要性 probe(insertion_type=confirm-gate):
+> 每个非 intrinsic 保留确认点一个 Object,锚点是点位的单行 probe 指针
+> (非 `## Feedback` 嵌入),故不参与 wrap-up embed 对账;unit 为确定性归属单元,
+> 实际触发单元记在条目正文 `fired_during` 字段。行序即解析优先级:wrap-up 行
+> 在前,保证无 lifecycle_point 的 record 调用行为不变。
 
 | object_id | class_id | unit | lifecycle_point |
 |-----------|----------|------|-----------------|
@@ -46,6 +54,7 @@
 | speckit-requirements-wrapup | command-wrapup | /speckit.requirements | wrap-up |
 | speckit-research-wrapup | command-wrapup | /speckit.research | wrap-up |
 | speckit-review-wrapup | command-wrapup | /speckit.review | wrap-up |
+| speckit-sanitize-wrapup | command-wrapup | /speckit.sanitize | wrap-up |
 | speckit-session-wrapup | command-wrapup | /speckit.session | wrap-up |
 | speckit-skills-wrapup | command-wrapup | /speckit.skills | wrap-up |
 | speckit-tasks-wrapup | command-wrapup | /speckit.tasks | wrap-up |
@@ -83,6 +92,27 @@
 | skill-summarize-project-wrapup | skill-wrapup | skill:summarize-project | wrap-up |
 | skill-think-skills-wrapup | skill-wrapup | skill:think-skills | wrap-up |
 | speckit-feedback-wrapup | command-wrapup | /speckit.feedback | wrap-up |
+| gate-feature-status-regression | command-gate | /speckit.feature | gate-feature-status-regression |
+| gate-implement-checklist-waiver | command-gate | /speckit.implement | gate-implement-checklist-waiver |
+| gate-sanitize-destructive-cleanup | command-gate | /speckit.sanitize | gate-sanitize-destructive-cleanup |
+| gate-session-export-overwrite | command-gate | /speckit.session | gate-session-export-overwrite |
+| gate-tools-invoke-entry | command-gate | /speckit.tools | gate-tools-invoke-entry |
+| gate-tools-invoke-mode | command-gate | /speckit.tools | gate-tools-invoke-mode |
+| gate-tools-invoke-rule | command-gate | /speckit.tools | gate-tools-invoke-rule |
+| gate-tools-invoke-prompt | command-gate | /speckit.tools | gate-tools-invoke-prompt |
+| gate-rubric-high-stakes | command-gate | /speckit.instructions | gate-rubric-high-stakes |
+| gate-glossary-user-entry-overwrite | command-gate | /speckit.instructions | gate-glossary-user-entry-overwrite |
+| gate-create-docs-tiered-disposition | skill-gate | skill:create-docs | gate-create-docs-tiered-disposition |
+| gate-create-docs-write-plan | skill-gate | skill:create-docs | gate-create-docs-write-plan |
+| gate-create-team-presence-loop | skill-gate | skill:create-team | gate-create-team-presence-loop |
+| gate-create-team-noninteractive-call | skill-gate | skill:create-team | gate-create-team-noninteractive-call |
+| gate-create-tools-no-execute | skill-gate | skill:create-tools | gate-create-tools-no-execute |
+| gate-git-workflow-tiered-mode | skill-gate | skill:git-workflow | gate-git-workflow-tiered-mode |
+| gate-git-workflow-remote-ops | skill-gate | skill:git-workflow | gate-git-workflow-remote-ops |
+| gate-improve-tools-no-test-invoke | skill-gate | skill:improve-tools | gate-improve-tools-no-test-invoke |
+| gate-summarize-project-four-gates | skill-gate | skill:summarize-project | gate-summarize-project-four-gates |
+| gate-summarize-project-structure-freeze | skill-gate | skill:summarize-project | gate-summarize-project-structure-freeze |
+| gate-summarize-project-degraded-gates | skill-gate | skill:summarize-project | gate-summarize-project-degraded-gates |
 
 ## External Probe 登记契约
 

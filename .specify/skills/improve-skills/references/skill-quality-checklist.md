@@ -19,6 +19,8 @@ Use this checklist when improving a Skill after a real execution. The focus is e
 - Each issue has a likely cause in the current Skill instructions or resources.
 - Each issue has a desired next-run behavior.
 - Issues are grouped by failure mode: trigger/discovery, scope inference, missing context, wrong tool choice, unsafe step, unclear output, validation gap, constraint non-compliance, or resource/reference issue.
+- Before any observation is labeled a pitfall or recorded into memory / agent guides / references, it passes the misuse-vs-pitfall reflection gate (expected behavior under a wrong method is not a pitfall; see loop-playbook `### Misuse-vs-pitfall reflection gate`).
+- Wrong-method observations are fixed as explicit method-selection decision branches (intent → correct tool/flag/entry point), optionally with a one-line misuse guard — never as pitfall entries blaming the tool for its designed behavior.
 - One-off environment noise is excluded unless the Skill should handle it in future runs; successful fallback warnings are tracked as validation notes, not root causes.
 
 ## Constraint Placement and Compliance

@@ -1,7 +1,8 @@
 # Hugo Presentation Layer
 
-How the documentation space is published as a static site. Loaded on demand — `SKILL.md`
-carries only the dispatch.
+Stage 2 of `create-pages`: how the docs directory becomes a Hugo project and renders **in
+place** (`scripts/scaffold-hugo.py`). Optional — a documentation space is complete and valid
+without it. Loaded on demand — `SKILL.md` carries only the dispatch.
 
 ## Ownership model
 
@@ -19,8 +20,9 @@ rather than copied, so the Markdown tree is never duplicated or rewritten.
 | `docs/public/` | Hugo | Build output. Never committed, never documentation. |
 
 Scaffold-owned directories (`layouts`, `static`, `public`, `resources`, `themes`,
-`archetypes`) are **not** documentation: the reconcile loop must not triage them as content,
-and they carry no `.md`, so `docs-utils.py --action validate` stays untouched by them.
+`archetypes`) are **not** documentation: a `create-docs` reconcile run must not triage them
+as content, and they carry no `.md`, so `docs-utils.py --action validate` stays untouched by
+them.
 
 ## Why mounts, and why `index.md` is remapped
 
@@ -91,11 +93,13 @@ alone), `overwritten` (only with `--force`), `mounts-synced`, `unmanaged` (the m
 markers are missing from `hugo.toml`; nothing was written). A repeat run on an unchanged tree
 reports `unchanged` for every path and writes nothing.
 
-## CI guidance
+## CI guidance (stage 3 input)
 
-No workflow file is generated — wire the build into whatever CI the project already uses. The
-step is the same everywhere: install Hugo extended, build with the deployment `baseURL`,
-publish `docs/public`. For GitHub Actions:
+Stage 3 owns hosting: `scaffold-ci.sh --platform aoneci` renders a real pipeline, and the
+`github` platform is a stub. The snippet below is the **starting point for that stub**, not a
+generated file — verify each action version against current GitHub documentation before
+turning it into a template. The build step itself is the same everywhere: install Hugo
+extended, build from `docs/`, publish `docs/public`.
 
 ```yaml
 - uses: peaceiris/actions-hugo@v3
@@ -125,6 +129,10 @@ broken content can add `--panicOnWarning`.
 | Raw HTML stripped from a page | `markup.goldmark.renderer.unsafe` disabled | Keep `unsafe = true` in `hugo.toml` |
 | Images 404 | Media directory added after scaffolding | Re-run `--action scaffold` to add the static mount |
 | `'assets' is a Hugo component name` | A docs directory shadows a Hugo component | Works (it is mounted explicitly); rename for clarity if convenient |
+| `<title>· Site</title>`, or blank link text in lists/nav | Layout used `.Title`/`.LinkTitle` directly; documents here carry no front matter, so both are empty | Render titles through `partials/title.html` (first `<h1>` fallback) |
+| `deprecated: module.mounts.excludeFiles` warning | The mount generator still emits `excludeFiles` (deprecated in Hugo v0.153.0 in favour of `files`) | Expected today; it still functions. Migrating needs the `files` semantics checked against current Hugo docs, because the `index.md` remap depends on the exclusion |
+| A layout fix from a newer skill version never appears | Any file differing from the shipped asset is classified user-edited and reported `kept` | Diff the file against the asset, then re-scaffold with `--force` — which also discards genuine local edits |
 
-Verified against `hugo v0.141.0+extended`. Module mounts require Hugo ≥ 0.56; the extended
-build is not required by this scaffold (no SCSS).
+Verified against `hugo v0.163.3+extended` (mount behaviour, title fallback, and the config-key
+deprecations) and earlier against `v0.141.0+extended` (render hooks, `uglyURLs` pitfall). Module
+mounts require Hugo ≥ 0.56; the extended build is not required by this scaffold (no SCSS).

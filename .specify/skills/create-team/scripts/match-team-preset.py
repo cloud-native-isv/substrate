@@ -64,6 +64,14 @@ def parse_frontmatter(text: str) -> dict:
         if re.match(r"^signals:\s*$", raw):
             in_signals = True
             continue
+        flow = re.match(r"^signals:\s*\[(.*)\]\s*$", raw)
+        if flow:
+            signals.extend(
+                item.strip().strip("\"'")
+                for item in flow.group(1).split(",")
+                if item.strip()
+            )
+            continue
         if in_signals:
             item = re.match(r"^\s+-\s+(.*\S)\s*$", raw)
             if item:

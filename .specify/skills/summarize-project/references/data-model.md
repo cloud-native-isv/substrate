@@ -26,6 +26,7 @@
 - **结构 B/C 同时是进度引擎的输入**：引擎直接读数据库（`scripts/progress-engine.py --db <交付目录>/data/project.db`），用 SQL 取数与聚合，算出状态、进度%、延期天数、聚合与甘特参数；表格里的状态/进度/逾期列一律**回填引擎输出**，不在文档或报告里手算（见 [consistency-rules.md](consistency-rules.md) §0.1）。
 - **数据库是派生产物**：落在**交付目录的 `data/` 子目录**（`<交付目录>/data/project.db`，与之并列的 `project-input.yaml` 是用户维护的表单——技能只读它），默认**每次运行由表单重建**（`project-db.py --load`）；用户希望基于历史库按最新信息演进时用 `project-db.py --update`（UPSERT + 变更摘要），并在 `## 元信息` 注明。本技能保持只读呈现定位，除交付目录外**绝不向目标项目写入任何持久化数据**，也**不改写表单内容**。
 - 结构在上下文中定稿后进入确认门禁；门禁通过即冻结，所有派生物（图表、叙述）必须与冻结的结构逐字一致。
+  > Gate probe: gate-summarize-project-structure-freeze — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 
 四个结构与全局约定：
 

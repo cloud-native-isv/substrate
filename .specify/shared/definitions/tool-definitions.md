@@ -121,6 +121,7 @@ Before executing any tool, display:
 Prompt: `Proceed with execution? (yes/no)`
 - Only execute if explicit `yes`
 - Do NOT modify parameters beyond what was previewed
+> Gate probe: gate-tools-invoke-prompt — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 - Record invocation session: tool_name, tool_id, resolved_command, result_status
 
 ## Output Requirements

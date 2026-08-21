@@ -19,7 +19,7 @@ Process `$ARGUMENTS` per the [User Input Protocol](.specify/shared/workflow/user
 Consult the project glossary (`.specify/memory/glossary.md`, ambient via the Documentation Map) and apply the protocol in `.specify/shared/workflow/glossary.md`:
 
 - **Before acting on the user input**, map any recorded homophone/confusable variant to its canonical term (correcting voice/dictated input); surface each correction so the user can override it, and defer to the user on ambiguous variants.
-- **At wrap-up**, propose any new project-specific terms (`origin=auto`, `status=proposed`), excluding common words; run conflict detection and obtain explicit user confirmation before writing. User-authored entries are authoritative.
+- **At wrap-up**, propose any new project-specific terms (`origin=auto`, `status=proposed`), excluding common words; run conflict detection; non-conflicting new terms MUST be written directly and merged into the wrap-up report (non-blocking); only writes that conflict with or overwrite an existing user entry MUST still pause for user confirmation. User-authored entries are authoritative.
 
 ## List Mode Workflow
 
@@ -104,7 +104,7 @@ Execute `.specify/scripts/python/search-todo.py --json` from repo root. The scri
 
 ### Step 3: Group and Organize Blocks
 
-**Recall prior memory first** (native `memory-recall` skill): search `.specify/memory/session/` and `.specify/memory/knowledge/` for prior TODO-run outcomes and durable preferences (suggested queries: `todo`, `convention`, `preference`, `decision`, `veto`), and list `.specify/memory/todo/` for parked ideas whose theme matches the current blocks. Apply recalled entries as non-derivable inputs below — e.g. a recorded user veto or deferral of a recurring block, a preferred grouping/batching convention, or a standing scope constraint. When a block clearly implements a parked idea, mark the parked record `promoted` (see Park Mode Step 4). Never contradict a recalled user decision without explicit user confirmation.
+**Recall prior memory first** (native `memory-recall` skill): search `.specify/memory/session/` and `.specify/memory/knowledge/` for prior TODO-run outcomes and durable preferences (suggested queries: `todo`, `convention`, `preference`, `decision`, `veto`), and list `.specify/memory/todo/` for parked ideas whose theme matches the current blocks. Apply recalled entries as non-derivable inputs below — e.g. a recorded user veto or deferral of a recurring block, a preferred grouping/batching convention, or a standing scope constraint. When a block clearly implements a parked idea, mark the parked record `promoted` (see Park Mode Step 4). Never contradict a recalled user decision — pause and ask the user first (user-decision protection, kept).
 
 For each valid block, create a **work item** with:
 1. **Source**: `source_file:opening_line` (link to origin)
@@ -122,7 +122,7 @@ Group work items by:
 If `total_blocks_found > 10`:
 - Split into batches of **at most 5 groups** per batch
 - Present each batch sequentially
-- Require explicit user confirmation before proceeding to next batch
+- Execute batches sequentially and automatically; present a per-batch completion report before starting the next batch (用户可在批间叫停,不设阻塞确认)——批次是用户明确请求执行的 TODO 计划,git 提供可逆性
 
 ### Step 5: Present Plan for Review
 
@@ -143,9 +143,9 @@ For each group/batch, present:
 - <any safety concerns from content analysis>
 ```
 
-### Step 6: Execute on Confirmation
+### Step 6: Execute
 
-After user confirms a batch:
+For each batch (auto-executed after its presentation):
 1. Execute tasks in the presented order
 2. After each task, verify the change is correct
 3. Report completion status per task
@@ -185,9 +185,9 @@ Rules:
 - Add a blank line before and after the block if not already present
 - Do NOT modify any content outside the inserted block
 
-### Step 4: Confirm
+### Step 4: Report
 
-Report:
+Report (执行报告:内容、产出、修改途径):
 - File modified: `<path>`
 - Block inserted at: line `<N>`
 - Block content preview
@@ -228,9 +228,9 @@ Rules:
 - Never overwrite an existing parked record; a re-parked variant gets its own file cross-referencing the original
 - Do NOT touch any other file, do NOT insert TODO blocks, do NOT start specs or code changes
 
-### Step 3: Confirm
+### Step 3: Report
 
-Report the record path, title, and a one-line preview of the body. State explicitly that the idea is parked, not scheduled.
+Report the record path, title, and a one-line preview of the body (执行报告:内容、产出、修改途径). State explicitly that the idea is parked, not scheduled.
 
 ### Step 4: Lifecycle Transitions (later runs)
 
@@ -276,7 +276,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
 

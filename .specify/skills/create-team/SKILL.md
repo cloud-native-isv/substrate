@@ -1,6 +1,6 @@
 ---
 name: create-team
-description: Create and run an agent team — organize multiple agents into a collaborative structure (parallel dispatch, serial chain, self-iterating iteration loop, or long-lived continuous operating loop), persist it as a reusable team, and execute it behind a preview→confirm gate. Use when the user mentions ["创建团队", "组织一个团队", "组建团队", "运行团队", "执行团队", "编排", "并行", "串行", "团队", "闭环", "迭代", "运营", "持续", "new team", "build a team", "run team", "pipeline", "parallel", "chain", "iteration", "continuous", "team loop", "多agent协作", "agent协同"]
+description: Create and run an agent team — organize multiple agents into a collaborative structure (parallel dispatch, serial chain, self-iterating iteration loop, or long-lived continuous operating loop), persist it as a reusable team, and execute it directly after a disclosed preview (reversible actions auto-execute per the confirmation-gates policy; continuous loops keep their tiered gates). Use when the user mentions ["创建团队", "组织一个团队", "组建团队", "运行团队", "执行团队", "编排", "并行", "串行", "团队", "闭环", "迭代", "运营", "持续", "new team", "build a team", "run team", "pipeline", "parallel", "chain", "iteration", "continuous", "team loop", "多agent协作", "agent协同"]
 skill_id: "<SKILL:.specify/skills/create-team/SKILL.md>"
 ---
 
@@ -8,7 +8,7 @@ skill_id: "<SKILL:.specify/skills/create-team/SKILL.md>"
 
 ## Goal
 
-Create and run an **agent team**: organize multiple Agents into a **collaborative structure** (parallel dispatch, serial chain, self-iterating iteration loop, or long-lived continuous operating loop), persist it as a reusable `.specify/teams/<slug>/team.md`, and **execute** it behind a preview→confirm gate. This skill owns both **defining** a team and **running** it, and is the single source of truth for the multi-agent Conceptual Model (see `references/conceptual-model.md`).
+Create and run an **agent team**: organize multiple Agents into a **collaborative structure** (parallel dispatch, serial chain, self-iterating iteration loop, or long-lived continuous operating loop), persist it as a reusable `.specify/teams/<slug>/team.md`, and **execute** it directly after a disclosed preview — 可逆动作自动执行(判据:`shared/guidelines/confirmation-gates.md`),持续循环类保留其分级门控。This skill owns both **defining** a team and **running** it, and is the single source of truth for the multi-agent Conceptual Model (see `references/conceptual-model.md`).
 
 ## Conceptual Model
 
@@ -24,24 +24,24 @@ Produce a team from a user **goal** and persist it as `.specify/teams/<slug>/tea
 
 **Goal-based branch (before step 1)**: when a token in the input exactly matches an archived goal slug — verified deterministically via `python3 scripts/python/goal-utils.py list --json`, never guessed — offer to enter the **goal-based create branch**: load the definition via `parse_goal`, present the four-element analysis (维度 / 判据覆盖 / 既有 Target / 可达成性 — advisory, the user adjudicates), then derive the team from the loaded goal. Dangling references stop with the verbatim prefix `goal 未定义:`; terminal goals (`achieved`/`abandoned`) are rejected. Full branch procedure: [`references/create-mode.md`](references/create-mode.md) → *Goal-based create branch*.
 
-1. **Establish the goal** — extract/confirm a verifiable goal from `$ARGUMENTS`/context.
+1. **Establish the goal** — extract/establish a verifiable goal from `$ARGUMENTS`/context.
 2. **Match presets** — run `${SKILL_HOME}/scripts/match-team-preset.py --goal "<text>"` and act on its `confidence`.
 3. **Select the pattern** — derive from the goal via the decision tree in [`references/patterns.md`](references/patterns.md).
 4. **Build the roster** — a Role × Stage × Type matrix; judge `Type` by operating object (`references/conceptual-model.md`).
 5. **Build the pattern config** — parallelism/territories, DAG/blockedBy, iteration thresholds, or continuous operating config.
-6. **Confirm and persist** — present goal + roster + pattern, then write `team.md`.
+6. **直接落盘并呈现** — **直接写入** `team.md`(不设阻塞式停等),随后呈现 goal + roster + pattern 与修改途径(`/speckit.team` modify / `improve-team`),按执行报告约定收尾。
 
 `goal_slug` identifies the **goal**, not the team slug; it is a different axis from `slug` (the team's identity). See `references/goal.md` and `references/summary-mapping.md`.
 
 ## Execution (run mode)
 
-`/speckit.team run <slug>` loads a persisted team and executes it behind the mandatory **preview → confirm → execute** gate. Full run discipline and shared protocols: [`references/execution-guide.md`](references/execution-guide.md).
+`/speckit.team run <slug>` loads a persisted team and executes it via the **preview → execute** sequence(预览即披露,呈现后直接执行;continuous 循环保留分级门控)。Full run discipline and shared protocols: [`references/execution-guide.md`](references/execution-guide.md).
 
 1. **Load** the team from `.specify/teams/<slug>/team.md`.
 2. **Restate the Goal** so execution is judged against it.
 3. **Render Static Structure** — roster as a Role × Stage × Type matrix.
 4. **Render Dynamic Structure** — pattern, settings, and execution flow.
-5. **Confirmation gate** — present goal + structures and require explicit confirmation before orchestrating per pattern.
+5. **Present & execute** — present goal + structures, then orchestrate per pattern directly(presentation is disclosure, not a blocking gate;事后修改经 modify / improve-team)。
 6. **Write the run report** — after every run, write a dated report to `.specify/teams/<slug>/runs/` per the Report contract below.
 
 ## Run Workspace, Reports & Output Discipline
@@ -161,7 +161,7 @@ All patterns share file-path-only handoffs, progress tracking, structured result
 |------|----------|
 | `${SKILL_HOME}/references/` | `conceptual-model.md`, `capacity-vs-responsibility.md`, `goal.md`, `optimization-goals.md`, `operating-loops.md`, `team-presets.md`, `summary-mapping.md`, `create-mode.md`, `patterns.md`, `execution-guide.md` |
 | `${SKILL_HOME}/templates/` | team-supervisor role template, the three EEI stage templates, the parallel/serial/triad orchestration templates, `agent-workflow-schema.md` |
-| `${SKILL_HOME}/templates/teams/` | Predefined team shapes: `workspace-cluster.md`, `artifact-optimizer.md`, `process-monitor.md` |
+| `${SKILL_HOME}/templates/teams/` | Predefined team shapes: `capability-arena.md` (skill/command/subagent 竞技场), `project-cluster.md` (跨项目协作集群) |
 | `${SKILL_HOME}/scripts/match-team-preset.py` | Deterministic preset matcher — returns ranked JSON with a `confidence` verdict |
 
 ## Agent-Specific Configuration
@@ -233,6 +233,6 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

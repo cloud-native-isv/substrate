@@ -214,3 +214,4 @@ tracked、append-only、JSON Lines。每行一个**条目状态事件**。只由
 ## 9. 调用方式
 
 被调技能默认有四道逐层交互确认门禁;团队触发是自动流程,故 MUST 以**非交互模式**调用,并在报告 `## 元信息` 标注该事实。装载用 `--load`(每次从台账重建)而非 `--update`:累积状态的权威在团队台账,不在派生数据库,故「删除交付目录后重跑得同一份总结」成立。
+> Gate probe: gate-create-team-noninteractive-call — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).

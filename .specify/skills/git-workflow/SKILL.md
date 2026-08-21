@@ -26,6 +26,7 @@ skill_id: "<SKILL:.specify/skills/git-workflow/SKILL.md>"
 **容忍带**：同步状态 `0 0`、`.gitexcludes` 内容语义等价、Git Workflow 块与实际分支名一致——均标记「已一致（容忍）」不触发收敛；仅 ahead/behind 分叉、分支缺失、排除路径仍被跟踪等实质偏离进入收敛建议。
 
 **分级确认门禁**（与模式文档对齐）：
+> Gate probe: gate-git-workflow-tiered-mode — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 
 | 动作类 | 门禁 |
 |--------|------|
@@ -143,6 +144,7 @@ skill_id: "<SKILL:.specify/skills/git-workflow/SKILL.md>"
 ### 定向收敛（Execute）— 执行工作流
 
 当`.specify/git-workflow.md` 的 Git Workflow 托管块已填写且用户传入了具体操作参数时进入：用户指令并入期望态，按下列预定义操作收敛，写远端/直接合入类动作遵循 Overview 的分级确认门禁。命令序列见 [execute-commands.md](./references/execute-commands.md)。
+> Gate probe: gate-git-workflow-remote-ops — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 
 #### 3.1 加载配置
 
@@ -263,6 +265,6 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

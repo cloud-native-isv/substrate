@@ -48,8 +48,8 @@ After a **new** Skill is created (skip on the `improve-skills` path), wire it in
 1. **Guard**: skip if the new Skill is non-declarable (reference-only/meta: `create-agent`, `improve-agent`, `create-skills`, `improve-skills`, `create-team`, `improve-team`). Normal user-created Skills proceed.
 2. **Analyze**: read the Meta Agent preset set from `.specify/agents/templates/` and the 7 Worker role capability templates from `skills/create-agent/templates/` (`requirements-analyst`, `system-designer`, `module-designer`, `test-engineer`, `qa-engineer`, `knowledge-manager`, `ux-analyst`). Judge each agent's role (Identity & Responsibilities) against the new Skill's capability + trigger keywords.
 3. **Match**: select the agents whose role operations the Skill covers and draft a one-line "when to use" per match. If none match, report "no role-relevant agents" and skip edits (no forced use).
-4. **Propose**: present a `| Agent | Skill | When to use |` table and wait for user confirmation before editing.
-5. **Apply** (on confirm): for each matched agent, edit BOTH `agents/<slug>.agent.md` and `.specify/agents/templates/<slug>.agent.md`:
+4. **Propose**: present a `| Agent | Skill | When to use |` table as disclosure (non-blocking).
+5. **Apply** (directly after the proposal is presented; edits are reversible via later edits): for each matched agent, edit BOTH `agents/<slug>.agent.md` and `.specify/agents/templates/<slug>.agent.md`:
    - Append the canonical Skill slug to the `skills:` frontmatter list (dedup; preserve order and all other keys).
    - Add a `| <skill> | <when-to-use> |` row to that agent's `## Skill Enablement` table.
 6. **Invariants**: use the canonical slug; it MUST resolve to an installed `.specify/skills/<slug>/SKILL.md`; never add a non-declarable slug; preserve all existing frontmatter. Generator templates (`agent-capacity-*-template.md`) are intentionally NOT updated (a later regeneration would drop the added Skill).
@@ -79,7 +79,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
 

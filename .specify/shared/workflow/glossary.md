@@ -50,6 +50,10 @@ The engine reports **structural** collisions (identical canonical; a variant alr
 a different canonical). Additionally apply prompt-side judgment for **phonetic/near-duplicate**
 and **same-term/different-meaning** clashes.
 
+Non-conflicting writes MUST proceed directly (non-blocking) and be merged into the flow's
+wrap-up report — only conflicts and overwrites of user-authored entries stop for user
+resolution (see below; criteria: `shared/guidelines/confirmation-gates.md`).
+
 - On any detected or plausible conflict, **present it** (candidate, colliding entries, kind)
   and obtain an **explicit user resolution** (`keep-existing` / `replace` / `merge-variant` /
   `add-distinct` / `defer`) **before writing**.
@@ -62,6 +66,7 @@ and **same-term/different-meaning** clashes.
 - `origin=user` entries are **authoritative**: automatic proposals MUST NOT overwrite them
   without explicit user confirmation. The engine refuses an `auto` write over a `user` entry
   unless `--confirmed-resolution` is given.
+  > Gate probe: gate-glossary-user-entry-overwrite — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 - User-authored entries are **preserved across regenerations** — instruction generation
   creates the glossary only if absent and never discards existing content.
 

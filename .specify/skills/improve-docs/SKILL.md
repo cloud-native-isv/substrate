@@ -9,7 +9,7 @@ skill_id: "<SKILL:.specify/skills/improve-docs/SKILL.md>"
 
 ## Goal
 
-Improve **one existing document** in the managed documentation space so the next reader succeeds where the last one failed: fix content that is wrong, stale, incomplete, unreadable, unlinkable, or unrenderable. This is the **content-quality** half of the docs pair; `create-docs` is the **structure** half.
+Improve **one existing document** in the managed documentation space so the next reader succeeds where the last one failed: fix content that is wrong, stale, incomplete, unreadable, unlinkable, or unrenderable. This is the **content-quality** member of the docs trio: `create-docs` owns the structure, `create-pages` owns the optional presentation layer.
 
 Edits are **section-level**: load the document, change only what the evidence justifies, verify, report. Never regenerate a document from an outline and never rewrite a page wholesale to "clean it up" — that discards accumulated, hard-won wording and silently drops facts.
 
@@ -20,11 +20,12 @@ Goal anchor (Constitution Principle XIII): this skill is a Better-Harness instru
 | Concern | Owner |
 |---------|-------|
 | Create a document that does not exist yet; bootstrap the space | `create-docs` |
-| Placement, naming, taxonomy, moves, archiving, index/registry structure, notes state transitions on disk, Hugo site layer | `create-docs` |
+| Placement, naming, taxonomy, moves, archiving, index/registry structure, notes state transitions on disk | `create-docs` |
+| Static-site presentation / publishing (Hugo project, layouts, mounts, build, CI) — optional | `create-pages` |
 | **Content** of a document that already exists and is already correctly placed | **this skill** |
-| Improving `create-docs` / `improve-docs` themselves (the skill bodies) | `improve-skills` |
+| Improving `create-docs` / `create-pages` / `improve-docs` themselves (the skill bodies) | `improve-skills` |
 
-If the evidence calls for a move, an archive, a rename, or a brand-new document, **stop and hand off to `create-docs`** with the specific request — do not perform it here, and say so in the report.
+If the evidence calls for a move, an archive, a rename, or a brand-new document, **stop and hand off to `create-docs`**; if it calls for site scaffolding, mount repair, or a publishing pipeline, hand off to `create-pages`. Do not perform either here — do the content fix that is yours and say so in the report.
 
 ## Input Contract
 
@@ -47,7 +48,7 @@ Prefer machine findings and quoted reader failures over impressions:
 python3 ${SKILL_WORKDIR}/.specify/scripts/python/docs-utils.py --action validate --root .   # broken links, oversize root entry, ADR gaps, notes frontmatter
 python3 ${SKILL_WORKDIR}/.specify/scripts/python/docs-utils.py --action scan --root .       # notes lifecycle state
 python3 ${SKILL_WORKDIR}/.specify/scripts/python/feedback-utils.py --action list --contains "<topic>"
-python3 ${SKILL_WORKDIR}/.specify/skills/create-docs/scripts/scaffold-hugo.py --action build --root .   # content that breaks rendering
+python3 ${SKILL_WORKDIR}/.specify/skills/create-pages/scripts/scaffold-hugo.py --action build --root .   # only if a site layer exists — content that breaks rendering
 ```
 
 Other admissible evidence: a `/speckit.review` finding, a `memory-recall` hit, a distilled `.specify/history/` lesson, a user correction in this session, or a **verified** staleness signal — a path, command, flag, count, or version the document asserts that no longer holds. Verify each such claim against the repository (does the path exist? does `--help` still list the flag?) and record what you checked.
@@ -118,9 +119,9 @@ Report: the document changed, the evidence behind each edit, class per edit, bef
 
 | Path | Contents |
 |------|----------|
-| `.specify/skills/create-docs/SKILL.md` | Desired-state baseline (taxonomy, reserved names, notes lifecycle, Hugo layer) — the structural authority this skill must not violate |
+| `.specify/skills/create-docs/SKILL.md` | Desired-state baseline (taxonomy, reserved names, notes lifecycle) — the structural authority this skill must not violate |
 | `.specify/scripts/python/docs-utils.py` | Deterministic findings: `validate`, `scan`, `fix-links`, `audit` |
-| `.specify/skills/create-docs/scripts/scaffold-hugo.py` | Site build check (`--action build`) for render defects |
+| `.specify/skills/create-pages/scripts/scaffold-hugo.py` | Site build check (`--action build`) for render defects — only when the optional site layer is installed |
 | `.specify/scripts/python/feedback-utils.py` | Recorded feedback digest (`--action list --contains`) |
 | `.specify/shared/patterns/reconcile-pattern.md` | Tolerance-band and anti-churn semantics shared with `create-docs` |
 
@@ -144,6 +145,6 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

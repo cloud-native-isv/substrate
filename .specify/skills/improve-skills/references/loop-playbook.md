@@ -7,7 +7,37 @@ Anchors are referenced from `SKILL.md` by step number.
 
 ---
 
-## Step 2 — Evidence collection detail
+## Step 2 — Implementation research detail
+
+调研发生在任何优化动作之前。目标不是"看一遍文件",而是建立足够的实现理解,让后续的
+keep/change/drop 决策有据可依。
+
+**读什么(全量,非抽样)**:
+
+- `SKILL.md` 全文——frontmatter(description 触发面)、Goal、Input Contract、Workflow 每步、
+  Hard Constraints、Resources 表;
+- `references/` 每个文件——哪些被 SKILL.md 指针引用、哪些是孤儿;
+- `scripts/` 每个脚本——`--help` 或注释头,确认声明的输入输出与 SKILL.md 的描述一致;
+- `assets/`(如存在)——模板/样例是否仍被引用;
+- 客观形状:`python3 ${SKILL_HOME}/scripts/skill-shape.py <SKILL.md>` 的判定与发现。
+
+**从实现自身视角评估优缺点**(超越规范符合性):
+
+- 承重机制——哪些步骤/规则真正防止了观察到的失败(保留并强化);
+- 死重——哪些章节每次运行都被跳过、哪些规则从未触发过任何决策(精简候选);
+- 决策泄漏——工作流在哪里把本该确定的判断推给了执行者自由发挥(结构化/脚本化候选);
+- 伪装的确定性——哪些散文段落其实是确定性逻辑(提取为脚本的候选);
+- 优化空间——结构(章节顺序/分层)、效率(可省略的读/写)、证据纪律(可机械化的检查)。
+
+**调研笔记**(三步即可,写进运行工作区或报告):优点清单 / 缺点清单 / 优化空间清单。
+每条缺点注明它伤害的是哪次真实执行或哪条用户要求——没有受害者的"缺点"是审美偏好,不是优化项。
+
+**反模式**:只对照规范清单打勾、把"看起来不规整"当成缺陷、在未读 references/scripts 的情况下
+断言优化空间——这三种都是 conformance theater,产出的编辑没有决策基础。
+
+---
+
+## Step 3 — Evidence collection detail
 
 ### Degenerate-evidence fallback
 
@@ -59,7 +89,7 @@ green.
 
 ---
 
-## Step 3 — Analysis detail
+## Step 4 — Analysis detail
 
 ### Fact-check gates before writing capability/data claims
 
@@ -95,6 +125,39 @@ capacity templates vs responsibility templates), the root cause is the **undocum
 boundary itself**, not any single failing step. The fix usually includes writing the boundary
 down in both skills.
 
+### Misuse-vs-pitfall reflection gate
+
+Many observations recorded as "pitfalls" are not tool pitfalls at all — the executor chose a
+wrong method from the start, and the tool behaved exactly as designed. Recording expected
+behavior as a pitfall pollutes the learning store (memory records, agent-guide Known-Pitfalls
+sections, skill references) with noise that encodes misuse as tool blame.
+
+**Run this gate before labeling an observation a pitfall, and before writing any
+pitfall/lesson into memory, an agent guide, or a reference:**
+
+1. Is the observed behavior described anywhere as the tool's intended/documented behavior
+   (`--help`, official docs, the tool's own contract)?
+2. Did a different supported method exist that would have produced the desired result
+   directly — i.e. was the problem the *method choice*, not the tool?
+3. Would the same "problem" recur for any competent user of the chosen method?
+
+- **Yes to 1–2** → this is **expected behavior under misuse**, not a pitfall. Do NOT record
+  it as a pitfall. Instead fix the *method-selection instructions*: add an explicit decision
+  branch mapping each intent to the correct method (which tool/flag/entry point to use for
+  which goal). Optionally record a one-line *misuse guard* ("X is not for Y; use Z") — never
+  a pitfall entry describing the expected behavior as surprising.
+- **No** → a genuine pitfall: undocumented, surprising, or version-drifting behavior. Record
+  it with symptom, scope, and workaround as usual.
+
+**Worked case** (doc-workspace tooling): an agent inserted structured content via
+`block insert --text`, observed that newlines/lists/headings were flattened, and recorded it
+as a new pitfall entry plus a memory record. Wrong framing — `--text` is designed to hold one
+plain text block; flattening is its expected behavior. The correct method existed from the
+start: headings via `--heading --level`, one block per list item, or a whole-document write
+via `doc create/update --content-file` (the only path that parses Markdown into
+heading/table/list blocks). The fix is a method-selection decision branch (intent → correct
+entry point), not a pitfall entry.
+
 ### Legacy path idioms
 
 Flag these as migration candidates and apply the Migration Mapping table from
@@ -126,7 +189,7 @@ the **runtime-mode gate** (`.specify/shared/workflow/runtime-mode.md`).
 
 ---
 
-## Step 4 — Codify deterministic logic; reserve natural language for judgment
+## Step 5 — Codify deterministic logic; reserve natural language for judgment
 
 Governing pattern: *deterministic logic → code, judgment logic → LLM.*
 
@@ -163,7 +226,35 @@ one-off trivial checks can stay inline.
 
 ---
 
-## Step 5 — Rename/removal downstream-wiring checklist
+## Step 6 — User-requirement pass detail
+
+用户传入的优化描述在规范优化**之后**获得独立的应用通过。这一步骤的存在理由是决策顺序:
+规范默认(精简偏好、结构习惯、风格约定)是从大量运行中蒸馏的*先验*,而用户要求是对
+*本次*意图的直接陈述——冲突时先验让位。
+
+**两级冲突分类**:
+
+- **默认级冲突**(用户要求 vs 内置优化默认)——用户要求胜出,直接实施。
+  例:用户要求"保留这段详细示例",而精简原则倾向移出 → 保留;用户要求"增加一个步骤",
+  而结构习惯倾向合并 → 增加。
+- **规范级冲突**(用户要求 vs 规范性义务)——不得静默服从,也不得静默拒绝。规范性义务包括:
+  本技能的 Hard Constraints、目标技能的契约测试强制节(如 C-002 的 Agent-Specific
+  Configuration 标题)、证据/红线纪律(Unobserved 不得生成缺陷等)、shape 门禁。
+  处置:向用户显式指出冲突点,给出**最接近的合规实现**(如"步骤可以增,但细节须落
+  references/ 以守住门禁"),由用户裁决。
+
+**执行纪律**:
+
+- 逐条核对用户要求:已满足(指出现状证据)/ 本次实施(指出编辑)/ 冲突(指出规范点与建议)。
+  不允许"整体看起来做了"而遗漏单条要求。
+- 用户要求的优先级是**决策顺序**,不是验证豁免:用户通过的编辑同样过步骤 8 的
+  shape 门禁、契约测试与压测。
+- 用户要求与证据冲突时(如用户基于过时印象要求修复已不存在的问题):陈述当前事实,
+  按用户意图的*目标*而非字面措辞实施,并在报告中说明偏差。
+
+---
+
+## Step 7 — Rename/removal downstream-wiring checklist
 
 When an improvement renames, consolidates, or removes a skill, the edit is not done until
 every downstream pointer moves with it. In this repo:
@@ -188,7 +279,7 @@ the old path land nowhere.
 
 ---
 
-## Step 6 — Zero-regression proof on a red suite
+## Step 8 — Zero-regression proof on a red suite
 
 When the test suite has pre-existing failures, "the same tests still fail" eyeballed from
 counts is not sufficient. Prove zero regression with a **failure-set diff**:
@@ -204,6 +295,10 @@ the working tree and immune to concurrent writers (a running continuous team wri
 
 If a combined validation command returns only partial output or omits later checks, rerun the
 missing checks individually before concluding validation passed.
+
+**Metadata validation detail**: when `skill_id` is added or corrected, ensure the directory
+name and frontmatter `name` agree and no other skill directory carries the same `name`
+(there is no registration table — see `.specify/skills.md`).
 
 ---
 

@@ -38,6 +38,7 @@
 - 「容忍带」（reconcile，跳过表面差异）≠「quality threshold/打分」（运营循环，cycle 验收）
 - 「audit log/residual report」（reconcile，每次调用）≠「STATE.md + post-run critique」（运营循环，跨 run 晋级证据）
 - 「分级确认门禁」（人在场）≠「成熟度 + kill-switch」（可无人值守）
+  > Gate probe: gate-create-team-presence-loop — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 - 「只归档不删除」（reconcile）≠「路径黑名单/约束文件」（运营循环）
 
 ## 1. 成熟度级别 L1 → L2 → L3（不可跳级）

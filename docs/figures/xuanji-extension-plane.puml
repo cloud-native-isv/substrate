@@ -1,0 +1,71 @@
+@startuml xuanji-extension-plane
+skinparam monochrome true
+skinparam shadowing false
+skinparam roundCorner 20
+skinparam dpi 300
+scale 4
+skinparam defaultFontSize 16
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam padding 8
+skinparam ArrowThickness 2
+skinparam BorderThickness 2
+skinparam svgDimensionStyle false
+skinparam svgLinkTarget _blank
+' === 统一字号 16px（PlantUML 各元素字号参数默认值各异，不跟随 defaultFontSize） ===
+skinparam titleFontSize 16
+skinparam captionFontSize 16
+skinparam noteFontSize 16
+skinparam stereotypeFontSize 16
+skinparam legendFontSize 16
+skinparam packageTitleFontSize 16
+skinparam sequenceMessageFontSize 16
+skinparam sequenceActorFontSize 16
+skinparam sequenceGroupTitleFontSize 16
+title xuanji 定制扩展面（E2B 协议面 + Wasm 沙箱类；注 = preflight 分支 M4 增量，未合入）
+skinparam componentStyle rectangle
+
+actor "E2B SDK\n(Python/JS，未改动)" as sdk
+
+package "E2B 协议面（xuanji 定制）" {
+  component "cmd/e2bgw\nE2B REST → ateapipb.Control 翻译\nHS256 API-Key（atespace claim = 租户边界）\n窄接口：6/16 Control RPC" as e2bgw
+  component "contrib/e2b-e2e\n验收基线：官方 SDK e2e / files 双协议\nsmolagents / MCP server / TLS relay" as e2e
+}
+
+package "Substrate 控制面（upstream 原样）" {
+  component "ate-api-server\nControl gRPC" as ateapi
+  database "Valkey" as valkey
+}
+
+package "Wasm 沙箱类（xuanji 接线 + 外部运行时）" {
+  component "CRD 枚举 wasm + VAP\n（每 arch 必须 python-wasm 资产）" as crd
+  component "atelet（upstream 原样）\n通用资产管道：python-wasm 内容寻址下载" as atelet
+  package "Worker Pod（sandboxClass=wasm）" {
+    component "ateom-wasmd\n（sandbox 仓 Rust 维护，外部镜像）\nwasmtime 实例 + WASI preopen" as wasmd
+  }
+}
+
+component "atenet router / atunnel\n数据面（actor 域名 + mTLS 隧道）" as router
+
+sdk --> e2bgw : "E2B REST\n/sandboxes*"
+e2bgw --> ateapi : "Create→Resume(boot) / Suspend\nResume / Get / List / Delete"
+ateapi --> valkey
+e2e ..> e2bgw : 验收（M4 已全链 PASS）
+crd ..> atelet : SandboxConfig 资产清单
+atelet --> wasmd : "unix socket gRPC（ateompb）\nRun / Checkpoint / Restore"
+e2bgw ..> router : "数据面（工作树：307 跳转占位）"
+router ..> wasmd : atunnel
+
+note bottom of e2bgw
+  preflight（gitlab/xuanji-wasm-preflight，未合入）：
+  真反向代理数据面（{port}-{id}.{domain} 主机名式）
+  网关侧 TTL→Suspend（缺省 300s）
+  contexts/snapshots 端点、trafficAccessToken
+  部署清单 + cert-manager PKI + ACK overlay
+end note
+
+note bottom of wasmd
+  worker 零 capability（preflight 收窄）；
+  wasm v1：仅 ColdBoot、
+  durableDir 上限待 rebase 后重定（upstream #787）
+end note
+@enduml

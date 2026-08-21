@@ -10,10 +10,10 @@ jobs:
       - uses: checkout
       - id: build-website
         run: |
-          if [ -d __DOCS_DIR__ ]; then bash __DOCS_DIR__/scripts/build-docs.sh; fi
-          mkdir -p dist
+          if [ -d __DOCS_DIR__ ]; then (cd __DOCS_DIR__ && hugo --minify); fi
+          mkdir -p __DOCS_DIR__/public
       - uses: deploy-pages
         inputs:
-          deploy-dir: dist/
+          deploy-dir: __DOCS_DIR__/public/
           production-branch: __BRANCH__
           site-name: __SITE_NAME__

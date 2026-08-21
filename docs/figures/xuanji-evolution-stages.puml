@@ -1,0 +1,58 @@
+@startuml xuanji-evolution-stages
+skinparam monochrome true
+skinparam shadowing false
+skinparam roundCorner 20
+skinparam dpi 300
+scale 4
+skinparam defaultFontSize 16
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam padding 8
+skinparam ArrowThickness 2
+skinparam BorderThickness 2
+skinparam svgDimensionStyle false
+skinparam svgLinkTarget _blank
+' === 统一字号 16px（PlantUML 各元素字号参数默认值各异，不跟随 defaultFontSize） ===
+skinparam titleFontSize 16
+skinparam captionFontSize 16
+skinparam noteFontSize 16
+skinparam stereotypeFontSize 16
+skinparam legendFontSize 16
+skinparam packageTitleFontSize 16
+skinparam sequenceMessageFontSize 16
+skinparam sequenceActorFontSize 16
+skinparam sequenceGroupTitleFontSize 16
+title Xuanji 三阶段演进路线（宪法 v1.2.0.1）
+
+[*] --> Stage1
+
+state "阶段 1 — Absorb（当前）" as Stage1 {
+  state "主线产出：文档 + 外部参考资料整理" as s1a
+  state "提案：ADR(Proposed) / Feature(Draft)" as s1b
+  state "探索性试点：cmd/e2bgw、wasm 沙箱类" as s1c
+}
+
+state "阶段 2 — Fuse" as Stage2 {
+  state "E2B 协议面 + Wasm 沙箱：试点 → 集成能力" as s2a
+  state "允许重写 upstream 实现；\n改动文件强制登记 xuanji.md" as s2b
+}
+
+state "阶段 3 — Independent Delivery" as Stage3 {
+  state "fork point：声明停止跟踪的 upstream commit" as s3a
+  state "main 冻结为历史参考，独立演进" as s3b
+}
+
+Stage1 --> Stage2 : 退出：upstream 核心概念已被准确文档化\n改动可陈述「改了什么、为什么」
+Stage2 --> Stage3 : 退出：能力已融合而非外挂\nrebase 成本可见地超过收益
+
+note right of Stage3
+  fork point 声明是宪法修正案：
+  记录 upstream commit + 日期 + 理由；
+  未声明前 Principle I 跟踪义务持续有效
+end note
+
+note left of Stage1
+  两条全程约束：
+  概念是临时的（不建兼容 shim）
+  功能优先于打磨（机械门禁除外）
+end note
+@enduml

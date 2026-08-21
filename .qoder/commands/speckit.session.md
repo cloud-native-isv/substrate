@@ -1,3 +1,6 @@
+---
+description: 将当前会话导出到用户命名的目录
+---
 <!-- AUTO-GENERATED from templates/commands/session.md — do not edit; edit the source template, then run scripts/python/regen-command-copies.py -->
 ## User Input
 
@@ -48,6 +51,7 @@ Unknown intent → report the capability list (only `export` today); do not gues
    - **规模**: the estimated record size when obtainable.
 
    Same-name conflict: if `.session-export/<name>/` already exists, refuse by default. Override (覆盖) only through an **interactive confirmation** inside this gate (the override clears the directory before rewriting, no leftovers). There is no bypass flag of any kind; in non-interactive contexts a same-name re-export fails and the user picks another name.
+   > Gate probe: gate-session-export-overwrite — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 
 4. **Execute via the engine** — never reimplement export logic here:
 
@@ -83,7 +87,7 @@ python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action
 ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 
-If the returned `should_prompt` is `true`, surface one consolidated submission prompt; on confirmation run `--action mark-submitted`.
+If the returned `should_prompt` is `true`, append one non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block wrap-up and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission).
 
 ## Documentation
 

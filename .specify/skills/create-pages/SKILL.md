@@ -1,113 +1,145 @@
 ---
 name: create-pages
 description: |
-  Set up Hugo-based documentation pages deployment: a code-hosting-platform CI
-  pipeline (parameterized per platform, default aoneci), Hugo site config,
-  layouts, and build script — all confined to a docs/ directory with zero
-  root-level contamination; build image and hosting platform are parameters.
-  Use when the user mentions ["setup pages", "hugo build", "deploy docs",
-  "create-pages", "documentation site", "文档构建", "页面部署", "CI配置"]
+  Publish a project's documentation as a static site — the optional presentation
+  layer on top of a documentation space, delivered as a three-stage pipeline:
+  local doc library (the docs directory) → Hugo-rendered static site
+  (docs/public) → pages service (local preview / aoneci / github). Content is
+  mounted, never copied, and everything the skill writes stays inside the docs
+  directory except the one CI file a hosting platform requires at the repository
+  root. Use when the user mentions ["setup pages", "hugo build", "hugo serve",
+  "deploy docs", "create-pages", "documentation site", "Hugo", "hugo site",
+  "static site", "hugo.toml", "site build", "publish docs", "gh-pages",
+  "aoneci", "文档构建", "页面部署", "CI配置", "静态网站", "文档站点", "文档网站",
+  "对外呈现", "发布文档", "本地预览"]
 skill_id: "<SKILL:.specify/skills/create-pages/SKILL.md>"
 ---
 
-# Create Pages — Hugo docs deployment setup
+# Create Pages — doc library → Hugo site → pages service
 
 ## Overview
 
-One deterministic scaffold creates the complete Hugo deployment infrastructure
-for a project's documentation: CI pipeline, site config, layouts, and build
-script. All artifacts live inside the docs directory; the project root stays
-clean, and deleting the docs directory never affects core logic or build flow.
+The **optional presentation layer** on top of a documentation space. Optional
+means a space is complete and valid without it: the library's structure belongs
+to `create-docs`, the content of a document belongs to `improve-docs`, and this
+skill only adds the machinery that renders and serves what they produce — it
+never rewrites documentation.
 
-Do NOT use this skill when the project already has a different front-end
-build pipeline, or when there is no documentation directory to serve.
+One pipeline, three stages, run in order. Each stage has exactly one owner and
+one output, so a failure is always attributable to a stage:
 
-## Core Principles (non-negotiable)
+| Stage | Question it answers | Output | Tooling |
+|-------|--------------------|--------|---------|
+| **1 — 本地文档库** | What content is published? | The docs directory (default `docs/`), pure Markdown | none of this skill's — read-only here |
+| **2 — Hugo 渲染** | How does Markdown become HTML? | The docs directory *is* a Hugo project; site builds to `<docs>/public` | `${SKILL_HOME}/scripts/scaffold-hugo.py` |
+| **3 — Pages 服务** | Who serves the HTML? | `local` preview, or a hosting platform's CI pipeline | `hugo serve` / `${SKILL_HOME}/scripts/scaffold-ci.sh` |
 
-1. **Isolation** — every Hugo artifact (config, layouts, build script) MUST
-   live inside the docs directory. Zero root-level contamination.
-2. **CI guard** — on every platform, the pipeline build step MUST be guarded
-   by a docs-directory existence check so docs removal is always safe.
-3. **Bundle transform** — the build MUST rename `index.md` → `_index.md` in a
-   staging copy before invoking Hugo; never rename inside the docs directory.
-4. **Raw HTML** — Hugo config MUST enable the unsafe goldmark renderer
-   (collected materials contain inline HTML).
-5. **Deterministic scaffolding** — file creation MUST go through
-   `${SKILL_HOME}/scripts/scaffold.sh`; never retype templates manually.
+Stage 3 targets — pick one, ask when the input does not say:
 
-Rationale for each principle: [`./references/design-rationale.md`](./references/design-rationale.md).
+| Target | What it is | Status |
+|--------|-----------|--------|
+| `local` | A web server on this machine (`hugo serve`), for preview | works wherever `hugo` is installed |
+| `aoneci` | The Alibaba-internal, GitLab-like hosting platform's pages service | implemented (`--platform aoneci`) |
+| `github` | GitHub Actions + GitHub Pages (`gh-pages`) | **not implemented** — writes nothing and warns; contract in `scripts/ci-templates/github/README.md` |
+
+`gitlab` means the open-source GitLab project and its hosting service. It is
+**not** a target here — do not treat `aoneci` as "gitlab", and do not accept
+`--platform gitlab` (the registry rejects it).
+
+Do NOT use this skill when the project already has a different front-end build
+pipeline, or when there is no documentation directory to serve.
 
 ## Workflow
 
-### Step 1 — Preflight
+Run the stages in order. A later stage never repairs an earlier one — it reports
+back. Verification for every stage: [`./references/verification.md`](./references/verification.md).
 
-Verify preconditions before scaffolding:
+### Stage 1 — 本地文档库 (read-only)
 
-- A docs directory with `.md` content exists (the six-type taxonomy from
-  `/speckit.docs` is supported but not required). If absent, stop and ask the
-  user whether to proceed anyway.
-- Check for pre-existing targets — the chosen platform's CI file (registry:
-  `${SKILL_HOME}/scripts/ci-templates/README.md`) and `<docs>/hugo.yaml`: if any
-  exist, confirm overwrite intent with the user before passing `--force`.
-- Local verification needs `docker` with the chosen Hugo image; if
-  unavailable, surface this and defer verification to CI.
+Establish what gets published, and nothing more:
 
-### Step 2 — Collect parameters (judgment)
+- Resolve the docs directory (default `docs/`, else `--docs-dir`). It must exist
+  and contain `.md` content; if it does not, stop and ask — do not scaffold a
+  site over an empty library.
+- The library is the **only** content source: every published page comes from a
+  file inside it. Content outside it (root `README.md`, a sibling directory) is
+  **excluded by default** and may be included only on an explicit user request,
+  recorded in the report along with the mechanism chosen.
+- Do not restructure, rename, or rewrite anything in the library. Placement and
+  taxonomy → `create-docs`; document content → `improve-docs`.
 
-Derive or ask for the scaffold parameters; do not guess silently:
+### Stage 2 — Hugo 渲染
 
-| Parameter | Flag | Default |
-|-----------|------|---------|
-| Deploy site name | `--site-name` | (required — ask or derive from repo name) |
-| Code-hosting platform | `--platform` | `aoneci` (registry: `${SKILL_HOME}/scripts/ci-templates/README.md`) |
-| Site title | `--title` | `<site-name> 文档` |
-| Production branch | `--branch` | `main` |
-| Hugo docker image | `--image` | `reg.docker.alibaba-inc.com/xuanji-images/hugo:latest` |
-| Docs directory | `--docs-dir` | `docs` |
-
-Parameter notes:
-
-- **`--image` is environment-specific.** The default image is only pullable
-  in the aoneci/internal environment. Outside it, ask the user for their
-  Hugo image (or a local `hugo` binary plan) before scaffolding.
-- **`--platform` drives only the CI file.** Hugo config, layouts, and build
-  script are platform-independent. Platforms without a template yet (e.g.
-  `github`) still scaffold everything else and report a warning naming the
-  manual-authoring contract (`scripts/ci-templates/<platform>/README.md`).
-
-### Step 3 — Scaffold (deterministic)
-
-Run the scaffold script from the project root with the collected parameters:
+Make the docs directory the **Hugo project root** and render it. Deterministic — the
+scaffold is a script, never hand-written HTML. Check for drift first, then
+scaffold; full command catalogue, ownership map, mount rationale and
+troubleshooting: [`./references/hugo-site.md`](./references/hugo-site.md).
 
 ```bash
-bash "${SKILL_HOME}/scripts/scaffold.sh" --site-name <name> \
-  [--platform <platform>] [--image <image>] [--title ...] [--branch ...] [--force]
+python3 "${SKILL_HOME}/scripts/scaffold-hugo.py" --action check --root .   # drift only, no writes
 ```
 
-Review the JSON summary it prints (`created` / `skipped` / `warnings`). Any
-`skipped` entry without a prior overwrite confirmation is a stop condition —
-report it to the user instead of forcing.
+Guarantees this stage provides and that you MUST NOT break:
 
-### Step 4 — Verify
+- **Mount, never copy** — no `.md` is duplicated, moved, or rewritten; no staged
+  copy of the tree, and `content/` never materializes on disk.
+- **`index.md` stays `index.md`** on disk; it is mounted as `_index.md` (branch
+  bundle) so sibling pages stay pages.
+- **Repo-native links keep working** — relative `.md` links and relative image
+  paths resolve through render hooks at build time; never rewrite links.
+- **Only the mount block is machine-owned** — everything else in `hugo.toml`,
+  and any layout or stylesheet the user edited, is reported `kept` (`--force`
+  overrides). A repeat run on an unchanged tree writes nothing.
+- **Build output is `<docs>/public`**, inside the library's directory — never a
+  repository-root `dist/`.
+- **No network, no theme dependency** — an absent `hugo` binary skips only the
+  build; the scaffold is still complete and that is not a failure.
 
-Follow [`./references/verification.md`](./references/verification.md): docker
-build test, output checks (page count, title extraction, no config leaked into
-`dist/`, no empty taxonomies), and the no-docs guard simulation. Report the
-results; do not claim success without a clean build.
+There is exactly **one** renderer. Do not add a second config, a staging copy,
+or a parallel build script for a particular hosting target.
 
-### Step 5 — Wrap-up
+### Stage 3 — Pages 服务
 
-Report the created files and verification outcome; suggest committing them.
-Then run the Feedback step below.
+Serve the rendered site. For `local`, nothing is scaffolded — run Hugo's own
+server from the docs directory (`hugo serve`, live reload) and report the URL.
+
+For a hosting platform, render its pipeline (one file, no Hugo artifacts):
+
+```bash
+bash "${SKILL_HOME}/scripts/scaffold-ci.sh" --site-name <name> [--platform aoneci|github] [--branch ...] [--image ...] [--force]
+```
+
+- **Preflight**: an existing CI file is skipped, not overwritten — confirm
+  overwrite intent with the user before passing `--force`. Review the JSON
+  summary (`created` / `skipped` / `warnings`); a `skipped` entry without a
+  prior confirmation is a stop condition.
+- **The rendered CI file is the only artifact outside the docs directory**,
+  because platforms discover pipelines at a fixed repository-root path. That is
+  the single sanctioned exception to stage 1's containment rule — never widen it.
+- **`--image` is environment-specific.** The default is pullable only in the
+  Alibaba-internal environment; outside it, ask for the user's Hugo image (or a
+  local-target plan) before scaffolding.
+- Platform without a template (`github` today) → nothing is written and a
+  warning names the manual-authoring contract. Report that honestly; do not
+  claim the target is wired.
+
+### Wrap-up
+
+Report per stage: the library that was published, the scaffolded/kept Hugo
+files, the stage-3 target with its verification outcome, and any content
+deliberately excluded. Suggest committing. Then run the Feedback step below.
 
 ## Resources
 
 | Path | Contents |
 |------|----------|
-| `${SKILL_HOME}/scripts/scaffold.sh` | Deterministic scaffolding of all deployment files (run with `--help`) |
-| `${SKILL_HOME}/scripts/ci-templates/` | Per-platform CI templates + registry/extension contract (`README.md`); `aoneci/` implemented, `github/` structural stub |
-| `${SKILL_HOME}/references/design-rationale.md` | Why behind each core principle (observed failures) |
-| `${SKILL_HOME}/references/verification.md` | Docker build verification and no-docs guard test |
+| `${SKILL_HOME}/scripts/scaffold-hugo.py` | **Stage 2**: deterministic mount-mode scaffolder (`scaffold` / `check` / `mounts` / `build`) — computes the module-mount block from the live docs tree, places layouts and stylesheet, never clobbers user-edited files. Stdlib-only, one JSON object per invocation |
+| `${SKILL_HOME}/assets/hugo/` | **Stage 2**: `hugo.toml.tmpl` (`{{SITE_TITLE}}` / `{{SITE_DESCRIPTION}}` / `{{MOUNTS}}`), `layouts/` (`_default/baseof,list,single`, `index.html`, `_markup/render-link,render-image`), `static/css/site.css`, `dotgitignore` → `<docs>/.gitignore` |
+| `${SKILL_HOME}/references/hugo-site.md` | **Stage 2**: ownership map, mount rationale (`index.md` → `_index.md`), link/image render hooks, publish scope, commands, local serve, CI guidance, troubleshooting |
+| `${SKILL_HOME}/scripts/scaffold-ci.sh` | **Stage 3**: renders one hosting platform's CI pipeline and nothing else (run with `--help`) |
+| `${SKILL_HOME}/scripts/ci-templates/` | **Stage 3**: per-platform pipeline templates + registry/extension contract (`README.md`); `aoneci/` implemented, `github/` structural stub |
+| `${SKILL_HOME}/references/design-rationale.md` | Why behind each stage boundary and guarantee (observed failures) |
+| `${SKILL_HOME}/references/verification.md` | Per-stage verification: render check, output checks, local serve, no-docs guard |
 
 ## Feedback
 
@@ -143,8 +175,7 @@ content from the user.
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 6. **Consolidated submission prompt.** Read `should_prompt` from the `record` output
    (or run `--action status`). When it is `true`, surface a **single** consolidated
-   notification inviting the user to submit collected feedback to the Spec Kit developers;
-   on user confirmation run `--action mark-submitted`. Below threshold, do NOT prompt.
+   non-blocking notification inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); the wrap-up MUST NOT pause for the choice and MUST NOT trigger any automated transmission (silence = skip). Below threshold, do NOT prompt.
    The detailed prompt semantics (package → manual send → mark-submitted, plus the
    skip / silence options) live in the canonical protocol:
    `.specify/shared/workflow/feedback-step.md` § *Threshold prompt protocol*.
@@ -155,4 +186,4 @@ skip recording OR record with `--partial` and a `## Review` that begins with
 
 **Nesting rule.** When a command invokes a skill (or a skill invokes a skill), each
 qualifying unit records feedback for **its own** scope only, keyed by its own
-`(unit_id, run_id)`. The same unit+run MUST NOT be recorded twice.
+`(unit_id, run_id)`.

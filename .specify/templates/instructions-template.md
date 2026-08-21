@@ -16,6 +16,7 @@ This project documentation is distributed across several key files. You MUST ref
 | **Development** | `CONTRIBUTING.md` | Setup and Guidelines | Setup, testing, and pull request guidelines |
 | **Readme** | `README.md` or `README` | basic information of project | {TODO} |
 | **Project Documents** | `docs/` | High-level architecture | Architecture and design documentation |
+| **Confirmation Gates** | `.specify/shared/guidelines/confirmation-gates.md` | Confirmation-gate governance criteria | Two-level taxonomy (destructive/irreversible → front-loaded confirmation; reversible → auto-execute + execution report), destructive list, governance-kept list, doubtful-strict rule, anti-backflow constraint |
 | [Other Doc] | [Path] | [Purpose] | [Summary] |
 
 > **Directive**: When answering questions or generating code, ALWAYS check the relevant document from the map above first.
@@ -52,7 +53,7 @@ LLM token usage efficiency is a framework-level quality attribute. The full disc
 
 Dogfooding — the people who build a product also rely on it in their real daily work, so a smooth **use → feedback → iterate** loop forms naturally — proves development-assistance capabilities the way self-hosting proves a compiler. Two loops already exist and add no new tools, steps, or storage:
 
-- **Loop A — feed framework usage upstream**: record real friction via `feedback-utils.py` (`--action record`); a threshold prompt invites (never forces) consolidated submission (`--action package`, manual delivery — **no automatic transmission** ever).
+- **Loop A — feed framework usage upstream**: record real friction via `feedback-utils.py` (`--action record`); a threshold prompt invites (never forces) consolidated submission (`/speckit.feedback package`, manual delivery — **no automatic transmission** ever).
 - **Loop B — run the same loop for your own product**: reuse the framework's feedback / memory / history / review / task-record capabilities; adoption advice is advisory, never a gate — avoid the anti-patterns *formalism*, *echo chamber*, *dead-letter feedback*, *over-idealization*.
 
 Operational steps, the capability table, and adoption advice: `.specify/shared/guidelines/dogfooding.md`.

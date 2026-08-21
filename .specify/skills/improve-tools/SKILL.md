@@ -46,6 +46,7 @@ The input is a description of the tool to improve. Interpret it as follows:
 
 - **Never regenerate from a template.** Field-level edits only; templates belong to `create-tools`.
 - **Never invoke the tool to "test" an improvement.** Verification is limited to checking that the source resolves. Actual execution goes through the `/speckit.tools` invoke mode's preview → confirm → execute gate.
+  > Gate probe: gate-improve-tools-no-test-invoke — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 - **Never silently promote to `Verified`.** Promotion is an explicit, validated decision reported to the user.
 - **Never weaken a behavioral rule without stated cause.** Rules are the record's safety surface; removing or loosening one requires the user's explicit instruction, recorded in the report.
 - **One record per invocation.** Improving several tools is several runs.
@@ -143,6 +144,6 @@ At the end of a substantial run of this skill, perform an agent self-reflection 
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.

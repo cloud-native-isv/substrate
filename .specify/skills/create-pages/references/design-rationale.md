@@ -1,81 +1,124 @@
 # Design Rationale — create-pages
 
-Why behind each core principle. Every item below was observed as a real failure
-during the original implementation run (docker builds against
-`reg.docker.alibaba-inc.com/xuanji-images/hugo:latest`, Hugo v0.163.2).
+Why each stage boundary and guarantee exists. Every item was observed as a real
+failure, not inferred. Observations marked *(v0.163.3)* were reproduced in this
+repository against Hugo v0.163.3 extended; the earlier ones come from the
+original implementation run (Hugo v0.163.2 in
+`reg.docker.alibaba-inc.com/xuanji-images/hugo:latest`).
 
-## 1. Isolation — everything inside `docs/`
+## Stage boundaries
+
+### Why three stages instead of one scaffold
+
+The first implementation fused rendering and hosting into a single script: one
+run wrote Hugo config, layouts, a build script, a CI pipeline, and a staging
+directory. Two consequences showed up immediately — a hosting change forced a
+re-run that also rewrote rendering artifacts, and the build script existed only
+to serve one CI pipeline's expectations (a repository-root `dist/`). Splitting
+content → rendering → hosting makes each failure attributable and lets a project
+change its hosting target without touching a single rendered file.
+
+### Why the docs directory is the only content source
 
 Upper-layer systems (framework detectors, IDE indexers, AI instruction
-generators, code-review heuristics) judge a project's type from its root
-files. A root-level `hugo.yaml` / `layouts/` makes a Go backend project look
-like a Hugo/docs project. Keeping all Hugo artifacts inside `docs/` preserves
-the project's true identity and makes the whole docs capability removable:
-`rm -rf docs/` must leave core logic and build flow untouched.
+generators, code-review heuristics) judge a project's type from its root files.
+A root-level `hugo.toml` / `layouts/` makes a Go backend project look like a
+Hugo docs project. Keeping every artifact inside the docs directory preserves
+the project's true identity and makes the capability removable: deleting the
+docs directory must leave core logic and build flow untouched.
 
-## 2. CI guard — `if [ -d docs ]`
+The one sanctioned exception is the platform CI file. Hosting platforms discover
+pipelines at a fixed repository-root path (`.aoneci/`, `.github/workflows/`), so
+it physically cannot live in the docs directory. It is one file, it is named in
+the report, and nothing else joins it.
 
-The deploy pipeline triggers on every push. Without the guard, deleting
-`docs/` fails the build step (`bash docs/scripts/build-docs.sh`: file not
-found). The guard makes the step a no-op; the follow-up `mkdir -p dist`
-guarantees the deploy step always finds its `deploy-dir`.
+### Why one renderer, not one per hosting target
 
-## 3. `index.md` → `_index.md` transform
+The retired second renderer copied the whole Markdown tree into
+`docs/.hugo-content/`, renamed files inside the copy, and published a
+repository-root `dist/`. It worked, but it duplicated every document (two
+sources of truth during a build), needed a root `.gitignore` entry, and wrote
+outside the docs directory. Mount-based rendering achieves the same result with
+zero duplication, so the staging renderer had no remaining justification.
 
-Hugo bundle semantics:
+## Rendering guarantees
 
-- `index.md` in a directory = **leaf bundle** — sibling `.md` files in the
-  same directory are NOT rendered as pages.
-- `_index.md` = **branch bundle / section page** — siblings render normally.
+### `index.md` stays `index.md`; the mount remaps it
 
-The docs taxonomy uses `index.md` as each type directory's index. Without the
-transform, a build "succeeds" but silently drops every individual document
-page: observed 18 output files instead of 39 (only the index pages rendered).
-The transform happens in a staging copy (`.hugo-content/`), never in `docs/`
-itself, so the docs convention (`index.md`) stays intact.
+Hugo bundle semantics: `index.md` in a directory is a **leaf bundle** — sibling
+`.md` files in that directory are not rendered as pages. `_index.md` is a
+**branch bundle** and siblings render normally. The docs taxonomy uses
+`index.md` as each type directory's index, so a naive build silently drops
+individual document pages: 18 output files instead of 39 (only index pages).
+The mount block therefore maps each `<dir>/index.md` to
+`content/<dir>/_index.md` and excludes it from the directory mount. The file on
+disk keeps the name the docs convention requires.
 
-## 4. Staging exclusions
+### Scaffold-owned directories are never mounted as content
 
-The staging copy must exclude `layouts/`, `scripts/`, `hugo.yaml`, and
-`.hugo-content` itself:
+`layouts/index.html` reachable as content makes Hugo try to build a page from
+it and abort with a security-policy error (`"text/html" is not whitelisted`);
+a config file reachable as content gets copied into the output and published.
+The mount computation therefore treats `layouts`, `static`, `public`,
+`resources`, `themes`, `archetypes` as scaffold-owned, never as content — the
+same list a `create-docs` reconcile run must skip when triaging.
 
-- `layouts/index.html` inside the content dir → Hugo tries to create a page
-  from it and aborts with a security-policy error
-  (`"text/html" is not whitelisted`).
-- `hugo.yaml` inside the content dir → silently copied into `dist/` and
-  deployed.
-- `--exclude=hugo.yaml` in `tar` matches the file at any depth; this is
-  intentional (no doc is ever named `hugo.yaml`).
+### Title fallback partial *(v0.163.3)*
 
-## 5. Raw HTML safety — `unsafe: true`
+Documents here carry no YAML front matter, and Hugo returns an **empty**
+`.Title` for such pages. Observed before the fix: a page rendered
+`<title>· Spec Kit</title>`, and every list/nav entry built from `.LinkTitle`
+rendered as a blank link. `partials/title.html` falls back to the first `<h1>`
+of the rendered content — the document's authoritative title — then to a
+humanized filename. Verified after the fix: `Spec Driven Development · Demo
+Docs`, and non-empty link text on home, list, and nav.
 
-Collected external materials contain inline HTML (`<span style=...>` etc.).
-Goldmark's default renderer **omits** raw HTML (with a warning), causing
-content loss. `markup.goldmark.renderer.unsafe: true` renders it. Observed:
-137 `span style` occurrences preserved in one material after the fix.
+### Raw HTML safety — `unsafe = true`
 
-## 6. Clean output — `disableKinds: [taxonomy, term]`
+Documentation legitimately contains inline HTML (`<details>`, `<br>`, badges,
+`<span style=...>`). Goldmark's default renderer **omits** raw HTML with a
+warning, silently losing content; observed 137 `span style` occurrences
+preserved in one material after enabling it.
 
-Without it Hugo emits empty `categories/` and `tags/` index pages for a site
-that uses no taxonomies.
+### `relativeURLs = true`, `disableKinds`
 
-## 7. Title fallback partial
+Relative URLs keep the built site working under a hosting sub-path and when
+browsed straight off disk. `disableKinds = ["taxonomy", "term", "RSS"]` stops
+Hugo emitting empty `categories/`/`tags/` indexes and an unused feed for a site
+that uses none.
 
-Docs files carry metadata as an HTML blockquote line, not YAML front matter.
-Hugo (≥0.163, observed) returns an **empty** `.Title` for pages without front
-matter — verified: a bare `# Hello World` file produced `<title></title>`,
-while the same file with front matter worked. The `title.html` partial falls
-back to the first `<h1>` of the rendered content, which is the docs'
-authoritative title.
+### Config keys kept current *(v0.163.3)*
 
-## 8. `locale` instead of `languageCode`
+`languageCode` was deprecated in Hugo v0.158.0 in favour of `locale`, and
+`.Site.LanguageCode` in favour of `.Site.Language.Locale`; both emitted build
+warnings and are now fixed. **Still outstanding**: `module.mounts.excludeFiles`
+was deprecated in v0.153.0 and replaced by a `files` setting — the mount
+generator still emits `excludeFiles`, so builds print one deprecation warning.
+It functions on v0.163.3; migrating it requires checking the `files` semantics
+against current Hugo documentation, because the index remap depends on the
+exclusion behaviour.
 
-`languageCode` is deprecated since Hugo 0.158 (build warning); `locale` is the
-replacement.
+### Shipped-asset upgrades do not reach an existing site by themselves
 
-## 9. Output location
+The scaffolder classifies any file whose content differs from the shipped asset
+as user-edited and reports it `kept`. That protects real edits, but it also
+means a fixed layout in a newer skill version stays out of an already-scaffolded
+site until someone passes `--force` — which also discards genuine local edits.
+Diff before forcing.
 
-`hugo` is invoked with `--contentDir <staging>` and `--destination
-<project-root>/dist`. The config's `publishDir: dist` is only a fallback for
-manual runs from `docs/`; the CI deploy step expects `dist/` at the project
-root (`deploy-dir: dist/`).
+## Hosting guarantees
+
+### CI guard — `if [ -d <docs> ]`
+
+The pipeline triggers on every push. Without the guard, deleting the docs
+directory fails the build step (the directory the build `cd`s into is missing).
+The guard makes the step a no-op, and the follow-up unconditional
+`mkdir -p <docs>/public` guarantees the publish step always finds its
+`deploy-dir`.
+
+### Build from inside the docs directory
+
+`hugo.toml` lives in the docs directory, which is the Hugo project root. Running
+Hugo from the repository root picks up no config and produces an empty site, so
+every pipeline invokes `(cd <docs> && hugo --minify)` and publishes
+`<docs>/public`.

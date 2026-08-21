@@ -76,8 +76,9 @@ content from the user.
    `041`). Different number spaces — never overload one field with both.
 6. **Consolidated submission prompt.** Read `should_prompt` from the `record` output
    (or run `--action status`). When it is `true`, surface a **single** consolidated
-   notification inviting the user to submit collected feedback to the Spec Kit developers;
-   on user confirmation run `--action mark-submitted`. Below threshold, do NOT prompt.
+   non-blocking notification inviting submission (point the user to the
+   `/speckit.feedback package` command — the user-facing path; never paste the raw
+   `feedback-utils.py` engine call into the user-facing line); the wrap-up MUST NOT pause for the choice and MUST NOT trigger any automated transmission (silence = skip). Below threshold, do NOT prompt.
    The detailed prompt semantics (package → manual send → mark-submitted, plus the
    skip / silence options) live in the canonical protocol:
    `.specify/shared/workflow/feedback-step.md` § *Threshold prompt protocol*.
@@ -95,10 +96,17 @@ qualifying unit records feedback for **its own** scope only, keyed by its own
 
 ## Threshold prompt protocol (canonical semantics for step 6)
 
-When `should_prompt` is `true`, surface **one** prompt offering exactly three choices
-(embedded copies that still say only "invite the user to submit" defer to this section):
+When `should_prompt` is `true`, append **one non-blocking notification** to the wrap-up
+report offering exactly three choices — the wrap-up MUST NOT pause waiting for the
+user's choice; the choice is honored whenever the user responds (same turn or later),
+and silence counts as **Skip this time** (the notification reappears only after more
+entries accumulate). It MUST NOT trigger any automated transmission.
+Present the choices in user-facing terms: the notification references the
+`/speckit.feedback package` command, never the raw `feedback-utils.py` engine path.
+(Embedded copies that still say only "invite the user to submit" defer to this section):
 
-1. **Package for manual delivery** — run:
+1. **Package for manual delivery** — the user-facing path is `/speckit.feedback
+   package` (Mode 2 of the feedback command); when the user picks this choice, run:
    ```bash
    python3 .specify/scripts/python/feedback-utils.py --action package
    ```
@@ -115,11 +123,13 @@ When `should_prompt` is `true`, surface **one** prompt offering exactly three ch
    counter — every reset therefore leaves an auditable package artifact behind.
 2. **Skip this time** — do nothing; the prompt will naturally reappear only after more
    entries accumulate.
-3. **Stop prompting** — raise the threshold (`--threshold <N>` or
+3. **Stop prompting** — the agent raises the threshold (`--threshold <N>` or
    `SPECKIT_FEEDBACK_THRESHOLD`); feedback keeps recording but stops prompting.
 
-If the upstream repo cannot be detected, show
-`--action upstream --set <repo-url>` as a one-time setup step instead of guessing.
+If the upstream repo cannot be detected, offer one-time setup instead of guessing: on
+the user's confirmation, run
+`python3 .specify/scripts/python/feedback-utils.py --action upstream --set <repo-url>`
+(engine detail — do not paste the bare flag into the user-facing line).
 
 ## Workaround lookup (local value of the store)
 

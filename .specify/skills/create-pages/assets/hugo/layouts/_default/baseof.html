@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="{{ .Site.LanguageCode | default "en" }}">
+<html lang="{{ .Site.Language.Locale | default "en" }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} · {{ .Site.Title }}{{ end }}</title>
+<title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ partial "title.html" . }} · {{ .Site.Title }}{{ end }}</title>
 {{- with .Site.Params.description }}
 <meta name="description" content="{{ . }}">
 {{- end }}
@@ -14,7 +14,7 @@
   <a class="site-title" href="{{ .Site.Home.RelPermalink }}">{{ .Site.Title }}</a>
   <nav class="site-nav">
     {{- range .Site.Home.Sections.ByTitle }}
-    <a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>
+    <a href="{{ .RelPermalink }}">{{ partial "title.html" . }}</a>
     {{- end }}
   </nav>
 </header>

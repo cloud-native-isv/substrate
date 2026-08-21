@@ -1,3 +1,6 @@
+---
+description: 基于需求生成实现规划，产出 plan.md 设计产物
+---
 <!-- AUTO-GENERATED from templates/commands/plan.md — do not edit; edit the source template, then run scripts/python/regen-command-copies.py -->
 ## User Input
 
@@ -24,7 +27,7 @@ When processing the user input:
 Consult the project glossary (`.specify/memory/glossary.md`, ambient via the Documentation Map) and apply the protocol in `.specify/shared/workflow/glossary.md`:
 
 - **Before acting on the user input**, map any recorded homophone/confusable variant to its canonical term (correcting voice/dictated input); surface each correction so the user can override it, and defer to the user on ambiguous variants.
-- **At wrap-up**, propose any new project-specific terms (`origin=auto`, `status=proposed`), excluding common words; run conflict detection and obtain explicit user confirmation before writing. User-authored entries are authoritative.
+- **At wrap-up**, propose any new project-specific terms (`origin=auto`, `status=proposed`), excluding common words; run conflict detection; non-conflicting new terms MUST be written directly and merged into the wrap-up report (non-blocking); only writes that conflict with or overwrite an existing user entry MUST still pause for user confirmation. User-authored entries are authoritative.
 
 ## Outline
 
@@ -62,7 +65,7 @@ Consult the project glossary (`.specify/memory/glossary.md`, ambient via the Doc
      - **Summarize after, not before**: any Phase 1 summary written into plan.md (entity counts, contract counts, artifact lists) MUST be filled in AFTER the artifacts land on disk — pre-written counts routinely drift from the actual output and force a correction pass.
    - Re-evaluate Constitution Check post-design
 
-5. **Plan integrity gate + stop and report**: Before finishing, verify the filled IMPL_PLAN contains (a) **no** residual `[UPPER_SNAKE_CASE]` placeholder tokens, (b) **exactly one** top-level `# Implementation Plan:` heading (no duplicated template body appended), and (c) the `**Requirement → Feature**` stamp. Fix the file if any check fails. Then report branch, IMPL_PLAN path, and generated artifacts.
+5. **Plan integrity gate + stop and report**: Before finishing, verify the filled IMPL_PLAN contains (a) **no** residual `[UPPER_SNAKE_CASE]` placeholder tokens, (b) **exactly one** top-level `# Implementation Plan:` heading (no duplicated template body appended), and (c) the `**Requirement → Feature**` stamp. The template's self-referential **Note** line (the one mentioning `[PLACEHOLDER]` replacement) is REMOVED when filling — keeping it false-positives check (a). Fix the file if any check fails. Then report branch, IMPL_PLAN path, and generated artifacts.
 
 ## Feature Integration
 
@@ -161,7 +164,7 @@ At wrap-up (the same lifecycle point where this command prompts for a Git commit
      --review "<review prose>" --points-file "<points file>"
    ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** If the returned `should_prompt` is `true`, surface a single consolidated prompt inviting the user to submit collected feedback to the Spec Kit developers; on confirmation run `--action mark-submitted`. Below threshold, do not prompt.
+6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
 
 **Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
 

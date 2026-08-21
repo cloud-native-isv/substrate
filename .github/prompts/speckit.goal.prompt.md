@@ -17,11 +17,11 @@ Deterministic rules (identity grammar, three-part structure, lifecycle table, ch
 
 ## Glossary
 
-Consult `.specify/memory/glossary.md` and apply `.specify/shared/workflow/glossary.md`: map recorded homophone/confusable variants to canonical terms before acting, surfacing each correction. At wrap-up propose new project-specific terms (`origin=auto`, `status=proposed`) with user confirmation.
+Consult `.specify/memory/glossary.md` and apply `.specify/shared/workflow/glossary.md`: map recorded homophone/confusable variants to canonical terms before acting, surfacing each correction. At wrap-up propose new project-specific terms (`origin=auto`, `status=proposed`); non-conflicting terms are written directly and merged into the wrap-up report (non-blocking) — only conflicts/overwrites of user entries still pause.
 
 ## Modes
 
-Mode is inferred from `$ARGUMENTS` and **confirmed with the user before any write**. Ambiguous input resolves to `view`, which is read-only.
+Mode is inferred from `$ARGUMENTS`; the inferred mode is disclosed with every run, and execution proceeds directly (可逆动作自动执行,判据:`.specify/shared/guidelines/confirmation-gates.md`). Ambiguous input resolves to `view`, which is read-only.
 
 | Mode | Purpose | Writes |
 |------|---------|--------|
@@ -40,7 +40,7 @@ Mode is inferred from `$ARGUMENTS` and **confirmed with the user before any writ
 
 2. **Determine the mode** from `$ARGUMENTS`; state it back to the user.
 
-3. **Preview → confirm → execute.** Before any write, show: the mode, the target path, and the exact content to be written (or the diff for a modify). Proceed only on explicit confirmation. `view` skips the gate.
+3. **Preview → execute.** Before any write, show: the mode, the target path, and the exact content to be written (or the diff for a modify) — then write directly (preview is disclosure, not a blocking gate; 事后修改经 `/speckit.goal` modify). `view` stays read-only.
 
 4. **Execute via the engine** — never hand-write a definition file:
 
@@ -94,7 +94,7 @@ python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action
 ```
    Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
 
-If the returned `should_prompt` is `true`, surface one consolidated submission prompt; on confirmation run `--action mark-submitted`.
+If the returned `should_prompt` is `true`, append one non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block wrap-up and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission).
 
 ## Documentation
 

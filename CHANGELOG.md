@@ -12,6 +12,9 @@
   307 跳转）；验收资产 `contrib/e2b-e2e/`（官方 SDK e2e、files e2e、smolagents、MCP server、TLS relay）。
 - **Wasm 沙箱类**：`SandboxClass` 枚举新增 `wasm` 及 VAP 校验（每 arch 必须提供 `python-wasm`
   资产）；外部运行时 `ateom-wasmd`；示例 `manifests/xuanji/wasm-example.yaml`。
+- **演进研究**：`docs/reference/upstream-evolution-research.md`（upstream 演进研究，xuanji 演进支持）+
+  `docs/reference/xuanji-evolution-survey.md`（xuanji 分支演进调研）+ 配套三图
+  （演进路线/上游新能力落位/定制扩展面，`docs/figures/`）。
 
 ## 2026-08-05
 

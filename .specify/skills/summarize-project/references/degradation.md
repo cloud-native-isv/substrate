@@ -194,6 +194,7 @@
 **最小交付目录形态**：交付物仍是**一个目录**、契约不变（`summary.md` + `assets/` + `data/`，报告内相对路径引用），只是内容随材料量收缩——稀疏项目可能只有 `summary.md` + `assets/` 里一张 WBS 的三件套（图源 `wbs.puml` + 渲染产物 `wbs.svg`/`wbs.png`）+ `data/` 里的项目数据库与引擎输出（引擎照跑：稀疏输入下它给出的正是 `unknown-schedule`/空值等诚实终态与声明句）。一张图都出不了时 `assets/` 允许为空目录（或省略），但 `summary.md` 与 `data/` 的数据库与引擎输出必须在；**不得**为撑满目录而放入占位图片，也不得引用交付目录外的文件顶替。
 
 **门禁仍走**：概览/里程碑/WBS/甘特四道确认门禁不跳过；但退化章节向用户呈现的是"降级形态 + 材料声明"，用户确认的是"这些内容确实无材料、如实声明"，而非确认一份编造内容。里程碑/甘特门禁在完全缺失时呈现的即"本节不出图 + 声明句"。
+> Gate probe: gate-summarize-project-degraded-gates — after the user decision, record firing evidence per confirmation-gates.md §门控观察协议 (non-blocking).
 
 ---
 

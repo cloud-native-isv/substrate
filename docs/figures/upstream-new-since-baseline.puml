@@ -1,0 +1,69 @@
+@startuml upstream-new-since-baseline
+skinparam monochrome true
+skinparam shadowing false
+skinparam roundCorner 20
+skinparam dpi 300
+scale 4
+skinparam defaultFontSize 16
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam padding 8
+skinparam ArrowThickness 2
+skinparam BorderThickness 2
+skinparam svgDimensionStyle false
+skinparam svgLinkTarget _blank
+' === 统一字号 16px（PlantUML 各元素字号参数默认值各异，不跟随 defaultFontSize） ===
+skinparam titleFontSize 16
+skinparam captionFontSize 16
+skinparam noteFontSize 16
+skinparam stereotypeFontSize 16
+skinparam legendFontSize 16
+skinparam packageTitleFontSize 16
+skinparam sequenceMessageFontSize 16
+skinparam sequenceActorFontSize 16
+skinparam sequenceGroupTitleFontSize 16
+title upstream 基线后新能力落位（aa9b7b82 → origin/main，38 提交；【新】= 新增子系统）
+skinparam componentStyle rectangle
+
+package "控制面 ate-api-server" {
+  component "Control gRPC\nworkflow 重构为 typed ensure-steps (#797)\n快照 name/uri 语义 (#784)" as control
+  component "HA：EndpointSlice 发现 (#582)\nscheduler 指标 (#682)" as ha
+}
+
+package "atenet 网络栈（router 三包化：extproc mux / ingress / egress）" {
+  component "ingress：唤醒 / 停车 / 路由\ngraceful drain (#774)" as ingress
+  component "【新】egress 网关\nEnvoy dynamic-forward-proxy\n+ ext_proc 认证 sidecar\n(actor 证书 mTLS CONNECT)" as egress
+}
+
+package "Kubernetes 对象" {
+  component "【新】CSIDriverConfig CRD\ndriverName → controller/node 端点" as csicrd
+}
+
+package "每个节点" {
+  component "atelet\n【新】credentialbroker (unix socket)\n【新】本地 pause 快照修剪 (#705)\n【新】CSI NodeStage/NodePublish" as atelet
+  component "imagecache\n【新】驱逐引擎 (#735，未启用)" as imgcache
+  package "Worker Pod" {
+    component "ateom-gvisor\n【新】CDI GPU 直通 (#502)\n【新】GetWorkloadStats (#667)\nmulti durable-dirs (#787)" as ateom
+    component "atunnel\n【新】actor 证书代理 (#708)\npurpose=atunnel" as tunnel
+  }
+}
+
+actor "Actor 出站流量" as actorout
+cloud "外部目标 IP:port" as ext
+database "CSI driver\n(hostpath / NFS / 云盘)" as csi
+
+control --> ha
+ingress --> control : ResumeActor
+egress --> control : "GetActor 核对 UID/RUNNING\n(x-forwarded-client-cert 验链)"
+actorout --> tunnel : "nftables REDIRECT\n(透明拦截)"
+tunnel --> egress : "mTLS CONNECT\nactor 证书"
+egress --> ext : 隧道透传
+atelet --> ateom : unix socket gRPC
+atelet --> csi : 卷供给/挂载
+csicrd ..> atelet : 端点解析
+imgcache ..> atelet : 镜像层供给
+note bottom of egress
+  信任模型与 ingress 相反：
+  身份来自已验证证书而非 header；
+  无 CA 配置 fail-closed (503)
+end note
+@enduml

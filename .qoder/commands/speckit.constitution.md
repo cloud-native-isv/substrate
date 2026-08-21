@@ -1,3 +1,6 @@
+---
+description: 创建或更新项目宪法，并保持依赖模板同步
+---
 <!-- AUTO-GENERATED from templates/commands/constitution.md — do not edit; edit the source template, then run scripts/python/regen-command-copies.py -->
 ## User Input
 
