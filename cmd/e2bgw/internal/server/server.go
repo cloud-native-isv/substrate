@@ -104,6 +104,7 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("DELETE /sandboxes/{id}", s.auth(s.deleteSandbox))
 	s.mux.HandleFunc("POST /sandboxes/{id}/pause", s.auth(s.pauseSandbox))
 	s.mux.HandleFunc("POST /sandboxes/{id}/resume", s.auth(s.resumeSandbox))
+	s.mux.HandleFunc("POST /sandboxes/{id}/connect", s.auth(s.connectSandbox))
 	s.mux.HandleFunc("POST /sandboxes/{id}/timeout", s.auth(s.setTimeout))
 	s.mux.HandleFunc("GET /sandboxes/{id}/snapshots", s.auth(s.listSnapshots))
 	// Metrics have no source on the wasm class yet; answer an explicit 501
@@ -348,6 +349,42 @@ func (s *Server) resumeSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 	s.armTTL(ref.GetAtespace(), ref.GetName(), req.Timeout)
 	writeJSON(w, http.StatusOK, s.sandboxResponse(resp.GetActor(), resp.GetActor().GetActorTemplateName()))
+}
+
+// connectSandbox implements SDK 2.x Sandbox.connect()
+// (POST /sandboxes/{id}/connect): attach to an existing sandbox from another
+// client, resuming it first when it is suspended. Resume is attempted
+// unconditionally — FailedPrecondition means the actor is already running
+// (resume requires SUSPENDED), in which case the sandbox is returned as-is.
+// Either way the response mirrors create/resume so the SDK obtains a fresh
+// envdAccessToken for the data plane, and the idle TTL is re-armed (an
+// attaching client is activity by definition).
+func (s *Server) connectSandbox(w http.ResponseWriter, r *http.Request) {
+	// Optional body: {"timeout": seconds}; absence (or garbage) falls back
+	// to the E2B default, same contract as resume.
+	var req struct {
+		Timeout int64 `json:"timeout"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	ref := s.ref(r)
+	var actor *ateapipb.Actor
+	resp, err := s.cfg.Control.ResumeActor(r.Context(), &ateapipb.ResumeActorRequest{Actor: ref})
+	switch {
+	case err == nil:
+		actor = resp.GetActor()
+	case status.Code(err) == codes.FailedPrecondition:
+		got, gerr := s.cfg.Control.GetActor(r.Context(), &ateapipb.GetActorRequest{Actor: ref})
+		if gerr != nil {
+			writeGRPCErr(w, "GetActor", gerr)
+			return
+		}
+		actor = got
+	default:
+		writeGRPCErr(w, "ResumeActor", err)
+		return
+	}
+	s.armTTL(ref.GetAtespace(), ref.GetName(), req.Timeout)
+	writeJSON(w, http.StatusOK, s.sandboxResponse(actor, actor.GetActorTemplateName()))
 }
 
 // setTimeout implements the E2B timeout call: it re-arms the gateway-side

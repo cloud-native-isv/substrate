@@ -34,6 +34,7 @@ Migrated verbatim from the wasm-sandbox repository (`cloud-native-webassembly/sa
 | `e2b_tls_relay.py` | Local TLS :443 → gateway TCP relay | ✅ protocol-agnostic (point upstream at e2bgw :8080) |
 | `wildcard_dns_stub.py`, `gen_sslip_cert.sh` | Wildcard-domain plumbing | ✅ protocol-agnostic |
 | `test_files_api_e2e.py` | E2B files API end-to-end | ✅ host-based data plane wired — run as-is on cluster (M4 4.4) |
+| `migrate_sandbox.py` | Cross-tier migration: fresh sandbox on target template + full files relocation (verified) + retire old | ✅ public E2B surface only (create/files/kill); tiers in `manifests/xuanji/wasm-tiers-example.yaml` |
 | `run_smolagent.py` / `run_smolagent_interactive.py` | Real agent workload via E2B | ✅ via `sandbox_tools.py` (needs a pre-created sandbox) |
 | `e2b_mcp_server.py` | MCP server exposing the sandbox API | ⏳ M4 4.4 |
 | `demo_agent_cli.py`, `demo_forms.py` | Interactive demos | ⏳ M4 4.4 |
@@ -59,4 +60,6 @@ python3 test_files_api_e2e.py
 
 `E2B_TEMPLATE` must name an ActorTemplate in e2bgw's `--template-namespace`
 (default `ate-wasm`; `manifests/xuanji/wasm-example.yaml` provides
-`python-interpreter`).
+`python-interpreter`; `manifests/xuanji/wasm-tiers-example.yaml` adds the
+XL capacity tier `python-interpreter-xl` — move an existing sandbox across
+tiers with `migrate_sandbox.py <sandbox_id> --template python-interpreter-xl`).

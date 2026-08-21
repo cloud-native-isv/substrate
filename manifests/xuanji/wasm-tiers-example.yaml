@@ -1,0 +1,82 @@
+# Tiered capacity pools for the wasm sandbox class (xuanji branch).
+#
+# Additive companion to wasm-example.yaml: that file's wasm-pool (2Gi -> 5
+# kernels) + python-interpreter template act as the SMALL tier; this file adds
+# an XL tier. Tier selection is entirely upstream mechanics — ActorTemplate's
+# workerSelector gates scheduling to pools whose labels match (AND'd with the
+# SandboxClass hard gate), so an E2B client picks a capacity tier simply by
+# naming the matching template at create time:
+#
+#   Sandbox.create(template="python-interpreter")      -> 2Gi worker,  4 named contexts
+#   Sandbox.create(template="python-interpreter-xl")   -> 8Gi worker, 24 named contexts
+#
+# The kernel-pool capacity needs no per-tier configuration: ateom-wasmd
+# derives it from the pod's own cgroup memory limit
+# (kernels = clamp((limit - 512Mi) / 300Mi, 1, 64); final design §5.2/§7.3),
+# so the tiers differ only in template.resources. Existing sandboxes do not
+# resize in place (same as official E2B: the template is fixed at create);
+# to outgrow a tier, migrate files to a fresh XL sandbox —
+# contrib/e2b-e2e/migrate_sandbox.py implements that client-side.
+#
+# Deployment discipline (same as wasm-example.yaml): this file is a reference
+# template with an <ATEOM_WASMD_IMAGE> placeholder — do NOT kubectl-apply it
+# onto a live cluster; patch the live WorkerPool CRDs instead. The cluster-wide
+# SandboxConfig (wasm-default) from wasm-example.yaml covers both tiers.
+
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: wasm-pool-xl
+  namespace: ate-wasm
+  labels:
+    workload: wasm-python-xl
+spec:
+  # XL workers are ~4x the small tier's footprint; start minimal and scale
+  # replicas on demand (see demos/autoscaled-workerpool for an HPA driven by
+  # ate_workerpool_workers if automatic horizontal scaling is wanted).
+  replicas: 1
+  sandboxClass: wasm
+  ateomImage: <ATEOM_WASMD_IMAGE>
+  template:
+    resources:
+      # 8Gi -> clamp((8192 - 512) / 300, 1, 64) = 25 kernels
+      #      = default context + 24 named E2B contexts per actor.
+      # CPU: >= 2 is the hard floor (data-plane starvation, final design
+      # §7.3); parallel throughput across contexts tracks the limit, so the
+      # XL tier gets a wider band than the small tier's 2/4.
+      requests:
+        cpu: "4"
+        memory: 8Gi
+      limits:
+        cpu: "8"
+        memory: 8Gi
+
+---
+
+# XL-tier counterpart of python-interpreter (wasm-example.yaml): identical
+# runtime contract (same pause image pinning rationale, same readyz gate,
+# same snapshot location — snapshots are keyed per actor), differing only in
+# which pool the workerSelector admits.
+apiVersion: ate.dev/v1alpha1
+kind: ActorTemplate
+metadata:
+  name: python-interpreter-xl
+  namespace: ate-wasm
+spec:
+  sandboxClass: wasm
+  pauseImage: "registry-cn-hangzhou-vpc.ack.aliyuncs.com/acs/pause:3.10@sha256:0ca1162b75bf9fc55c4cac99a1ff06f7095c881d5c07acfa07c853e72225c36f"
+  containers:
+  - name: kernel
+    image: "registry-cn-hangzhou-vpc.ack.aliyuncs.com/acs/pause:3.10@sha256:0ca1162b75bf9fc55c4cac99a1ff06f7095c881d5c07acfa07c853e72225c36f"
+    command: ["python-kernel"]
+    readyz:
+      httpGet:
+        path: /readyz
+        port: 49983
+  workerSelector:
+    matchLabels:
+      workload: wasm-python-xl
+  snapshotsConfig:
+    onPause: Full
+    onCommit: Full
+    location: s3://ate-assets/snapshots/ate-wasm/

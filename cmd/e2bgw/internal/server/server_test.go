@@ -314,6 +314,56 @@ func TestCreateSandboxValidation(t *testing.T) {
 	}
 }
 
+// TestConnectSandbox pins the SDK 2.x Sandbox.connect() contract
+// (POST /sandboxes/{id}/connect): a suspended sandbox is resumed, a running
+// one is attached as-is (resume answers FailedPrecondition), and both paths
+// return sandbox info carrying a fresh envdAccessToken.
+func TestConnectSandbox(t *testing.T) {
+	t.Run("resumes a suspended sandbox", func(t *testing.T) {
+		f := &fakeControl{}
+		s := newTestServer(f)
+		w := do(t, s, "POST", "/sandboxes/sbx-1/connect", "", true)
+		if w.Code != http.StatusOK {
+			t.Fatalf("code = %d, body %s", w.Code, w.Body)
+		}
+		if len(f.resumed) != 1 {
+			t.Fatalf("resumed = %d, want 1", len(f.resumed))
+		}
+		var resp map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		if tok, _ := resp["envdAccessToken"].(string); tok == "" {
+			t.Errorf("envdAccessToken missing from connect response: %s", w.Body)
+		}
+	})
+
+	t.Run("attaches to a running sandbox as-is", func(t *testing.T) {
+		f := &fakeControl{resumeErr: status.Error(codes.FailedPrecondition, "already running")}
+		s := newTestServer(f)
+		w := do(t, s, "POST", "/sandboxes/sbx-1/connect", `{"timeout": 60}`, true)
+		if w.Code != http.StatusOK {
+			t.Fatalf("code = %d, body %s", w.Code, w.Body)
+		}
+		var resp map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatal(err)
+		}
+		if resp["sandboxID"] != "sbx-1" {
+			t.Errorf("sandboxID = %v", resp["sandboxID"])
+		}
+	})
+
+	t.Run("unknown sandbox answers 404", func(t *testing.T) {
+		f := &fakeControl{resumeErr: status.Error(codes.NotFound, "no such actor")}
+		s := newTestServer(f)
+		w := do(t, s, "POST", "/sandboxes/sbx-nope/connect", "", true)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("code = %d, want 404; body %s", w.Code, w.Body)
+		}
+	})
+}
+
 func TestLifecycleEndpoints(t *testing.T) {
 	f := &fakeControl{}
 	s := newTestServer(f)
