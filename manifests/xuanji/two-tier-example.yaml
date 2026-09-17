@@ -1,14 +1,15 @@
 # Example manifests for the two-tier sandbox model (ADR 0002, Proposed;
-# terminology unified with upstream substrate on 2026-09-17).
+# terminology unified with upstream substrate on 2026-09-17; supervisor semantics removed).
 #
 # TARGET SCHEMA SKETCH — fields marked (sketch) are not yet implemented;
 # they define the goal semantics for the follow-up feature. Legacy single-tier
 # wasm pools remain in wasm-example.yaml / wasm-tiers-example.yaml.
 #
-# Topology (two planes, ADR 0002, substrate vocabulary):
+# Topology (two planes, ADR 0002, substrate vocabulary — NO new SandboxClass enum):
 #   Tier-1 worker pod plane : Kubernetes + Substrate + Containerd + runc/rund;
-#                             worker pod = sandbox class `supervisor` (rund/kata),
-#                             pooled warm, hosts 1 RUNNING actor, returned to pool
+#                             worker pod = sandbox class `wasm` in kata form
+#                             (WorkerPool.runtimeClassName: rund), pooled warm,
+#                             hosts 1 RUNNING actor by default, returned to pool
 #                             on SuspendActor (K8s-ecosystem reuse, low-frequency
 #                             lifecycle + high stability, sleep/wake)
 #   Tier-2 workload plane   : e2b + 自研管控 + wasm workload inside the worker pod
@@ -18,48 +19,30 @@
 #                             Capability-based security)
 #
 # Before applying (once implemented), replace:
-#   - <ATEOM_SUPERVISOR_IMAGE>: pinned ateom (supervisor class herder) image (ACR EE @sha256:...)
+#   - <ATEOM_WASMD_IMAGE>: pinned ateom image (wasm class herder, evolved ateom-wasmd; ACR EE @sha256:...)
 #   - python-wasm asset url/sha256: object storage location of python-3.12.0.wasm
 
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: ate-supervisor
+  name: ate-wasm
 
 ---
 
-# Cluster-wide SandboxConfig for the supervisor class. Assets carry the wasm
-# workload runtime module — the worker pod image comes from WorkerPool.ateomImage.
-apiVersion: ate.dev/v1alpha1
-kind: SandboxConfig
-metadata:
-  name: supervisor-default
-spec:
-  sandboxClass: supervisor        # new top-level class (worker pod runtime: rund/kata)
-  default: true
-  assets:
-    amd64:
-      python-wasm:
-        url: "s3://ate-assets/wasm/python-3.12.0.wasm"
-        sha256: "0000000000000000000000000000000000000000000000000000000000000000"
-    arm64:
-      python-wasm:
-        url: "s3://ate-assets/wasm/python-3.12.0.wasm"
-        sha256: "0000000000000000000000000000000000000000000000000000000000000000"
-
----
-
-# Warm pool of unbound worker pods (kata containers), supervisor sandbox class.
+# Warm pool of unbound worker pods (kata containers), sandbox class `wasm`.
+# The wasm SandboxConfig (wasm-default, see wasm-example.yaml) stays in effect
+# — its python-wasm asset is the workload module consumed by the ateom herder
+# inside the kata worker pod; the pod image itself comes from ateomImage.
 apiVersion: ate.dev/v1alpha1
 kind: WorkerPool
 metadata:
-  name: supervisor-pool
-  namespace: ate-supervisor
+  name: wasm-pool-rund
+  namespace: ate-wasm
 spec:
   replicas: 3
-  sandboxClass: supervisor
-  ateomImage: <ATEOM_SUPERVISOR_IMAGE>   # ateom (supervisor class herder / wasm host): per-request context spawn/destroy + 出口代理 + capability 校验 + 审计流
-  runtimeClassName: rund                 # (sketch) kata/rund RuntimeClass on ACK
+  sandboxClass: wasm
+  ateomImage: <ATEOM_WASMD_IMAGE>        # ateom (wasm class herder / wasm host): per-request context spawn/destroy + 出口代理 + capability 校验 + 审计流
+  runtimeClassName: rund                 # (sketch, xuanji extension) kata/rund RuntimeClass on ACK; unset = legacy runc single-layer pool
   template:
     resources:
       requests: {cpu: "2000m", memory: "4Gi"}
@@ -73,10 +56,9 @@ apiVersion: ate.dev/v1alpha1
 kind: ActorTemplate
 metadata:
   name: python-session
-  namespace: ate-supervisor
+  namespace: ate-wasm
 spec:
-  sandboxClass: supervisor               # (sketch) upstream field, new enum value = tier-1 worker pod class
-  workloadRuntime: wasm                  # (sketch) nested wasm sandbox / workload runtime inside the worker pod
+  sandboxClass: wasm                     # upstream field, existing enum value — no schema change
   sessionConfigRef: session-python-default   # (sketch) platform-authoritative actor config, injected at ResumeActor
   egressPolicy:                          # (sketch) enforced by the ateom egress proxy (tier-2)
     defaultDeny: true

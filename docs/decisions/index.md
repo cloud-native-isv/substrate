@@ -5,4 +5,4 @@
 
 | 编号 | 标题 | 状态 | 日期 |
 |------|------|------|------|
-| [0002](0002-two-tier-supervisor-worker-sandbox.md) | 两层沙箱模型（substrate 词汇归一）：Tier-1 Worker Pod 面（Kubernetes+Substrate+Containerd+runc/rund，sandbox class supervisor，低频+高稳定+休眠唤醒）+ Tier-2 Actor 工作负载面（e2b+自研管控+wasm workload：高频创建/隔离/审计/Capability-based security） | Proposed | 2026-09-16 |
+| [0002](0002-two-tier-supervisor-worker-sandbox.md) | 两层沙箱模型（substrate 词汇归一，去 supervisor 语义）：Tier-1 Worker Pod 面（Kubernetes+Substrate+Containerd+runc/rund，sandbox class wasm 的 kata 形态，低频+高稳定+休眠唤醒）+ Tier-2 Actor 工作负载面（e2b+自研管控+wasm workload：高频创建/隔离/审计/Capability-based security）；不新增 SandboxClass enum | Proposed | 2026-09-16 |
