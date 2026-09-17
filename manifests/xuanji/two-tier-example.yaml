@@ -8,13 +8,23 @@
 # Topology (two planes, ADR 0002, substrate vocabulary — NO new SandboxClass enum):
 #   Tier-1 worker pod plane : Kubernetes + Substrate + Containerd + runc/rund;
 #                             worker pod = sandbox class `wasm` in kata form
-#                             (WorkerPool.runtimeClassName: rund), pooled warm,
-#                             hosts 1 RUNNING actor by default, returned to pool
-#                             on SuspendActor (K8s-ecosystem reuse, low-frequency
-#                             lifecycle + high stability, sleep/wake)
+#                             (WorkerPool.runtimeClassName: rund), a TENANT-level
+#                             business body (DE "employee" generalized to "tenant";
+#                             holds tenant identity/config/persistent volume),
+#                             pooled warm PER TENANT, hosts 1 RUNNING actor by
+#                             default, returned to pool on SuspendActor.
+#                             FIXED two-container layout (containers do not change
+#                             per actor; actors are isolated by wasm, NOT by
+#                             containers): control-plane container (substrate-native
+#                             worker logic, upstream-faithful) + business-plane
+#                             container (tenant logic sidecar).
 #   Tier-2 workload plane   : e2b + 自研管控 + wasm workload inside the worker pod
-#                             (actor execution body = wasm sandbox; per-request
+#                             (actor execution body = wasm runtime + wasm agent
+#                             program, a PEER replacement for a native agent CLI —
+#                             not a native CLI running inside wasm; per-request
 #                             workload execution = context, destroy-after-use;
+#                             tools are WASM-CUSTOM (WASI host functions), native
+#                             tools like git/chromium/dws/a1 are NOT supported;
 #                             wasm = high-frequency creation, isolation, audit,
 #                             Capability-based security)
 #
@@ -30,28 +40,42 @@ metadata:
 ---
 
 # Warm pool of unbound worker pods (kata containers), sandbox class `wasm`.
-# The wasm SandboxConfig (wasm-default, see wasm-example.yaml) stays in effect
-# — its python-wasm asset is the workload module consumed by the ateom herder
-# inside the kata worker pod; the pod image itself comes from ateomImage.
+# PER-TENANT pool (DE "employee" generalized to "tenant"): one pool per tenant or
+# per tenant-template. The wasm SandboxConfig (wasm-default, see wasm-example.yaml)
+# stays in effect — its python-wasm asset is the workload module consumed by the
+# ateom herder inside the kata worker pod.
 apiVersion: ate.dev/v1alpha1
 kind: WorkerPool
 metadata:
-  name: wasm-pool-rund
+  name: wasm-pool-rund-tenant-a        # (sketch) per-tenant pool; tenant identified by label below
   namespace: ate-wasm
+  labels:
+    ate.dev/tenant: tenant-a           # (sketch) tenant binding for the pool / worker pods
 spec:
   replicas: 3
   sandboxClass: wasm
-  ateomImage: <ATEOM_WASMD_IMAGE>        # ateom (wasm class herder / wasm host): per-request context spawn/destroy + 出口代理 + capability 校验 + 审计流
+  ateomImage: <ATEOM_WASMD_IMAGE>        # control-plane container: ateom (wasm class herder / wasm host): per-request context spawn/destroy + 出口代理 + capability 校验 + 审计流
   runtimeClassName: rund                 # (sketch, xuanji extension) kata/rund RuntimeClass on ACK; unset = legacy runc single-layer pool
   template:
     resources:
       requests: {cpu: "2000m", memory: "4Gi"}
       limits:   {cpu: "4000m", memory: "8Gi"}
+    # (sketch) FIXED two-container layout — containers do NOT change per actor;
+    # actors are isolated by wasm inside the control-plane container, NOT by
+    # containers. The control-plane container is substrate-native worker logic
+    # (upstream-faithful); the business-plane container is the xuanji tenant sidecar.
+    containers:
+      - name: control-plane              # substrate-native worker logic (ateom herder / wasm host)
+        image: <ATEOM_WASMD_IMAGE>
+      - name: business-plane             # (sketch) tenant logic sidecar: identity proxy / config projection / persistent-volume mgmt / billing hooks
+        image: <TENANT_SIDECAR_IMAGE>    # (sketch) xuanji extension; interface contract with control-plane = shared volume / localhost IPC
 
 ---
 
-# Actor template: actor = session; execution body = wasm sandbox inside the
-# worker pod; per-request unit = workload execution (context).
+# Actor template: actor = session; execution body = wasm runtime + wasm agent
+# program (peer replacement for a native agent CLI) inside the worker pod's
+# control-plane container; per-request unit = workload execution (context).
+# Tools are wasm-custom (WASI host functions); native tools are not supported.
 apiVersion: ate.dev/v1alpha1
 kind: ActorTemplate
 metadata:

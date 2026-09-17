@@ -27,16 +27,18 @@
 
 | 实体 | 平面 | 形态 | 生命周期 | 职责 |
 |------|------|------|----------|------|
-| **Worker Pod**（sandbox class `wasm` 的 kata 形态） | Tier-1 | Kubernetes Pod：Containerd + rund（kata）RuntimeClass（由 `WorkerPool.runtimeClassName` 选定），由 WorkerPool 池化 | **低频**：provision → host actor → actor suspend 后擦除归还池 | 复用 K8s 生态（CNI/CSI/RuntimeClass/镜像）；actor 工作区卷、网络出口预配置；为 Tier-2 提供宿主 |
-| **WorkerPool** | Tier-1 | `WorkerPool(sandboxClass: wasm, runtimeClassName: rund)` CRD | 常驻 | 池化温 worker pod（无 actor 绑定） |
+| **Worker Pod**（sandbox class `wasm` 的 kata 形态） | Tier-1 | Kubernetes Pod：Containerd + rund（kata）RuntimeClass（由 `WorkerPool.runtimeClassName` 选定），由 WorkerPool 池化；**固定双容器**（控制面 + 业务面，见下） | **低频**：provision → host actor → actor suspend 后擦除归还（每租户）池 | 复用 K8s 生态（CNI/CSI/RuntimeClass/镜像）；**租户级业务体**（持租户身份/配置/持久卷，DE「员工」泛化为「租户」）；actor 工作区卷、网络出口预配置；为 Tier-2 提供宿主 |
+| ├ **控制面容器** | Tier-1/Tier-2 | 固定容器（不随 actor 变动） | 与 worker pod 同生命周期 | 保留 substrate 原生 worker 组件/逻辑（ateom herder / wasm host / 出口代理 / capability broker）；**upstream-faithful**，actor 隔离以 wasm 承载（不以容器隔离 actor） |
+| └ **业务面容器** | Tier-1 | 固定容器（xuanji sidecar 扩展） | 与 worker pod 同生命周期 | 租户/员工逻辑（身份代理、配置投射、持久卷管理、计费钩子等；职责边界见 ADR 开放问题）；与控制面容器经共享卷/localhost IPC 协作 |
+| **WorkerPool** | Tier-1 | `WorkerPool(sandboxClass: wasm, runtimeClassName: rund)` CRD | 常驻 | 池化温 worker pod（无 actor 绑定）；**每租户（或每租户模板）一池** |
 | **Actor** | Tier-2（状态单元） | 控制面记录 + worker pod 内的 wasm 沙箱执行体 | **会话级**：CreateActor(SUSPENDED) → ResumeActor(RUNNING) → SuspendActor(checkpoint+归还 worker) → Delete | 有状态会话单元；拥有快照（wasm 状态 + workspace）；E2B sandbox 的对应物 |
 | **ateom**（wasm class herder = ateom-wasmd 演进版） | Tier-2（worker pod 内） | worker pod 内守护进程（wasmtime host） | 与 worker pod 同生命周期 | 四项机制承载体：**高频创建**（context 亚毫秒 spawn）、**隔离**（wasm 线性内存 + 用过即销毁）、**审计**（全事件流）、**Capability-based security**（host function 唯一执行点，含出口代理与 capability 校验）；并实现 Run/Checkpoint/RestoreWorkload 与 `SetWorkerCapacity` 容量申报 |
 | **Workload 执行（context）** | Tier-2 | actor wasm 沙箱内的请求级执行单元 | **请求级高频**：spawn → execute → **destroy**（无快照） | 执行单次请求；仅持授予的 capability 子集（DE 每请求进程的对应物） |
 | **e2b 协议面 + 自研管控** | Tier-2（请求面控制） | e2bgw（E2B-compatible REST）+ 构建于 substrate 之上的请求面管控 | 常驻 | 请求入口与路由（E2B sandbox ↔ actor）、capability 表下发、审计归集 |
 | **ActorTemplate**（+ 扩展字段） | 控制面态 | 不可变版本定义 + `sessionConfigRef`/`capabilities`/`egressPolicy` | 版本级 | actor 配置权威（平台侧），resume 注入、请求级可刷新 |
 
-隔离叠加：kata VM 边界（worker pod ↔ 宿主/邻 actor）＋ wasm 线性内存边界（context ↔ 同 actor 其他 context）。
-密度换隔离：单层 wasm 池的"单机数千实例"让位于"每 RUNNING actor 一个 kata worker pod"，以温池 + actor suspend 归还 worker 缓解。
+隔离叠加：kata VM 边界（worker pod ↔ 宿主/邻 actor）＋ wasm 线性内存边界（context ↔ 同 actor 其他 context）。**actor 不以容器隔离**——容器固定（控制面/业务面双容器），actor 间隔离在控制面容器内以 wasm 承载。
+密度换隔离：单层 wasm 池的"单机数千实例"让位于"每 RUNNING actor 一个 kata worker pod"，以温池 + actor suspend 归还 worker 缓解；worker pod 含租户业务语义后，池化为**每租户一池**（集群级→租户级）。
 
 ## 2. 生命周期序列
 
@@ -87,7 +89,8 @@ actor capability 表由 Tier-2 自研管控在 ResumeActor 时下发、worker po
 ## 4. substrate API 映射（目标语义）
 
 - **平面分工**：substrate 控制面（ateapi/atecontroller/Ateom）= Tier-1（actor/worker 生命周期）；e2bgw + 自研管控 = Tier-2 请求面（构建于 substrate 之上，不重造 actor 生命周期）；
-- **Actor = 会话**（E2B sandbox id = actor name）；Resume/Suspend 作用于 actor，worker pod 随取随还；
+- **DE → 设计实体映射**（2026-09-17 对标）：DE 员工（AI工号 + kata sandbox）= **worker pod**（租户级业务体）；DE agent CLI（claude-code）= **actor 执行体**（wasm runtime + wasm agent program，同级替换非嵌套）；DE 每请求进程 = **请求级 context**；DE 原生工具链 = **wasm 定制工具**（不支持原生工具）。worker pod 内**固定双容器**：控制面容器（substrate 原生 worker 逻辑，upstream-faithful）+ 业务面容器（租户逻辑 sidecar）；
+- **Actor = 会话**（E2B sandbox id = actor name）；Resume/Suspend 作用于 actor，worker pod 随取随还（每租户池）；
 - **SandboxClass**：**不新增 enum**——两层形态 = 既有 `wasm` class + `WorkerPool.runtimeClassName: rund`（xuanji 扩展字段，不设即 legacy runc 单层形态）；gvisor/microvm 不变；
 - **WorkerPool**：`sandboxClass: wasm` + `runtimeClassName: rund` + `ateomImage: <ateom-wasmd>`；池化温 worker pod；
 - **ActorTemplate**：上游字段 `sandboxClass: wasm`；xuanji 扩展字段 `capabilities: [...]`、`egressPolicy: {defaultDeny: true, allow: [...]}`、`sessionConfigRef`；
@@ -114,19 +117,22 @@ package "Tier-2 请求面：e2b + 自研管控（请求路由 / caps 下发 / �
   [e2bgw (E2B REST)] ; [自研管控]
 }
 package "Node (ACK：Containerd + RuntimeClass rund)" {
-  rectangle "Worker Pod (sandbox class wasm, kata 形态) — hosts RUNNING actor(s)" as wp {
-    rectangle "Actor 执行体：WebAssembly 沙箱（高频创建 / 隔离 / 审计 / Capability-based security）" as wasmlayer {
-      [ateom (wasm class herder / wasm host)]
-      [出口代理 (per-actor allowlist)]
-      [capability 校验 + 审计流]
-      rectangle "Workload 执行 context (request-scoped, destroy-after-use)" as c1
-      rectangle "Workload 执行 context" as c2
+  rectangle "Worker Pod (sandbox class wasm, kata 形态；租户级业务体) — hosts RUNNING actor(s)" as wp {
+    rectangle "控制面容器 (substrate 原生 worker 逻辑, upstream-faithful)" as cpcontainer {
+      rectangle "Actor 执行体：WebAssembly 沙箱（高频创建 / 隔离 / 审计 / Capability-based security）" as wasmlayer {
+        [ateom (wasm class herder / wasm host)]
+        [出口代理 (per-actor allowlist)]
+        [capability 校验 + 审计流]
+        rectangle "Workload 执行 context (request-scoped, destroy-after-use)" as c1
+        rectangle "Workload 执行 context" as c2
+      }
     }
+    rectangle "业务面容器 (租户逻辑 sidecar：身份代理/配置投射/持久卷/计费钩子)" as bizcontainer
   }
   database "actor workspace volume" as vol
 }
 [ateapi] --> wp : ResumeActor(actorConfig, caps) / SuspendActor
-[atecontroller] --> wp : WorkerPool 池绑定
+[atecontroller] --> wp : WorkerPool 池绑定 (每租户一池)
 [e2bgw (E2B REST)] --> [自研管控] : request
 [自研管控] --> [ateom (wasm class herder / wasm host)] : RunWorkload(caps, request)
 [ateom (wasm class herder / wasm host)] --> c1 : spawn(caps subset) / destroy
@@ -134,6 +140,7 @@ package "Node (ACK：Containerd + RuntimeClass rund)" {
 c1 --> [出口代理 (per-actor allowlist)] : cap:net:egress token
 c1 --> vol : cap:fs:workspace rw subdir
 [ActorTemplate + SessionConfig Store] --> wp : inject at ResumeActor
+bizcontainer ..> cpcontainer : 共享卷 / localhost IPC
 [自研管控] ..> [capability 校验 + 审计流] : 审计归集
 @enduml
 ```
