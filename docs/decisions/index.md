@@ -5,5 +5,4 @@
 
 | 编号 | 标题 | 状态 | 日期 |
 |------|------|------|------|
-
-暂无 ADR。
+| [0002](0002-two-tier-supervisor-worker-sandbox.md) | 两层沙箱模型：Supervisor Sandbox（Kubernetes+Substrate+Containerd+runc/rund，低频生命周期+高稳定性+休眠唤醒）+ Worker 面（e2b+自研管控+WebAssembly，高频创建/隔离/审计/Capability-based security） | Proposed | 2026-09-16 |

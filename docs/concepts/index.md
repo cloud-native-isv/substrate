@@ -7,5 +7,6 @@
 |---|---|
 | [core-concepts.md](core-concepts.md) | Agent Substrate 核心概念详解：Actor/Atespace/Worker/ActorTemplate/快照体系/生命周期动词/DurableDir/停车/身份（upstream 基线） |
 | [sandbox-landscape.md](sandbox-landscape.md) | Agent 沙箱竞品格局与 Substrate 定位（公开来源）：隔离技术谱系、启动/恢复性能、E2B 兼容 vs 自有协议 |
+| [two-tier-sandbox-model.md](two-tier-sandbox-model.md) | 两层沙箱模型：Tier-1 Supervisor Sandbox（K8s+Substrate+Containerd+runc/rund，会话级低频+休眠唤醒）+ Tier-2 Worker 面（e2b+自研管控+wasm host 运行时，请求级高频、用过即销毁、capability 授权与审计）（ADR 0002 配套） |
 
 upstream 概念性文档位于 `docs/` 根部（architecture.md、request-parking.md 等），索引见根 `README.md`。
