@@ -58,7 +58,7 @@ spec:
   replicas: 3
   sandboxClass: wasm
   ateomImage: <ATEOM_WASMD_IMAGE>        # control-plane container: ateom (wasm class herder / wasm host): per-request context spawn/destroy + 出口代理 + capability 校验 + 审计流
-  runtimeClassName: runc                 # (sketch, xuanji extension) runc = baseline default; rund = kata opt-in strong isolation (for cross-tenant shared nodes); ORTHOGONAL to the two-tier structure
+  runtimeClassName: runc                 # (sketch, xuanji extension) runc = baseline default ONLY IF wasm isolation is trusted (host functions hardened/fuzzed/audited); rund = kata fallback when wasm not yet trusted OR cross-tenant shared nodes; criterion = wasm-trust x node-tenancy (default rund early); ORTHOGONAL to the two-tier structure
   template:
     resources:
       requests: {cpu: "2000m", memory: "4Gi"}
