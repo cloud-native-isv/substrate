@@ -10,6 +10,39 @@
 
 基线：upstream `main` @ `aa9b7b82`。
 
+## Remote 与分支定义（治理基线，2026-09-17 确立）
+
+### Remote 定义（四个，各司一职）
+
+| Remote | URL | 角色 | 读写约定 |
+|---|---|---|---|
+| `origin` | `https://github.com/agent-substrate/substrate` | **原库（upstream）** | 只 fetch，永不 push |
+| `github` | `git@github.com:cloud-native-isv/substrate.git` | 针对原库的 **fork**（对外公开面 / upstream PR 出口） | push 仅限 PR 分支与 main 同步 |
+| `gitlab` | `git@gitlab.alibaba-inc.com:cloud-native-isv/substrate.git`（code.alibaba-inc.com 镜像） | **日常开发主力代码库** | xuanji 分支的权威（authoritative）远端 |
+| `gitee` | `git@gitee.com:cloud-native-isv/substrate.git` | **代码备份** | 定期从 gitlab 推送备份，不作开发 |
+
+同步流向：`origin/main` →（fetch+ff push）→ `gitlab/main` 镜像、`github/main`；`gitlab/xuanji` →（备份 push）→ `github/xuanji`、`gitee/xuanji`。一切写远端操作须经确认（GATED）。
+
+### 分支定义（长期分支只有两条）
+
+| 分支 | 定义 | 跟踪 |
+|---|---|---|
+| `main` | **跟踪 upstream 的代码修改**：只镜像 `origin/main`，不承载任何定制提交（Constitution Principle I） | 本地 `main` → `origin/main` |
+| `xuanji` | **本地自定义的修改**：全部 xuanji 定制的唯一长期分支，rebase 到 main 保持最新 | 本地 `xuanji` → `gitlab/xuanji`（主力权威） |
+
+### 残留分支（逐步归一清理，不再新增）
+
+除上述两条外的一切分支均为开发过程残留，归一方向 = 内容并入 `xuanji`（或确认被覆盖）后删除：
+
+| 残留分支 | 位置 | 现状（2026-09-17 实测） | 清理路径 |
+|---|---|---|---|
+| `xuanji-wasm-preflight` @9f375565 | gitlab | 持有全部 wasm/e2bgw/cert-manager 特性提交（13 个），xuanji 未含 | **优先归一**：特性并入 xuanji（rebase/cherry-pick，冲突核对 xuanji.md 台账）后删除 |
+| `xuanji-wasm` @1e338827 | gitlab | preflight 的平行旧线（同主题不同 sha，含 cherry-pick 冲突修复痕迹），15 个提交不被任何分支包含 | 先做**内容级**比对（tree/patch-id，勿只看祖先关系）确认已被 preflight 覆盖或拣回差异，再删除 |
+| `security-md-fixup`、`feat/long-running-actor-support`、`feature/nanoclaw-multiplex-demo`、`feature/openclaw-integration` | github fork | 各有独有提交（1/1/31/3），非本项目会话产物，疑为 fork 上其他实验 | **不盲删**：逐个确认归属与价值后裁决（保留/并回/删除） |
+
+配套事实（2026-09-17 实测）：`gitlab/main` @aa9b7b82 落后 `origin/main` @85ce8ed5 **469 提交**（纯滞后、零领先，可安全 ff）；`github/xuanji` 与 `gitee/xuanji` 均 @d067d4d0，落后 `gitlab/xuanji` @2771ba7c 1 提交（备份滞后）。`origin` 另有 `release-0.1` 分支（上游发布线，只读关注）。
+
+
 ## 已改动的 upstream 文件
 
 | 文件 | 改动 | 原因 |
