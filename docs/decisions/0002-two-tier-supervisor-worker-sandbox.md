@@ -5,7 +5,7 @@
 - 术语归一: 2026-09-17（概念全面对齐上游 substrate 词汇，见下节）
 - 去 supervisor 语义: 2026-09-17（不新增 enum；两层形态由 wasm class + `WorkerPool.runtimeClassName` 承载；herder 即 ateom-wasmd 演进版）
 - DE 场景对标修正: 2026-09-17（worker pod 业务语义泛化为**租户**→多租户能力；固定**双容器**切控制面/业务面，actor 不以容器隔离；wasm agent 用**定制工具**、不支持原生工具）
-- runtime 解耦: 2026-09-17（worker pod runtime 同时支持 **runc/rund**，与两层结构**正交**；runc 基线默认、rund 可选强隔离；双容器同属平台信任域 + wasm 隔离租户代码 ⟹ pod 级强隔离非主要边界，runc 足够；选 rund 的判据 = 跨租户共享节点的内核隔离 / wasm host 逃逸纵深防御）
+- runtime 解耦: 2026-09-17（worker pod runtime 同时支持 **runc/rund**，与两层结构**正交**；二者**各具独立价值**——runc 资源利用率高/场景广、rund 安全性高，是**每租户池的策略旋钮**，混合机群为预期形态；runc 充分性以「wasm 隔离可信」为前提，判据 = wasm 可信度 × 节点租户 × 敏感度 × 密度/成本）
 - Supersedes: -
 - Superseded by: -
 
@@ -70,16 +70,18 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 
 ### D1. Tier-1 Worker Pod（sandbox class `wasm`；runtime runc/rund 可选）
 
-- 技术栈：**Kubernetes（编排/调度/网络/存储/RuntimeClass）+ Substrate（Actor/WorkerPool/Ateom/suspend-resume）+ Containerd + runc/rund**；worker pod 的 **runtime 由 `WorkerPool.runtimeClassName` 选定，同时支持 `runc`（基线默认）与 `rund`（kata，可选强隔离）**——runtime 与两层结构**正交**：runc worker pod 同样是两层（两层性来自 wasm 执行体 + 双容器 + 每租户池，不来自 kata）；
-- **runtime 选型判据 = 双因子：wasm 隔离可信度 × 节点租户模型**（2026-09-17 补充前提）——
-  - **`runc` 基线的充分性条件依赖「wasm 隔离可信」**：wasm（线性内存 + WASI 能力 + host function 校验）是承载租户代码的主边界；**若 wasm 隔离被击穿**（缺陷 host function / wasmtime 漏洞 → 租户代码逃逸进控制面容器的原生进程），runc 的共享宿主内核边界**不足**以兜住后续容器/内核逃逸 → 危及宿主与同节点邻 pod（跨租户）；
-  - 故 **wasm 隔离不可信时 `rund` 必需**：kata 独立 guest kernel 成为**不依赖 wasm 正确性**的兜底强隔离，把逃逸关在 guest VM 内；节点多租户共享时同理需要 rund 提供跨租户内核隔离；
-  - **成熟度分阶段**：早期（host function 未经 fuzzing/审计、租户模块未 vetted）**默认 rund**；待 host function 硬化 + wasm 隔离经验证后，runc 方对「可信租户 / 专属节点」成立（默认随成熟度翻转）；中间档可选 runsc/gVisor（强于 runc、轻于 rund，需验证集群 RuntimeClass 支持）；
+- 技术栈：**Kubernetes（编排/调度/网络/存储/RuntimeClass）+ Substrate（Actor/WorkerPool/Ateom/suspend-resume）+ Containerd + runc/rund**；worker pod 的 **runtime 由 `WorkerPool.runtimeClassName` 选定，同时支持 `runc` 与 `rund`（kata）**——二者**各具独立价值、非「默认 vs 兜底」的不对称关系**：`runc` 资源利用率高、使用场景更广（无 VM 开销、密度高、启动快、内存/CPU 更省、任何 OCI 集群可用、无 kata RuntimeClass 部署依赖）；`rund` 安全性更高（独立 guest kernel、硬件虚拟化边界、逃逸难度数量级更高）。runtime 与两层结构**正交**：runc worker pod 同样是两层（两层性来自 wasm 执行体 + 双容器 + 每租户池，不来自 kata）；
+- **runtime = 每租户池的策略旋钮；混合机群（runc 池 + rund 池并存）是预期形态**（2026-09-17 补充）：与「每租户一池」天然契合——平台按各租户威胁模型逐池选 runc/rund，在不需要 VM 隔离处不付 kata 开销、在需要处拿到强隔离，整体价值最大化；
+- **选型判据 = wasm 隔离可信度 × 节点租户模型 × 租户敏感度 × 密度/成本诉求**——
+  - **倾向 runc**：wasm 隔离可信 + 低/中敏感租户 + 专属节点 + 高密度/低成本诉求（拿 runc 的密度与兼容红利）；
+  - **倾向 rund**：wasm 隔离未经充分验证（host function 未 fuzzing/审计、租户模块未 vetted）或 高敏感租户 或 跨租户共享节点——kata 独立 guest kernel 提供**不依赖 wasm 正确性**的兜底强隔离；
+  - **runc 的充分性前提**（界定「倾向 runc」的边界，非否定 runc 价值）：runc 安全性条件依赖「wasm 隔离可信」；失效级联（缺陷 host function / wasmtime 漏洞 → 租户代码逃逸进控制面容器原生进程 → runc 共享宿主内核不足兜底 → 危及宿主与同节点邻 pod）见 D2/D3；故 wasm 未验证前，高敏感/共享节点场景**必须** rund；
+  - **成熟度趋势**：早期 host function 未硬化时 rund 覆盖面更大；随 wasm 隔离验证成熟，runc 适用面扩大（更多租户/场景下放 runc 拿密度红利）。中间档可选 runsc/gVisor（强于 runc、轻于 rund，需验证集群 RuntimeClass 支持）；
 - **业务语义 = 租户级业务体**（2026-09-17 DE 对标修正）：worker pod 不再是纯控制面温资源，而承载**租户**（DE「员工」的泛化，工牌身份是租户身份的特例）的身份/配置/持久卷。与 substrate 原生语义的差别即在此——worker pod 含业务语义。为不丢池化优势，租户身份**权威仍在控制面**，worker pod 仅在**绑定期间缓存**、suspend 时擦除归还（每租户）池；
 - **固定双容器布局**（2026-09-17 DE 对标修正）：容器**固定**、不随 actor 变动；**actor 不以容器隔离**（actor 隔离用 wasm，见 D2），容器只用来切分 worker pod 内的**控制面/业务面**逻辑——
   - **控制面容器**：保留 substrate 原生 worker 组件与逻辑（ateom herder / wasm host / 出口代理 / capability broker），**upstream-faithful**，利于回归开源（substrate 容器不改）；
   - **业务面容器**：引入租户/员工逻辑（xuanji 扩展，sidecar 式：租户身份代理、配置投射、持久卷管理、计费钩子等，职责边界见开放问题）；
-  - **信任域前提（决定 runtime 选型）**：两容器**都必须是平台运营代码**——业务面是平台的租户管理逻辑，**不是租户自带的任意代码**；租户代码只跑在控制面容器内的 wasm 沙箱里。故两容器同属**平台信任域**，co-location 成立；pod 级强隔离（rund）**不用于分隔它们**（rund 只隔离 pod↔宿主/邻 pod，不隔离同 pod 内容器）。这也正是「pod 级强隔离非主要边界、runc 基线足够」的依据。**若业务面要跑租户不可信代码，co-location 即不合理**——那时应拆 pod 或在容器间另设隔离，而非依赖 rund；
+  - **信任域前提（与 runtime 选型解耦）**：两容器**都必须是平台运营代码**——业务面是平台的租户管理逻辑，**不是租户自带的任意代码**；租户代码只跑在控制面容器内的 wasm 沙箱里。故两容器同属**平台信任域**，co-location 成立；pod 级强隔离（rund）**不用于分隔它们**（rund 只隔离 pod↔宿主/邻 pod，不隔离同 pod 内容器）——runtime 选 runc 还是 rund 由上述判据（wasm 可信度 × 节点租户 × 敏感度 × 密度/成本）定，与双容器 co-location 无关。**若业务面要跑租户不可信代码，co-location 即不合理**——那时应拆 pod 或在容器间另设隔离，而非依赖 rund；
 - **共居度 = 容量申报模型**（上游语义，非 1:1 硬不变式）：worker 的容量（含最大 actor 数）由其 ateom 经 `SetWorkerCapacity` 自报（`cmd/ateapi/internal/controlapi/worker.go:149`、`cmd/ateapi/internal/scheduling/scheduling.go:155`）；worker pod 默认申报 `actors=1`（每 actor 强隔离），申报 N 即密度优先——旋钮在 herder，不在控制面；actor suspend 后 worker pod 擦除归还池；
 - 特性契约：
   - **复用 Kubernetes 生态**——不另建调度/网络/存储/镜像体系，worker pod 就是一个 K8s Pod（runc/rund 隔离，按 runtime 旋钮），CNI/CSI/RuntimeClass/镜像仓库全部复用；
@@ -134,6 +136,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 - workload 执行爆炸半径收敛到单请求；actor 间不再共享进程环境与出口身份；
 - capability 模型把"谁能看什么配置、能出什么网"变成可审计的显式授予（对齐 agentshell 全事件审计诉求）；
 - **多租户能力**（2026-09-17 对标修正）：worker pod 业务语义泛化为租户后，两层模型自然长出多租户边界（每租户一池、租户级身份/配置/持久卷）；
+- **runc/rund 双 runtime + 每租户池策略**（2026-09-17 补充）：混合机群按需权衡密度/成本（runc：资源利用率高、场景广）与强隔离（rund：安全性高），不为不需要的 VM 隔离付 kata 开销、也不在高敏感/共享节点处省掉强隔离；
 - **控制面/业务面双容器切分**：控制面容器保持 substrate 原生 worker 逻辑（upstream-faithful，substrate 容器不改），业务面容器为 xuanji sidecar 扩展——回归开源时控制面容器 delta 归零；
 - **wasm 定制工具**把 agent 工具面收敛为 capability 授予点（host function 唯一执行点），攻击面小于原生 ambient 工具；
 - suspend 归一为 actor 级 checkpoint 后，worker pod 解绑即恢复为无状态温资源（绑定期缓存租户身份、suspend 擦除），池利用率对齐上游模型；
@@ -162,7 +165,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 
 ## 开放问题
 
-> 2026-09-17 DE 对标已决：张力 A（员工钉住 vs 池化）→ 混合解（控制面权威 + 绑定缓存 + suspend 擦除）+ 泛化租户、每租户一池；张力 B（多容器隔离）→ 固定双容器切控制面/业务面，actor 不以容器隔离；张力 C（工具生态）→ wasm 定制工具、不支持原生工具；张力 D（runtime 选型）→ runc/rund 与两层结构**正交**，判据 = **wasm 隔离可信度 × 节点租户模型**——runc 基线**以「wasm 隔离可信」为前提**（host function/wasmtime 缺陷击穿 wasm 时 runc 不足、须 rund 兜底），成熟度早期默认 rund、host function 硬化验证后 runc 方对可信租户/专属节点成立。下列为衍生 open item。
+> 2026-09-17 DE 对标已决：张力 A（员工钉住 vs 池化）→ 混合解（控制面权威 + 绑定缓存 + suspend 擦除）+ 泛化租户、每租户一池；张力 B（多容器隔离）→ 固定双容器切控制面/业务面，actor 不以容器隔离；张力 C（工具生态）→ wasm 定制工具、不支持原生工具；张力 D（runtime 选型）→ runc/rund 与两层结构**正交**、**各具独立价值**（runc 密度/成本/兼容、rund 安全），是**每租户池策略旋钮**（混合机群为预期形态）；判据 = wasm 隔离可信度 × 节点租户模型 × 租户敏感度 × 密度/成本——runc 充分性**以「wasm 隔离可信」为前提**（host function/wasmtime 缺陷击穿 wasm 时 runc 不足、须 rund 兜底），早期倾向 rund 覆盖面更大、随 wasm 验证成熟 runc 适用面扩大。下列为衍生 open item。
 
 - worker pod 空闲时 actor suspend 的粒度与唤醒延迟预算（actor 体验 vs 成本）；
 - capability 中途吊销的传播机制（proxy 侧即时生效 vs context 生命周期内冻结）；
