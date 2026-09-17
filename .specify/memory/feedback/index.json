@@ -1,10 +1,43 @@
 {
   "store": "feedback",
-  "updated": "2026-08-19T06:04:18Z",
+  "updated": "2026-09-11T13:23:56Z",
   "threshold": 10,
-  "count_since_submission": 9,
+  "count_since_submission": 12,
   "submitted_at": null,
   "entries": [
+    {
+      "id": "20260911T132356Z-skill-aliyun-workspace",
+      "file": "20260911T132356Z-skill-aliyun-workspace.md",
+      "unit_id": "skill:aliyun-workspace",
+      "unit_type": "skill",
+      "run_id": "ack-msafe8-images-20260911",
+      "feature": "",
+      "partial": false,
+      "created": "2026-09-11T13:23:56Z",
+      "summary": "为集群换镜像需推 ACR EE：cws 的 acr list-instances 在错误路径抛 KeyError 掩盖真实报错；无 GetAuthorizationToken 命令，用 cws venv SDK 脚本取临时凭据完成 docker login 与推送；内部 registry 推送可达但集群不可拉（实测 ImagePullBackOff），ACR EE vpc 域才是集群可用路径。"
+    },
+    {
+      "id": "20260911T094321Z-skill-aliyun-workspace",
+      "file": "20260911T094321Z-skill-aliyun-workspace.md",
+      "unit_id": "skill:aliyun-workspace",
+      "unit_type": "skill",
+      "run_id": "ack-msafe8-takeover-20260911",
+      "feature": "",
+      "partial": false,
+      "created": "2026-09-11T09:43:21Z",
+      "summary": "接管 ACK cluster-msaFE8：preflight 通过；13 个配置账号逐一探测 404/403 后借本地云资源清单定位归属账号 1094633731167611 与资源组 rg-acfmwbuu2cojk6y；该账号唯一凭证被资源组级 ImplicitDeny 拦截（直连与 AssumeRole 均 403），按兜底条款转控制台剪贴板路径完成 kubeconfig 落盘与 kube"
+    },
+    {
+      "id": "20260911T094321Z-skill-profiles-browsers",
+      "file": "20260911T094321Z-skill-profiles-browsers.md",
+      "unit_id": "skill:profiles-browsers",
+      "unit_type": "skill",
+      "run_id": "ack-msafe8-takeover-20260911",
+      "feature": "",
+      "partial": false,
+      "created": "2026-09-11T09:43:21Z",
+      "summary": "cs.console.aliyun.com 新建 capability ack-copy-kubeconfig（absent→exploration）；实测三条自动化路径均不可行（kangaroo/test 被占无 CDP、MCP 浏览器无登录态、本机无 Playwright），改零泄露手工复制兜底并沉淀 dom 记录；capability 保留 exploration 并记录 blocker。"
+    },
     {
       "id": "20260819T060418Z-skill-study-project",
       "file": "20260819T060418Z-skill-study-project.md",
