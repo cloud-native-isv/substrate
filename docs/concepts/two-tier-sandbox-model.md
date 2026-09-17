@@ -1,122 +1,138 @@
-# 两层沙箱模型：Supervisor Sandbox + Worker Sandbox（概念文档）
+# 两层沙箱模型：Worker Pod 面 + Actor 工作负载面（概念文档）
 
-> 配套决策：[ADR 0002](../decisions/0002-two-tier-supervisor-worker-sandbox.md)（Proposed）。
+> 配套决策：[ADR 0002](../decisions/0002-two-tier-supervisor-worker-sandbox.md)（Proposed，2026-09-17 术语归一）。
 > 本文定义实体、生命周期、capability 模型与 API 映射的目标语义；实现 schema 以后续 feature 为准。
+> 术语一律采用上游 substrate 词汇（`docs/architecture.md` @85ce8ed5）；两层（Tier-1/Tier-2）仅作平面分工描述。
 > 启示来源：AgentForce 数字员工沙箱运维会话档案（2026-09-16，kata container 主体 + 请求级进程隔离）。
 
-## 0. 两层总纲
+## 0. 两层总纲与术语归一
 
-- **层面一（Tier-1）**：**Kubernetes + Substrate + Containerd + runc/rund** 构建基于 Kubernetes 生态的 Agent Sandbox，作为 **supervisor sandbox**。特性要求：**复用 Kubernetes 生态**、**低频生命周期 + 高稳定性**、提供**休眠唤醒**等 agent sandbox 基础特性。
-- **层面二（Tier-2）**：**e2b + 自研管控 + runc/rund container + WebAssembly 沙箱**（跑在 supervisor sandbox 内部），以 WebAssembly 沙箱提供**高频创建能力、隔离机制、审计机制以及 Capability-based security 的安全模型**。
+- **平面一（Tier-1，worker pod 面）**：**Kubernetes + Substrate + Containerd + runc/rund** 构建基于 Kubernetes 生态的 agent sandbox **worker pod**（sandbox class `supervisor`）。特性要求：**复用 Kubernetes 生态**、**低频生命周期 + 高稳定性**、提供**休眠唤醒（Suspend/ResumeActor）**等 agent sandbox 基础特性。
+- **平面二（Tier-2，actor 工作负载面）**：**e2b + 自研管控 + wasm workload**（跑在 worker pod 内部），以 WebAssembly 沙箱提供**高频创建能力、隔离机制、审计机制以及 Capability-based security 的安全模型**。
+
+术语归一表（旧 → 新 → 上游锚点）：
+
+| 旧术语 | 归一后 | 上游锚点 |
+|---|---|---|
+| supervisor sandbox | **worker pod**（sandbox class `supervisor`） | Worker/WorkerPod：温沙箱 pod，host 一个 RUNNING actor |
+| supervisor pool | **WorkerPool**（`sandboxClass: supervisor`） | WorkerPool CRD |
+| session | **actor**（E2B sandbox id = actor name） | Actor：有状态实例，拥有快照 |
+| worker sandbox（wasm 实例） | **actor 执行体 = wasm sandbox**（worker pod 内嵌套隔离层）；请求级单元 = **workload 执行（context）** | sandbox = worker pod 隔离环境；RunWorkload = 一次工作负载执行 |
+| ateom-supervisor | **ateom**（supervisor class herder） | ateom-\<class\> |
+| session config | **ActorTemplate** + actor 级配置注入（扩展 `sessionConfigRef`） | ActorTemplate |
+| suspend = VM 快照 | **SuspendActor = actor 级 checkpoint**，worker pod 归还池 | 上游快照模型 |
 
 ## 1. 实体与职责
 
-| 实体 | 层级 | 形态 | 生命周期 | 职责 |
+| 实体 | 平面 | 形态 | 生命周期 | 职责 |
 |------|------|------|----------|------|
-| **Supervisor Sandbox** | Tier-1 | Kubernetes Pod：Containerd + rund（kata）RuntimeClass，由 Substrate WorkerPool 池化 | 会话级**低频**：resume 绑定 / suspend 休眠 / resume 唤醒 / 会话结束销毁 | 复用 K8s 生态（CNI/CSI/RuntimeClass/镜像）；会话配置存储、会话工作区挂载、网络出口预配置；休眠唤醒；为 Tier-2 提供 runc/rund container 宿主 |
-| **e2b 协议面 + 自研管控** | Tier-2（请求面控制） | e2bgw（E2B-compatible REST）+ 构建于 substrate 之上的请求面管控 | 常驻 | 请求入口与路由、capability 表下发、审计归集；不重造会话生命周期 |
-| **wasm host 运行时** | Tier-2（supervisor 内） | ateom-supervisor 守护进程（wasmtime host），跑在 runc/rund container 内 | 与 supervisor 同生命周期 | WebAssembly 沙箱四项机制的承载体：**高频创建**（亚毫秒 spawn worker）、**隔离**（线性内存边界 + 用过即销毁）、**审计**（全事件审计流）、**Capability-based security**（host function 唯一执行点，含出口代理与 capability 校验） |
-| **Worker Sandbox** | Tier-2 | wasm 实例（python-wasm 或用户模块） | 请求级**高频**：spawn → execute → **destroy**（无快照） | 执行单次请求的代码；仅持授予的 capability 子集 |
-| Supervisor Pool | 池化 | `WorkerPool(sandboxClass: supervisor)` 温容器 | 常驻 | 无会话绑定的温 supervisor，resume 时绑定会话 |
-| 会话配置（SessionConfig） | 控制面态 | 平台侧权威声明 | 会话级，请求级可刷新 | 类比 DE 的 awareness/harness 声明：resume 注入，worker 只读 |
+| **Worker Pod**（sandbox class `supervisor`） | Tier-1 | Kubernetes Pod：Containerd + rund（kata）RuntimeClass，由 WorkerPool 池化 | **低频**：provision → host actor → actor suspend 后擦除归还池 | 复用 K8s 生态（CNI/CSI/RuntimeClass/镜像）；actor 工作区卷、网络出口预配置；为 Tier-2 提供宿主 |
+| **WorkerPool** | Tier-1 | `WorkerPool(sandboxClass: supervisor)` CRD | 常驻 | 池化温 worker pod（无 actor 绑定） |
+| **Actor** | Tier-2（状态单元） | 控制面记录 + worker pod 内的 wasm 沙箱执行体 | **会话级**：CreateActor(SUSPENDED) → ResumeActor(RUNNING) → SuspendActor(checkpoint+归还 worker) → Delete | 有状态会话单元；拥有快照（wasm 状态 + workspace）；E2B sandbox 的对应物 |
+| **ateom**（supervisor class herder，实现名 ateom-supervisor） | Tier-2（worker pod 内） | worker pod 内守护进程（wasmtime host） | 与 worker pod 同生命周期 | 四项机制承载体：**高频创建**（context 亚毫秒 spawn）、**隔离**（wasm 线性内存 + 用过即销毁）、**审计**（全事件流）、**Capability-based security**（host function 唯一执行点，含出口代理与 capability 校验）；并实现 Run/Checkpoint/RestoreWorkload |
+| **Workload 执行（context）** | Tier-2 | actor wasm 沙箱内的请求级执行单元 | **请求级高频**：spawn → execute → **destroy**（无快照） | 执行单次请求；仅持授予的 capability 子集（DE 每请求进程的对应物） |
+| **e2b 协议面 + 自研管控** | Tier-2（请求面控制） | e2bgw（E2B-compatible REST）+ 构建于 substrate 之上的请求面管控 | 常驻 | 请求入口与路由（E2B sandbox ↔ actor）、capability 表下发、审计归集 |
+| **ActorTemplate**（+ 扩展字段） | 控制面态 | 不可变版本定义 + `sessionConfigRef`/`capabilities`/`egressPolicy`/`workloadRuntime` | 版本级 | actor 配置权威（平台侧），resume 注入、请求级可刷新 |
 
-隔离叠加：kata VM 边界（supervisor ↔ 宿主/邻会话）＋ wasm 线性内存边界（worker ↔ supervisor 内其他 worker）。
-密度换隔离：单层 wasm 池的"单机数千实例"让位于"每会话一个 kata container"，以温池 + 空闲 suspend 缓解。
+隔离叠加：kata VM 边界（worker pod ↔ 宿主/邻 actor）＋ wasm 线性内存边界（context ↔ 同 actor 其他 context）。
+密度换隔离：单层 wasm 池的"单机数千实例"让位于"每 RUNNING actor 一个 kata worker pod"，以温池 + actor suspend 归还 worker 缓解。
 
 ## 2. 生命周期序列
 
 ```
-Tier-1 控制面(ateapi/atecontroller)   Tier-2 请求面(e2bgw+自研管控)   Supervisor(rund container)      Worker(wasm)
+Tier-1 控制面(ateapi/atecontroller)   Tier-2 请求面(e2bgw+自研管控)   Worker Pod(supervisor class)      Context(wasm 执行)
         |                                        |                          |                          |
- create actor(session)                           |                          |                          |
-        |--- resume(sessionConfig, caps) ---------------------------------->|                          |
-        |                                        |        绑定温池 supervisor|                          |
-        |                                        |        注入 SessionConfig(ro)                       |
-        |                                        |        挂载 workspace(subdir rw)                    |
-        |                                        |        wasm host 运行时就绪(出口代理+审计)           |
-        |<------------ READY(session) --------------------------------------|                          |
+ CreateActor(session)                            |                          |                          |
+        |--- ResumeActor(actorConfig, caps) ------------------------------>|                          |
+        |                                        |        取温 worker pod    |                          |
+        |                                        |        RestoreWorkload   |                          |
+        |                                        |        注入 actor 配置(ro)+ workspace(rw subdir)    |
+        |                                        |        ateom 就绪(出口代理+capability broker+审计)   |
+        |<------------ READY(actor, workerIP) ----------------------------|                          |
  e2b request                                     |                          |                          |
         |                                        |-- RunWorkload(caps, req)->|                          |
         |                                        |                          |-- spawn(caps 子集) ----->|
         |                                        |                          |                          | execute
-        |                                        |                          |  egress via host 出口代理(token) --> 外部(allowlist 内)
+        |                                        |                          |  egress via ateom 出口代理(token) --> 外部(allowlist 内)
         |                                        |                          |  审计流记录全事件          |
         |                                        |                          |<-- result / 写回 workspace|
-        |                                        |                          |-- destroy worker --------| (用过即销毁)
+        |                                        |                          |-- destroy context ------| (用过即销毁)
         |                                        |<----- response + 审计归集-|                          |
- idle -> suspend(休眠)                           |                          |                          |
-        |--- suspend ------------------------------------------------------>| VM 快照 + 存储 flush       |
-        |--- resume(唤醒) -------------------------------------------------->| 恢复会话边界               |
- session end -> delete                           |                          | 销毁 supervisor + 回收存储 |
+ idle -> SuspendActor(休眠)                      |                          |                          |
+        |--- SuspendActor ------------------------------------------------->| CheckpointWorkload:      |
+        |                                        |                          |  wasm 状态 + workspace flush
+        |                                        |                          | worker pod 擦除归还池      |
+        |--- ResumeActor(唤醒) -------------------------------------------->| 取温 pod + RestoreWorkload |
+ session end -> DeleteActor                      |                          | 回收 actor 存储            |
 ```
 
-要点：会话生命周期（低频）走 Tier-1 substrate 控制面；请求执行（高频）走 Tier-2 e2b+自研管控请求面。worker **永不 suspend**；跨请求状态只能显式写回 supervisor 会话存储；请求间隔离 = 新 worker 实例 + 零共享内存。
+要点：actor 生命周期（低频）走 substrate 控制面；请求执行（高频）走 e2b+自研管控请求面。context **永不 suspend**；跨请求状态只能显式写回 actor workspace；请求间隔离 = 新 context + 零共享内存；worker pod 是无状态温资源（suspend 即归还）。
 
 ## 3. Capability 模型（Capability-based security）
 
-会话 capability 表由 Tier-2 自研管控在 resume 时下发、supervisor 内的 **wasm host 运行时**持有；worker 实例化时仅获授予子集。**未授予即不可见**（默认零权限，与 WASI 同构但来源为会话级显式授予）。**全部执行点收敛在 wasm host function**——这是 WebAssembly 沙箱承担的安全模型，而非 supervisor 层独立组件。
+actor capability 表由 Tier-2 自研管控在 ResumeActor 时下发、worker pod 内 **ateom** 持有；context spawn 时仅获授予子集。**未授予即不可见**（默认零权限，与 WASI 同构但来源为 actor 级显式授予）。**全部执行点收敛在 wasm host function**。
 
 | Capability | 句柄语义 | 执行点 | 类比 DE 机制 |
 |------------|----------|--------|--------------|
-| `cap:fs:session-config:ro` | 会话配置文件只读 preopen | worker WASI preopen | 请求级 PATCH /role 下行配置 |
-| `cap:fs:workspace:rw:<subdir>` | 会话工作区子目录读写 preopen | worker WASI preopen | per-session mount namespace 遮蔽 |
-| `cap:net:egress:<token>` | 出口令牌；wasm 无直接 socket，出网经 host function → wasm host 运行时出口代理校验 allowlist | wasm host 出口代理 | 出口 MITM（升级为令牌粒度） |
-| `cap:secret:<name>` | 命名凭据句柄，wasm host 运行时代取 | wasm host broker | 凭据不落 NAS/仓库 |
+| `cap:fs:actor-config:ro` | actor 配置文件只读 preopen | context WASI preopen | 请求级 PATCH /role 下行配置 |
+| `cap:fs:workspace:rw:<subdir>` | actor 工作区子目录读写 preopen | context WASI preopen | per-session mount namespace 遮蔽 |
+| `cap:net:egress:<token>` | 出口令牌；wasm 执行无直接 socket，出网经 host function → ateom 出口代理校验 allowlist | ateom 出口代理 | 出口 MITM（升级为令牌粒度） |
+| `cap:secret:<name>` | 命名凭据句柄，ateom 代取 | ateom broker | 凭据不落 NAS/仓库 |
 
-审计机制：wasm host 侧对 spawn/destroy、host function 调用、出口请求、capability 使用产生**全事件审计流**，由 Tier-2 自研管控归集（类比 DE 的 agentshell 全事件审计）。
+审计机制：ateom 对 context spawn/destroy、host function 调用、出口请求、capability 使用产生**全事件审计流**，由 Tier-2 自研管控归集（类比 DE 的 agentshell 全事件审计）。
 
-吊销与刷新：出口代理 allowlist 即时生效（网络）；fs 句柄在 worker 生命周期内冻结、新 worker 取新表（开放问题见 ADR）。
+吊销与刷新：出口代理 allowlist 即时生效（网络）；fs 句柄在 context 生命周期内冻结、新 context 取新表（开放问题见 ADR）。
 
 ## 4. substrate API 映射（目标语义）
 
-- **平面分工**：substrate 控制面（ateapi/atecontroller/Ateom）= Tier-1 会话面；e2bgw + 自研管控 = Tier-2 请求面（构建于 substrate 之上，不重造会话生命周期）；
-- **Actor = 会话**；resume/suspend（休眠唤醒）作用于 supervisor；
-- **SandboxClass**：新增顶层 `supervisor`（可池化，runtime rund/kata）；`wasm` 降级为 worker 运行时标识（不再独立池化）；gvisor/microvm 不变；
-- **WorkerPool**：`sandboxClass: supervisor` + `ateomImage: <ateom-supervisor>`；池化温 supervisor；
-- **ActorTemplate**（sketch 字段）：`supervisorClass`、`workerRuntime: wasm`、`capabilities: [...]`、`egressPolicy: {defaultDeny: true, allow: [...]}`、`sessionConfigRef`；
-- **Ateom 协议**：`RunWorkload` = 一次请求执行（携 capability manifest，supervisor 内 spawn/destroy worker）；`Checkpoint/RestoreWorkload` 作用域 = supervisor；
-- **SandboxConfig**：supervisor class 的资产 = python-wasm（worker 用）+ supervisor 运行时配置；wasm-default 过渡期保留为 legacy。
+- **平面分工**：substrate 控制面（ateapi/atecontroller/Ateom）= Tier-1（actor/worker 生命周期）；e2bgw + 自研管控 = Tier-2 请求面（构建于 substrate 之上，不重造 actor 生命周期）；
+- **Actor = 会话**（E2B sandbox id = actor name）；Resume/Suspend 作用于 actor，worker pod 随取随还；
+- **SandboxClass**：新增顶层 `supervisor`（可池化 worker pod 形态，runtime rund/kata）；`wasm` 降级为 worker pod 内嵌套隔离层 / workload 运行时标识；gvisor/microvm 不变；
+- **WorkerPool**：`sandboxClass: supervisor` + `ateomImage: <ateom-supervisor>`；池化温 worker pod；
+- **ActorTemplate**：上游字段 `sandboxClass: supervisor`；xuanji 扩展字段 `workloadRuntime: wasm`、`capabilities: [...]`、`egressPolicy: {defaultDeny: true, allow: [...]}`、`sessionConfigRef`；
+- **Ateom 协议**：supervisor class 的 `RunWorkload` = 一次请求执行（携 capability manifest，ateom 内 spawn/destroy context）；`Checkpoint/RestoreWorkload` 作用域 = actor（wasm 状态 + workspace）；
+- **SandboxConfig**：supervisor class 的资产 = python-wasm（workload 用）+ ateom 运行时配置；wasm-default 过渡期保留为 legacy。
 
 示例清单：[manifests/xuanji/two-tier-example.yaml](../../manifests/xuanji/two-tier-example.yaml)。
 
 ## 5. 与单层模型（legacy）的共存
 
 - 现有 `wasm-pool`/`wasm-pool-xl` 标记 legacy，继续服务旧 ActorTemplate；
-- 新会话默认两层模型；迁移完成条件 = 所有 ActorTemplate 切到 `supervisorClass` 且 legacy 池缩容至 0；
-- 对照证据：DE 底座为 kata+OSS/NAS（非 wasm），本模型在其上把"请求级进程"替换为"请求级 wasm worker"，保留其会话边界与出口强管语义。
+- 新 actor 默认两层模型；迁移完成条件 = 所有 ActorTemplate 切到 `sandboxClass: supervisor` 且 legacy 池缩容至 0；
+- 对照证据：DE 底座为 kata+OSS/NAS（非 wasm），本模型在其上把"请求级进程"替换为"请求级 wasm context"，保留其会话边界与出口强管语义。
 
 ## 6. 图示（PlantUML 源，渲染另立）
 
 ```plantuml
 @startuml two-tier-sandbox
 skinparam componentStyle rectangle
-package "Tier-1 会话面：Kubernetes + Substrate（会话生命周期 / 休眠唤醒 / 池化）" {
-  [ateapi] ; [atecontroller] ; [SessionConfig Store]
+package "Tier-1 控制面：Kubernetes + Substrate（actor/worker 生命周期 / 休眠唤醒 / 池化）" {
+  [ateapi] ; [atecontroller] ; [ActorTemplate + SessionConfig Store]
 }
 package "Tier-2 请求面：e2b + 自研管控（请求路由 / caps 下发 / 审计归集）" {
   [e2bgw (E2B REST)] ; [自研管控]
 }
 package "Node (ACK：Containerd + RuntimeClass rund)" {
-  rectangle "Supervisor Sandbox (runc/rund kata container) — session-scoped, 低频+高稳定" as sup {
-    rectangle "WebAssembly 沙箱层（高频创建 / 隔离 / 审计 / Capability-based security）" as wasmlayer {
-      [wasm host 运行时 (ateom-supervisor)]
-      [出口代理 (per-session allowlist)]
+  rectangle "Worker Pod (sandbox class supervisor, kata) — hosts 1 RUNNING actor" as wp {
+    rectangle "Actor 执行体：WebAssembly 沙箱（高频创建 / 隔离 / 审计 / Capability-based security）" as wasmlayer {
+      [ateom (supervisor class herder / wasm host)]
+      [出口代理 (per-actor allowlist)]
       [capability 校验 + 审计流]
-      rectangle "Worker Sandbox (wasm, request-scoped, destroy-after-use)" as w1
-      rectangle "Worker Sandbox (wasm)" as w2
+      rectangle "Workload 执行 context (request-scoped, destroy-after-use)" as c1
+      rectangle "Workload 执行 context" as c2
     }
   }
-  database "session workspace volume" as vol
+  database "actor workspace volume" as vol
 }
-[ateapi] --> sup : resume(sessionConfig, caps) / suspend（休眠唤醒）
-[atecontroller] --> sup : pool binding
+[ateapi] --> wp : ResumeActor(actorConfig, caps) / SuspendActor
+[atecontroller] --> wp : WorkerPool 池绑定
 [e2bgw (E2B REST)] --> [自研管控] : request
-[自研管控] --> [wasm host 运行时 (ateom-supervisor)] : RunWorkload(caps, request)
-[wasm host 运行时 (ateom-supervisor)] --> w1 : spawn(caps subset) / destroy
-[wasm host 运行时 (ateom-supervisor)] --> w2 : spawn / destroy
-w1 --> [出口代理 (per-session allowlist)] : cap:net:egress token
-w1 --> vol : cap:fs:workspace rw subdir
-[SessionConfig Store] --> sup : inject at resume
+[自研管控] --> [ateom (supervisor class herder / wasm host)] : RunWorkload(caps, request)
+[ateom (supervisor class herder / wasm host)] --> c1 : spawn(caps subset) / destroy
+[ateom (supervisor class herder / wasm host)] --> c2 : spawn / destroy
+c1 --> [出口代理 (per-actor allowlist)] : cap:net:egress token
+c1 --> vol : cap:fs:workspace rw subdir
+[ActorTemplate + SessionConfig Store] --> wp : inject at ResumeActor
 [自研管控] ..> [capability 校验 + 审计流] : 审计归集
 @enduml
 ```

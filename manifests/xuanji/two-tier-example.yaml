@@ -1,19 +1,24 @@
-# Example manifests for the two-tier sandbox model (ADR 0002, Proposed).
+# Example manifests for the two-tier sandbox model (ADR 0002, Proposed;
+# terminology unified with upstream substrate on 2026-09-17).
 #
 # TARGET SCHEMA SKETCH — fields marked (sketch) are not yet implemented;
 # they define the goal semantics for the follow-up feature. Legacy single-tier
 # wasm pools remain in wasm-example.yaml / wasm-tiers-example.yaml.
 #
-# Topology (two layers, ADR 0002):
-#   Tier-1 supervisor sandbox : Kubernetes + Substrate + Containerd + runc/rund
-#                               (K8s-ecosystem reuse, low-frequency lifecycle +
-#                               high stability, sleep/wake), session-scoped, pooled warm
-#   Tier-2 worker plane       : e2b + 自研管控 + wasm sandbox inside the supervisor
-#                               (wasm = high-frequency creation, isolation, audit,
-#                               Capability-based security), request-scoped, destroy-after-use
+# Topology (two planes, ADR 0002, substrate vocabulary):
+#   Tier-1 worker pod plane : Kubernetes + Substrate + Containerd + runc/rund;
+#                             worker pod = sandbox class `supervisor` (rund/kata),
+#                             pooled warm, hosts 1 RUNNING actor, returned to pool
+#                             on SuspendActor (K8s-ecosystem reuse, low-frequency
+#                             lifecycle + high stability, sleep/wake)
+#   Tier-2 workload plane   : e2b + 自研管控 + wasm workload inside the worker pod
+#                             (actor execution body = wasm sandbox; per-request
+#                             workload execution = context, destroy-after-use;
+#                             wasm = high-frequency creation, isolation, audit,
+#                             Capability-based security)
 #
 # Before applying (once implemented), replace:
-#   - <ATEOM_SUPERVISOR_IMAGE>: pinned ateom-supervisor image (ACR EE @sha256:...)
+#   - <ATEOM_SUPERVISOR_IMAGE>: pinned ateom (supervisor class herder) image (ACR EE @sha256:...)
 #   - python-wasm asset url/sha256: object storage location of python-3.12.0.wasm
 
 apiVersion: v1
@@ -23,14 +28,14 @@ metadata:
 
 ---
 
-# Cluster-wide SandboxConfig for the supervisor class. Assets carry the WORKER
-# runtime module (wasm) — the supervisor container image comes from WorkerPool.
+# Cluster-wide SandboxConfig for the supervisor class. Assets carry the wasm
+# workload runtime module — the worker pod image comes from WorkerPool.ateomImage.
 apiVersion: ate.dev/v1alpha1
 kind: SandboxConfig
 metadata:
   name: supervisor-default
 spec:
-  sandboxClass: supervisor        # new top-level class (runtime: rund/kata)
+  sandboxClass: supervisor        # new top-level class (worker pod runtime: rund/kata)
   default: true
   assets:
     amd64:
@@ -44,7 +49,7 @@ spec:
 
 ---
 
-# Warm pool of unbound supervisor sandboxes (kata containers).
+# Warm pool of unbound worker pods (kata containers), supervisor sandbox class.
 apiVersion: ate.dev/v1alpha1
 kind: WorkerPool
 metadata:
@@ -53,7 +58,7 @@ metadata:
 spec:
   replicas: 3
   sandboxClass: supervisor
-  ateomImage: <ATEOM_SUPERVISOR_IMAGE>   # wasm host 运行时(ateom-supervisor): per-request worker spawn/destroy + 出口代理 + capability 校验 + 审计流
+  ateomImage: <ATEOM_SUPERVISOR_IMAGE>   # ateom (supervisor class herder / wasm host): per-request context spawn/destroy + 出口代理 + capability 校验 + 审计流
   runtimeClassName: rund                 # (sketch) kata/rund RuntimeClass on ACK
   template:
     resources:
@@ -62,25 +67,26 @@ spec:
 
 ---
 
-# Session template: actor = session bound to one supervisor; workers = wasm.
+# Actor template: actor = session; execution body = wasm sandbox inside the
+# worker pod; per-request unit = workload execution (context).
 apiVersion: ate.dev/v1alpha1
 kind: ActorTemplate
 metadata:
   name: python-session
   namespace: ate-supervisor
 spec:
-  supervisorClass: supervisor            # (sketch) tier-1 class
-  workerRuntime: wasm                    # (sketch) tier-2 runtime semantics
-  sessionConfigRef: session-python-default   # (sketch) platform-authoritative session config, injected at resume
-  egressPolicy:                          # (sketch) enforced by the wasm host runtime egress proxy (tier-2)
+  sandboxClass: supervisor               # (sketch) upstream field, new enum value = tier-1 worker pod class
+  workloadRuntime: wasm                  # (sketch) nested wasm sandbox / workload runtime inside the worker pod
+  sessionConfigRef: session-python-default   # (sketch) platform-authoritative actor config, injected at ResumeActor
+  egressPolicy:                          # (sketch) enforced by the ateom egress proxy (tier-2)
     defaultDeny: true
     allow:
       - host: pypi.org
         ports: [443]
       - host: files.pythonhosted.org
         ports: [443]
-  capabilities:                          # (sketch) granted to each request-scoped worker
-    - cap:fs:session-config:ro
+  capabilities:                          # (sketch) granted to each request-scoped context
+    - cap:fs:actor-config:ro
     - cap:fs:workspace:rw:scratch
-    - cap:net:egress:session-token
-  workerLifecycle: destroy-after-use     # (sketch) no snapshot/restore for workers
+    - cap:net:egress:actor-token
+  workloadLifecycle: destroy-after-use   # (sketch) no snapshot/restore for contexts
