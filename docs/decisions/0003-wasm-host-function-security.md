@@ -3,6 +3,7 @@
 - Status: Proposed
 - Date: 2026-09-18
 - 关联: [ADR 0002](0002-two-tier-supervisor-worker-sandbox.md)（落实其开放问题「wasm 隔离可信度的建立」与后续行动「wasm 定制工具生态」的安全面）
+- 采纳来源: 《WASM 沙箱外部可信审计方案（技术调研 + 三环模型）》设计定稿 v2.1（钉钉知识库「基于轻量级沙箱的下一代agent sandbox技术 / wasm-E2B-K8s 实现」，[节点](https://alidocs.dingtalk.com/i/nodes/NZQYprEoWoxKPoqwCBwrorbeV1waOeDk)）——本 ADR D7 采纳其三环外部可信审计模型，并把术语从 sandbox 仓 envd/wasm-runner 映射到本设计的 ateom herder
 - Supersedes: -
 - Superseded by: -
 
@@ -21,6 +22,7 @@ ADR 0002 的 runtime 解耦进一步确立：**runc 基线的充分性条件依�
 - **攻击者**：租户提供的 wasm agent 模块（不可信代码），目标是逃逸出 wasm 沙箱、越过 capability 限制、触达控制面容器原生进程乃至宿主/邻租户。
 - **攻击面**：① host function 入参（wasm→native 边界的 ptr/len/offset/字符串/路径/令牌/结构体）；② capability 校验逻辑（绕过/重放/伪造句柄）；③ 出口代理（SSRF、allowlist 绕过、TLS 处理）；④ 凭据通道（明文泄漏进 wasm 内存）；⑤ wasmtime 运行时自身漏洞；⑥ 资源耗尽（燃料/内存/句柄/出口频率）。
 - **信任边界**：wasm 线性内存内 = 不可信；host function 入口 = 信任切换点（必须全量校验）；控制面容器原生进程 = 平台可信（但被 host function 缺陷击穿后即失守）；pod 边界（runc/rund）= 纵深外层。
+- **审计信任原则**（采纳既有方案 v2.1）：审计数据的**产生与存储必须全部位于信任边界外侧**——guest 侧审计（CPython `sys.addaudithook`、wasi-observe/wasi-otel）与被审计代码同权级、位于边界内侧：hook 门控状态可被内省手段（`sys.modules`/`gc`/frame 遍历）篡改、数据上报前可被污染、一次性执行路径零覆盖，故一律定级 **untrusted 遥测、永不参与安全结论**（仅作明确标注的可选辅助信号）。可信审计 = 外部三环（D7）。
 - **不在本模型内**：业务面容器（平台运营代码，与 host function 面正交，见 ADR 0002 D1 信任域前提）；控制面/业务面接口契约（另见开放问题）。
 
 ## Decision
@@ -77,10 +79,30 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 - `cap:secret` 的值由 ateom 代取并**用于代理侧操作**（如签名出口请求、注入凭据头），明文**不写入 wasm 线性内存**。
 - 若语义上必须向 wasm 暴露值，用后 `zeroize`，且经审计标记为高敏（默认走「代取不返值」）。
 
-### D7. 审计全事件、不可绕过
+### D7. 三环外部可信审计（采纳既有方案 v2.1）
 
-- 每次 host function 调用产生审计事件：context id、capability、函数名、参数摘要（脱敏，不含明文凭据/全量 body）、结果、时延。
-- 审计流 **append-only**、不可被 wasm 关闭或篡改；归集到 Tier-2 自研管控（ADR 0002 D2 审计机制，类比 DE agentshell）。
+审计采用**三环纵深、全部位于信任边界外侧**的模型（采纳来源见 header）。核心：guest 侧审计不可信（见威胁模型「审计信任原则」），可信审计点全部在 host/进程外。术语映射：原方案的 envd/wasm-runner → 本设计的 **ateom herder（控制面容器内）**；sandbox_id → **actor / context id**；HostProxy → **D5 出口代理**；gateway/scheduler → **e2bgw + Tier-2 自研管控**。
+
+| 环 | 位置 | 防绕过能力 | 内容 | 默认状态 |
+|---|---|---|---|---|
+| **Ring 0**（主审计面） | ateom 进程内、WASI/host function 边界 host 侧 | guest 无法绕过 | **档位 A**：消费 wasmtime-wasi upstream `#[instrument]` span（~45 个 WASI p1 syscall 入口，host 侧已插好观测点；INFO 级、仅入参、文本日志非稳定契约）；**档位 B（演进）**：WASI preview2 / Component Model + p2 公开 Host trait 结构化拦截——每个 host function 先产出结构化事件（**含返回值**）再委托内置实现，可升级为**可阻断的策略执行点**（= D3 capability 强制点的审计强化形态） | 档位 A 按需开（取证）；档位 B 常开（演进） |
+| **Ring 1** | ateom 进程内（沙箱外部） | guest 无法绕过 | ① **执行前代码存档 + 静态审计**（ateom 在 guest 看到代码前先拿到，不可绕过：sha256 + 长度 + 截断原文 + 高危模式标记；定位为**信号**非防线，可被混淆绕过，运行中行为由 Ring 0 兜底）；② **出口代理审计**（= D5，每请求一条，含 allowed/blocked）；③ **资源计量**（fuel 差值 `store.get_fuel()`、epoch/OOM trap）；④ **I/O 存档**（可选开关，默认关） | 常开 |
+| **Ring 2** | ateom 进程**外**（内核 eBPF） | guest 与 ateom **均**无法绕过 | Tetragon（Cilium）DaemonSet + TracingPolicy CRD：跟踪 ateom 真实 syscall（`openat`/`unlinkat`/`renameat`/`connect`/`execve`），**即使 ateom 被攻破（wasmtime 逃逸 0day）内核侧记录不可抹除**；uprobe 扩展挂 wasmtime trap/实例化稳定符号点 = Ring 0 与 Ring 2 间的**第三独立信道**（tracing subscriber 被攻破/配错时仍由内核采集） | 第二期部署 |
+
+- **完备性论证（支撑 D8「wasm 隔离可信」）**：WASM 安全模型 = **deny-by-default 导入表**——guest 影响外部世界的唯一途径是调用 host 显式导入函数（即 D1 的 host function 面；帧协议本身也是 `fd_read`/`fd_write`）。纯线性内存内计算外部不可见、但也无法影响外部，无需观测。故 **完整覆盖 host function 边界（Ring 0）+ 应用层 I/O（Ring 1）+ 资源计量 = 100% 覆盖沙箱所有外部可见行为**——这是相对容器审计（数百 syscall、`/proc`、共享内核攻击面）的**结构性优势**，也是「wasm 隔离可信」可论证的根据。
+- **语义上限（诚实声明）**：外部审计看到的是**行为**（开了什么文件、发了什么请求、耗了多少 fuel），不是「Python/agent 函数名」；函数级语义从沙箱外不可得（信息论限制）。可信的「审计 agent 干了什么」= 执行前静态审计（信号）+ 执行中边界行为审计（防线）组合近似。
+- **信任链闭合**：Ring 0/1 的可信前提 = 「ateom 进程未被攻破」；绕过它们的唯一路径 = wasmtime 逃逸（0day）——**Ring 2 内核层恰好覆盖该场景**。三环分属三个故障域（wasmtime 边界 / ateom 进程 / 内核），无单点信任；uprobe 再加第三条独立信道。
+- **统一事件模型**：`target="audit"` 结构化日志，必带 `actor/context id + ring ∈ {0,1,2} + event`，明细按环各异（ring0: syscall/入参；ring1: code_sha256/url/method/allowed/fuel_used；ring2: syscall/path/daddr/uprobe 符号）→ stdout → K8s 日志采集 → 归集到 Tier-2 自研管控（ADR 0002 D2 审计机制，类比 DE agentshell 直投安全 SLS）。**审计流不写 Etcd**（遵守状态层写约束）。
+- **分期**：一期 = Ring 0 档位 A + Ring 1（约 80 行、零新增依赖、零协议改动、e2bgw/控制面零改动、E2B SDK 无感知）；二期 = Ring 2 Tetragon 单节点试点→灰度→DaemonSet；演进项（独立立项）= Ring 0 档位 B（adapter PoC 前置）。一期为 **audit-only**，阻断能力依赖档位 B。
+
+#### D7.1 Ring 2 与 pod runtime（runc/rund）的交互（本设计新增的关键考量）
+
+原审计方案针对单层 sandbox（runc/gVisor 路径）撰写；落到 ADR 0002 的 runc/rund 双 runtime 后，**Ring 2 的可观测性随 runtime 不同而不同**，必须显式处理：
+
+- **runc worker pod**：ateom 直接跑在宿主内核上 → 宿主侧 Tetragon（DaemonSet）**直接看到 ateom 的真实 syscall**，Ring 2 按原方案成立（进程外、不可抹除）。
+- **rund/kata worker pod**：ateom 跑在 **guest VM 的独立 guest kernel** 内 → 宿主侧 Tetragon 只看到 kata VM 进程对宿主的 syscall（virtio-fs/virtio-blk/vhost-net 等），**看不到 guest 内 ateom 的 syscall**。要审计 guest 内 syscall，Ring 2 须以 **in-guest eBPF（guest 内 Tetragon agent）** 部署——但 guest kernel 在 kata VM 信任域内，若逃逸正是 guest-kernel 漏洞，in-guest eBPF 可能被一并攻破。
+- **结论**：rund 下「Ring 2 兜底 wasmtime 逃逸」的角色**部分由 kata VM 硬件虚拟化边界本身承担**（逃逸被关在 guest VM 内 = 预防），宿主侧 Tetragon 转为审计 **VM 对宿主的边界行为**（virtio 通道、VM 进程 syscall = 检测）。即 **rund 把 Ring 2 的「检测」语义升级为「预防 + 边界检测」**；runc 下 Ring 2 仍是纯检测、预防依赖 wasm + 容器边界。
+- **对 runtime 判据的反哺**：三环审计（尤其 Ring 2）提供**检测纵深**，部分补偿 runc 较弱的预防——runc + 三环审计下，wasm 逃逸→容器逃逸会被内核 eBPF **检测到**（虽非阻止）。但**检测 ≠ 预防**，故 ADR 0002 D1「runc 充分性以 wasm 隔离可信为前提」不变；高敏感/共享节点仍须 rund（预防）。Ring 2 在 runc 池是「逃逸可见性」的关键补偿，应优先在 runc 池部署。
 
 ### D8. 硬化与验证门禁（runc 准入）
 
@@ -95,6 +117,8 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 | **代码审计** | `unsafe` 集中审计；最小面 review（D1 新增登记） | unsafe 均有安全不变式注释 + 审计记录 |
 | **供应链** | `cargo-audit`/`cargo-deny` 入 CI | 无未处置高危告警 |
 
+> **审计覆盖作为准入证据**：D7 完备性论证（Ring 0 + Ring 1 = 100% 覆盖沙箱外部可见行为）是 runc 准入的**可观测性基础**——「wasm 隔离可信」不仅靠 host function 无缺陷（上表门禁），还靠**逃逸可被外部观测**。**runc 池必须部署 Ring 2**（D7.1：runc 下 Ring 2 是 wasmtime 逃逸的唯一进程外检测兜底）；rund 池的 Ring 2 转为 VM 边界检测（预防已由 kata VM 承担）。
+
 ### D9. 失败模式与降级（fail-closed）
 
 - host function panic / 异常 → **终止该 context**，不放行、不静默吞错、不降级到「无校验」路径。
@@ -108,14 +132,17 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 - host function 面收敛 + 硬化 + 可验证 → **「wasm 隔离可信」从主观假设变为可量化的门禁状态**，runc 适用面可随门禁成熟逐步放宽（ADR 0002 张力 D 的落地路径）；
 - capability 强制点、审计点、出口管控收敛在 host function 一处，安全语义集中、可审计、可测试；
 - 攻击面显著小于原生 agent CLI 的 ambient 工具（bash/git/任意 syscall），与 ADR 0002「wasm 定制工具」一致；
-- 默认拒绝 + 最小面 + 登记制 → 面的扩张是受控的、可追溯的。
+- 默认拒绝 + 最小面 + 登记制 → 面的扩张是受控的、可追溯的；
+- **三环外部可信审计**（采纳既有方案 v2.1）：审计点全在信任边界外侧、guest 不可绕过；完备性论证（deny-by-default 导入表 → Ring 0+1 覆盖 100% 外部可见行为）把「wasm 隔离可信」从工程经验上升为**可论证结论**；三环分属三故障域、无单点信任，Ring 2 内核 eBPF 兜底 wasmtime 逃逸（0day）。
 
 ### 代价与风险
 
 - 最小面 + 验证门禁是**持续工程投入**（fuzzing 基建、红队、审计、CVE 响应），非一次性；
 - host function 面受限 → wasm agent 能力面受约束（与 ADR 0002 张力 C 同源）；新工具须先过 D1 登记 + D8 门禁，交付节奏受安全门约束；
 - wasmtime 升级须重跑全门禁 → 运行时版本演进有验证成本；
-- 门禁未全绿期间，runc 适用面窄、多数租户池须 rund（kata 开销）——这是「安全优先于密度」的阶段性代价。
+- 门禁未全绿期间，runc 适用面窄、多数租户池须 rund（kata 开销）——这是「安全优先于密度」的阶段性代价；
+- **Ring 2（Tetragon）部署成本与集群兼容性**：eBPF 组件与本集群 AliSecGuard 加固/内核参数有冲突前科（gVisor `user.max_user_namespaces` 事件），须单节点先行验证；rund 池下 Ring 2 语义变化（D7.1）需 in-guest eBPF 或转 VM 边界检测，运维更复杂；
+- **审计 POC 边界**（采纳方案 §11）：一期 **audit-only 无阻断**（阻断依赖档位 B 演进）、仅 stdout 无持久化/检索/告警链路、Ring 2 一期不部署（wasmtime 逃逸兜底审计在二期前**空窗**）、档位 B 未经 PoC（官方 python.wasm 的 component adapter 可行性 + WASI 0.3/p3 接口漂移为已知债务）。
 
 ### 与 ADR 0002 的关系
 
@@ -128,7 +155,8 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 2. 建 fuzzing 基建（每个 host function 一个 fuzz target）+ property-based 测试 + 红队回归套件，纳入 CI（D8）；
 3. wasmtime 版本钉扎 + CVE 跟踪流程；`cargo-audit`/`cargo-deny` 入 CI；
 4. 出口代理（D5）与凭据代取（D6）实现 + 双校验；
-5. 门禁状态 → ADR 0002 runtime 判据的对接（门禁全绿的租户池方可选 runc）。
+5. 门禁状态 → ADR 0002 runtime 判据的对接（门禁全绿的租户池方可选 runc）；
+6. **三环审计落地**（采纳方案，sandbox 仓 ateom-wasmd）：一期 Ring 0 档位 A（subscriber 改造 + actor/context id span 归属）+ Ring 1（执行前代码存档/静态审计 + 出口代理审计整合 + fuel 计量）+ 统一 `target="audit"` 出口；二期 Ring 2 Tetragon（syscall + uprobe 两套 TracingPolicy，单节点→灰度→DaemonSet，**按 runc/rund 分置**——runc 池宿主侧直采、rund 池 VM 边界/in-guest，见 D7.1）；演进 Ring 0 档位 B（adapter PoC → p2 Host trait 结构化拦截 → 可阻断策略执行点）。
 
 ## 开放问题
 
@@ -138,4 +166,8 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 - 红队 / 逃逸测试的范围、频率与外部审计介入；
 - 多语言 wasm agent（python-wasm vs rust wasm 模块）对 host function 面的差异（解释器自身是否引入额外面）；
 - 控制面 ↔ 业务面容器的接口契约（ADR 0002 开放问题）是否引入额外 host function 或 IPC 面，及其安全语义；
-- capability 令牌的具体密码学方案（MAC vs 不透明索引 + 服务端表）与吊销传播（ADR 0002 开放问题「capability 中途吊销」）。
+- capability 令牌的具体密码学方案（MAC vs 不透明索引 + 服务端表）与吊销传播（ADR 0002 开放问题「capability 中途吊销」）；
+- **Ring 2 在 rund/kata 下的部署形态**（D7.1）：in-guest eBPF（guest 内 Tetragon，但 guest kernel 在 VM 信任域内、guest-kernel 逃逸时可能一并失守）vs 宿主侧 VM 边界审计（virtio 通道 + VM 进程 syscall）——两者覆盖与信任属性不同，需定方案；
+- **审计持久化 / 检索 / 告警链路**（采纳方案 POC 边界外）：stdout → K8s 日志采集之后的落库（类比 DE agentshell 直投安全 SLS）、检索 API、告警与阻断联动；
+- **Ring 0 档位 B 的 WASI 0.3（p3）接口漂移**：锁 wasmtime 大版本、p3 迁移列为已知债务；
+- **统一审计事件 schema 版本管理与跨环关联**：actor/context id 在 Ring 0/1/2 的一致性（Ring 2 按路径前缀/目的地址关联 sandbox 的可靠性）。

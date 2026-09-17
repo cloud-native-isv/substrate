@@ -99,7 +99,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 - **WebAssembly 沙箱承担四项核心机制**（安全与执行语义收敛在 wasm 层，即 ateom 内，而非 worker pod 层独立组件）：
   1. **高频创建能力**——请求级 context 亚毫秒 spawn/destroy，支撑请求级高频周转（与 Tier-1 低频分工）；
   2. **隔离机制**——**主要边界 = wasm**：wasm 线性内存边界隔离 context ↔ 同 actor 其他 context、并隔离租户代码（真正承载租户隔离的层）；**次要边界 = pod runtime**（按旋钮）：runc 容器级隔离 worker pod ↔ 宿主/邻 pod，rund 时再叠加 kata VM 内核隔离（用于跨租户共享节点）；**actor 间隔离在控制面容器内以 wasm 承载，不以容器隔离 actor**（容器固定，见 D1 双容器布局）；**两层是纵深防御栈、非冗余替代**（2026-09-17 补充前提）——外层（pod runtime）必须强到能兜住内层（wasm）失效：**失效级联** = 缺陷 host function / wasmtime 漏洞 → 租户代码逃逸出 wasm 落入控制面容器原生进程 → 若 runc（共享宿主内核）一次容器/内核逃逸即危及宿主与邻 pod（跨租户），若 rund（kata 独立 guest kernel）逃逸被关在 guest VM 内；**故 runc 的充分性条件依赖「wasm 隔离可信」**（见 D1 双因子判据与 D3 host function 面）；
-  3. **审计机制**——ateom 对每次 workload 执行产生全事件审计流（类比 DE 的 agentshell）：spawn/destroy、host function 调用、出口请求、capability 使用均可审计；
+  3. **审计机制**——ateom 对每次 workload 执行产生全事件审计流（类比 DE 的 agentshell）：spawn/destroy、host function 调用、出口请求、capability 使用均可审计；**审计架构 = 三环外部可信模型**（Ring 0 host function 边界 / Ring 1 ateom 应用层 / Ring 2 内核 eBPF，全部在信任边界外侧、guest 不可绕过；完备性论证：deny-by-default 导入表 ⟹ Ring 0+1 覆盖 100% 外部可见行为），详见 [ADR 0003](0003-wasm-host-function-security.md) D7；Ring 2 与 runc/rund 的可观测性交互见 ADR 0003 D7.1；
   4. **Capability-based security 安全模型**——workload 执行的全部权限来自 spawn 时授予的 capability 子集（见 D3），host function 是唯一执行点；
 - 生命周期：context **请求结束即销毁**，不做快照/恢复；跨请求状态只允许显式写回 actor 工作区（workspace 卷），context 自身无持久态。
 
@@ -157,7 +157,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 ### 后续行动
 
 1. 概念文档 [two-tier-sandbox-model.md](../concepts/two-tier-sandbox-model.md) 与示例清单 `manifests/xuanji/two-tier-example.yaml`（本 ADR 配套，已同步归一术语 + DE 对标修正）；
-2. sandbox 仓：ateom-wasmd 演进为 wasm class 的 **ateom herder**（wasm host 运行时 + per-request context spawn/destroy + 出口代理 + capability 校验 + 全事件审计流 + `SetWorkerCapacity` 容量申报）；e2bgw 侧补齐请求面自研管控（capability 表下发、审计归集、注入 `ate-target-actor` 头）；
+2. sandbox 仓：ateom-wasmd 演进为 wasm class 的 **ateom herder**（wasm host 运行时 + per-request context spawn/destroy + 出口代理 + capability 校验 + 全事件审计流（**三环外部可信审计**，[ADR 0003](0003-wasm-host-function-security.md) D7）+ `SetWorkerCapacity` 容量申报）；e2bgw 侧补齐请求面自研管控（capability 表下发、审计归集、注入 `ate-target-actor` 头）；
 3. substrate 仓：WorkerPool 增 `runtimeClassName` 扩展字段（**enum 不变**）；ActorTemplate schema 增补三个扩展字段；Ateom proto 演进；
 4. **业务面容器**（2026-09-17 对标新增）：设计租户逻辑 sidecar（身份代理/配置投射/持久卷管理/计费钩子）及其与控制面容器的接口契约；worker pod 模板落固定双容器布局；
 5. **wasm 定制工具生态**（2026-09-17 对标新增）：定义优先工具集与 host function ABI，绑定 capability 模型（不支持原生工具）；host function 安全面（最小集/边界校验/硬化门禁）见 **[ADR 0003](0003-wasm-host-function-security.md)**；

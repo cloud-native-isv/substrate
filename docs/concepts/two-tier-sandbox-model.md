@@ -82,7 +82,7 @@ actor capability 表由 Tier-2 自研管控在 ResumeActor 时下发、worker po
 | `cap:net:egress:<token>` | 出口令牌；wasm 执行无直接 socket，出网经 host function → ateom 出口代理校验 allowlist | ateom 出口代理 | 出口 MITM（升级为令牌粒度） |
 | `cap:secret:<name>` | 命名凭据句柄，ateom 代取 | ateom broker | 凭据不落 NAS/仓库 |
 
-审计机制：ateom 对 context spawn/destroy、host function 调用、出口请求、capability 使用产生**全事件审计流**，由 Tier-2 自研管控归集（类比 DE 的 agentshell 全事件审计）。
+审计机制：ateom 对 context spawn/destroy、host function 调用、出口请求、capability 使用产生**全事件审计流**，由 Tier-2 自研管控归集（类比 DE 的 agentshell 全事件审计）。审计架构 = **三环外部可信模型**（Ring 0 host function 边界 / Ring 1 ateom 应用层 / Ring 2 内核 eBPF；全部在信任边界外侧、guest 不可绕过；完备性：deny-by-default 导入表 ⟹ Ring 0+1 覆盖 100% 外部可见行为），详见 [ADR 0003](../decisions/0003-wasm-host-function-security.md) D7（Ring 2 × runc/rund 交互见 D7.1）。
 
 吊销与刷新：出口代理 allowlist 即时生效（网络）；fs 句柄在 context 生命周期内冻结、新 context 取新表（开放问题见 ADR）。
 
