@@ -1,10 +1,11 @@
-# 0002. 两层沙箱模型：Worker Pod 面（Kubernetes+Substrate+Containerd+runc/rund，wasm class kata 形态）+ Actor 工作负载面（e2b+自研管控+WebAssembly）
+# 0002. 两层沙箱模型：Worker Pod 面（Kubernetes+Substrate+Containerd+runc/rund，wasm class；runtime runc/rund 正交可选）+ Actor 工作负载面（e2b+自研管控+WebAssembly）
 
 - Status: Proposed
 - Date: 2026-09-16
 - 术语归一: 2026-09-17（概念全面对齐上游 substrate 词汇，见下节）
 - 去 supervisor 语义: 2026-09-17（不新增 enum；两层形态由 wasm class + `WorkerPool.runtimeClassName` 承载；herder 即 ateom-wasmd 演进版）
 - DE 场景对标修正: 2026-09-17（worker pod 业务语义泛化为**租户**→多租户能力；固定**双容器**切控制面/业务面，actor 不以容器隔离；wasm agent 用**定制工具**、不支持原生工具）
+- runtime 解耦: 2026-09-17（worker pod runtime 同时支持 **runc/rund**，与两层结构**正交**；runc 基线默认、rund 可选强隔离；双容器同属平台信任域 + wasm 隔离租户代码 ⟹ pod 级强隔离非主要边界，runc 足够；选 rund 的判据 = 跨租户共享节点的内核隔离 / wasm host 逃逸纵深防御）
 - Supersedes: -
 - Superseded by: -
 
@@ -16,12 +17,12 @@
 
 | 旧术语（ADR 早期版） | 归一后术语 | 上游锚点 |
 |---|---|---|
-| Supervisor sandbox（会话级 rund/kata 容器） | **Worker Pod**（sandbox class `wasm` 的 kata 形态） | Worker/WorkerPod：温沙箱 Pod，host RUNNING actor |
-| Supervisor pool | **WorkerPool**（`sandboxClass: wasm` + `runtimeClassName: rund`） | WorkerPool CRD |
+| Supervisor sandbox（会话级 rund/kata 容器） | **Worker Pod**（sandbox class `wasm`；runtime runc/rund 正交可选） | Worker/WorkerPod：温沙箱 Pod，host RUNNING actor |
+| Supervisor pool | **WorkerPool**（`sandboxClass: wasm` + `runtimeClassName: runc|rund`） | WorkerPool CRD |
 | Session（绑定到 supervisor 的会话） | **Actor**（= 会话实例；E2B sandbox id = actor name） | Actor：有状态实例，拥有快照，suspend/resume 的对象 |
 | Worker sandbox（wasm 实例） | 拆为两层：**actor 的执行体 = wasm sandbox**（worker pod 内嵌套隔离层）；**请求级 workload 执行（context）**（用过即销毁） | sandbox = worker pod 的隔离环境；`RunWorkload` = 一次工作负载执行 |
 | ateom-supervisor（新 herder 名，早期版提议） | **ateom（wasm class herder）= ateom-wasmd 演进版**，不新增二进制名 | ateom-\<class\>：worker pod 内的沙箱 herder |
-| supervisor（新 SandboxClass enum 值，早期版提议） | **废除：不新增 enum**——两层形态 = 既有 `wasm` class + `WorkerPool.runtimeClassName: rund`（xuanji 扩展字段） | SandboxClass enum 保持 gvisor/microvm/wasm |
+| supervisor（新 SandboxClass enum 值，早期版提议） | **废除：不新增 enum**——两层结构 = 既有 `wasm` class（runtime runc/rund 由 `WorkerPool.runtimeClassName` 正交选定，两层性不依赖 kata） | SandboxClass enum 保持 gvisor/microvm/wasm |
 | SessionConfig（会话配置） | **ActorTemplate**（不可变版本定义）+ actor 级配置注入（xuanji 扩展字段 `sessionConfigRef`） | ActorTemplate；可变 per-actor 配置为 xuanji 扩展 |
 | capability 表 / egressPolicy | ActorTemplate 的 xuanji 扩展字段（`capabilities` / `egressPolicy`），ateom 在 workload 执行 spawn 时强制执行 | 上游无对应物（本仓安全模型扩展） |
 | suspend = supervisor 的 VM 快照 | **SuspendActor = actor 级 checkpoint**（wasm 状态 + workspace tar，经 `CheckpointWorkload`），**worker pod 归还池** | 上游快照模型：快照属于 actor，worker 是无状态温资源 |
@@ -61,26 +62,27 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 
 ## Decision
 
-整个 sandbox 体系分成**两个平面**，wasm class 从"单层 runc pod + 共享 kernel 多路复用"演进为"kata worker pod + per-actor wasm sandbox 嵌套隔离 + 请求级 workload 执行"（**不新增 enum**）：
+整个 sandbox 体系分成**两个平面**，wasm class 从"单层 runc pod + 共享 kernel 多路复用"演进为"worker pod（runtime runc/rund 可选）+ per-actor wasm sandbox 嵌套隔离 + 请求级 workload 执行"（**不新增 enum**；**两层结构与 pod runtime 正交**——两层性来自 wasm 执行体 + 双容器 + 每租户池，不来自 kata）：
 
-> **平面一（Tier-1，worker pod 面）**：Kubernetes + Substrate + Containerd + runc/rund 构建**基于 Kubernetes 生态的 agent sandbox worker pod**（sandbox class `wasm` 的 kata 形态）。特性要求：**复用 Kubernetes 生态**、**低频生命周期 + 高稳定性**、提供**休眠唤醒（Suspend/ResumeActor）**等 agent sandbox 基础特性。
+> **平面一（Tier-1，worker pod 面）**：Kubernetes + Substrate + Containerd + runc/rund 构建**基于 Kubernetes 生态的 agent sandbox worker pod**（sandbox class `wasm`；runtime runc/rund 正交可选）。特性要求：**复用 Kubernetes 生态**、**低频生命周期 + 高稳定性**、提供**休眠唤醒（Suspend/ResumeActor）**等 agent sandbox 基础特性。
 >
 > **平面二（Tier-2，actor 工作负载面）**：**e2b + 自研管控 + wasm workload**（跑在 worker pod 内部），以 WebAssembly 沙箱提供**高频创建能力、隔离机制、审计机制以及 Capability-based security 的安全模型**。
 
-### D1. Tier-1 Worker Pod（sandbox class `wasm` 的 kata 形态）
+### D1. Tier-1 Worker Pod（sandbox class `wasm`；runtime runc/rund 可选）
 
-- 技术栈：**Kubernetes（编排/调度/网络/存储/RuntimeClass）+ Substrate（Actor/WorkerPool/Ateom/suspend-resume）+ Containerd + runc/rund**；worker pod 形态由 `WorkerPool.runtimeClassName: rund` 选定为 **rund（kata）container**（无 rund 的环境不设该字段，回退 legacy runc 单层形态）；
+- 技术栈：**Kubernetes（编排/调度/网络/存储/RuntimeClass）+ Substrate（Actor/WorkerPool/Ateom/suspend-resume）+ Containerd + runc/rund**；worker pod 的 **runtime 由 `WorkerPool.runtimeClassName` 选定，同时支持 `runc`（基线默认）与 `rund`（kata，可选强隔离）**——runtime 与两层结构**正交**：runc worker pod 同样是两层（两层性来自 wasm 执行体 + 双容器 + 每租户池，不来自 kata）。选 `rund` 的判据 = 跨租户共享节点的内核隔离需求 / wasm host 逃逸的纵深防御；节点按租户专属时 `runc` 足够（见 D2 隔离分层与开放问题）；
 - **业务语义 = 租户级业务体**（2026-09-17 DE 对标修正）：worker pod 不再是纯控制面温资源，而承载**租户**（DE「员工」的泛化，工牌身份是租户身份的特例）的身份/配置/持久卷。与 substrate 原生语义的差别即在此——worker pod 含业务语义。为不丢池化优势，租户身份**权威仍在控制面**，worker pod 仅在**绑定期间缓存**、suspend 时擦除归还（每租户）池；
 - **固定双容器布局**（2026-09-17 DE 对标修正）：容器**固定**、不随 actor 变动；**actor 不以容器隔离**（actor 隔离用 wasm，见 D2），容器只用来切分 worker pod 内的**控制面/业务面**逻辑——
   - **控制面容器**：保留 substrate 原生 worker 组件与逻辑（ateom herder / wasm host / 出口代理 / capability broker），**upstream-faithful**，利于回归开源（substrate 容器不改）；
   - **业务面容器**：引入租户/员工逻辑（xuanji 扩展，sidecar 式：租户身份代理、配置投射、持久卷管理、计费钩子等，职责边界见开放问题）；
-- **共居度 = 容量申报模型**（上游语义，非 1:1 硬不变式）：worker 的容量（含最大 actor 数）由其 ateom 经 `SetWorkerCapacity` 自报（`cmd/ateapi/internal/controlapi/worker.go:149`、`cmd/ateapi/internal/scheduling/scheduling.go:155`）；kata 形态默认申报 `actors=1`（每 actor 强隔离），申报 N 即密度优先——旋钮在 herder，不在控制面；actor suspend 后 worker pod 擦除归还池；
+  - **信任域前提（决定 runtime 选型）**：两容器**都必须是平台运营代码**——业务面是平台的租户管理逻辑，**不是租户自带的任意代码**；租户代码只跑在控制面容器内的 wasm 沙箱里。故两容器同属**平台信任域**，co-location 成立；pod 级强隔离（rund）**不用于分隔它们**（rund 只隔离 pod↔宿主/邻 pod，不隔离同 pod 内容器）。这也正是「pod 级强隔离非主要边界、runc 基线足够」的依据。**若业务面要跑租户不可信代码，co-location 即不合理**——那时应拆 pod 或在容器间另设隔离，而非依赖 rund；
+- **共居度 = 容量申报模型**（上游语义，非 1:1 硬不变式）：worker 的容量（含最大 actor 数）由其 ateom 经 `SetWorkerCapacity` 自报（`cmd/ateapi/internal/controlapi/worker.go:149`、`cmd/ateapi/internal/scheduling/scheduling.go:155`）；worker pod 默认申报 `actors=1`（每 actor 强隔离），申报 N 即密度优先——旋钮在 herder，不在控制面；actor suspend 后 worker pod 擦除归还池；
 - 特性契约：
-  - **复用 Kubernetes 生态**——不另建调度/网络/存储/镜像体系，worker pod 就是一个 K8s Pod（kata 隔离），CNI/CSI/RuntimeClass/镜像仓库全部复用；
+  - **复用 Kubernetes 生态**——不另建调度/网络/存储/镜像体系，worker pod 就是一个 K8s Pod（runc/rund 隔离，按 runtime 旋钮），CNI/CSI/RuntimeClass/镜像仓库全部复用；
   - **低频生命周期 + 高稳定性**——worker pod 的 provisioning 与 actor 的 resume/suspend 编排是低频事件，追求长驻稳定而非高频周转；
   - **休眠唤醒等 agent sandbox 基础特性**——复用 substrate 现有 Suspend/ResumeActor 机制：suspend = actor 级 checkpoint（wasm 状态 + workspace flush）+ worker pod 归还池；resume = 从池取温 worker pod + `RestoreWorkload` + 注入 actor 配置与 capability 表；
 - 承载：actor 工作区存储（挂载卷）、网络出口预配置（NetworkPolicy/路由到 worker pod）；pod 内控制面容器的 ateom（wasm class herder，即 ateom-wasmd 演进版）同时承载 Tier-2 的 wasm host 运行时、出口代理与 capability broker；
-- 池化：`WorkerPool(sandboxClass: wasm, runtimeClassName: rund)` 池化**温 worker pod**（无 actor 绑定）；**每租户（或每租户模板）一池**——池化从集群级退化为租户级（可接受，换来多租户隔离边界），温池命中率与成本按租户规模权衡。
+- 池化：`WorkerPool(sandboxClass: wasm, runtimeClassName: runc|rund)` 池化**温 worker pod**（无 actor 绑定）；**每租户（或每租户模板）一池**——池化从集群级退化为租户级（可接受，换来多租户隔离边界），温池命中率与成本按租户规模权衡。
 
 ### D2. Tier-2 Actor 工作负载面（e2b + 自研管控 + wasm workload）
 
@@ -90,7 +92,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 - **请求级 workload 执行（context）**：每个请求在 actor 的 wasm 沙箱内 spawn 一个**用过即销毁**的执行单元（DE 每请求进程的对应物），capability 子集在 spawn 时授予；
 - **WebAssembly 沙箱承担四项核心机制**（安全与执行语义收敛在 wasm 层，即 ateom 内，而非 worker pod 层独立组件）：
   1. **高频创建能力**——请求级 context 亚毫秒 spawn/destroy，支撑请求级高频周转（与 Tier-1 低频分工）；
-  2. **隔离机制**——请求间完全隔离：wasm 线性内存边界隔离 context ↔ 同 actor 其他 context，叠加 kata VM 边界隔离 worker pod ↔ 宿主/邻 actor，两道防线职责分明；**actor 间隔离在控制面容器内以 wasm 承载，不以容器隔离 actor**（容器固定，见 D1 双容器布局）；
+  2. **隔离机制**——**主要边界 = wasm**：wasm 线性内存边界隔离 context ↔ 同 actor 其他 context、并隔离租户代码（真正承载租户隔离的层）；**次要边界 = pod runtime**（按旋钮）：runc 容器级隔离 worker pod ↔ 宿主/邻 pod，rund 时再叠加 kata VM 内核隔离（用于跨租户共享节点）；**actor 间隔离在控制面容器内以 wasm 承载，不以容器隔离 actor**（容器固定，见 D1 双容器布局）；
   3. **审计机制**——ateom 对每次 workload 执行产生全事件审计流（类比 DE 的 agentshell）：spawn/destroy、host function 调用、出口请求、capability 使用均可审计；
   4. **Capability-based security 安全模型**——workload 执行的全部权限来自 spawn 时授予的 capability 子集（见 D3），host function 是唯一执行点；
 - 生命周期：context **请求结束即销毁**，不做快照/恢复；跨请求状态只允许显式写回 actor 工作区（workspace 卷），context 自身无持久态。
@@ -109,14 +111,14 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 - **平面分工**：substrate 控制面（ateapi/atecontroller/Ateom）服务 **Tier-1**（actor/worker 生命周期：Create/Resume/Suspend/Delete、池绑定）；**e2b 协议面（e2bgw）+ 自研管控**服务 **Tier-2 请求面**（E2B-compatible 请求入口、请求路由、capability 表下发、审计归集）。自研管控构建在 substrate 之上，不重造 actor 生命周期；
 - **DE → 设计实体映射**（2026-09-17 对标修正）：DE 员工（AI工号 + 其 kata sandbox，长持久业务体）= **worker pod**（租户级业务体，持租户身份/配置/持久卷）；DE agent CLI（claude-code，每会话）= **actor 执行体**（wasm runtime + wasm agent program）；DE 每请求进程 = **请求级 context**；DE 原生工具链 = **wasm 定制工具**（非原生）。worker pod 内**固定双容器**：控制面容器（substrate 原生 worker 逻辑）+ 业务面容器（租户逻辑）；
 - **Actor = 会话**（E2B sandbox id = actor name）：ResumeActor = 取温 worker pod + `RestoreWorkload` + 注入 actor 配置与 capability 表；SuspendActor = actor 级 `CheckpointWorkload`（wasm 状态 + workspace flush）+ worker pod 归还池；context 永不 suspend；
-- **SandboxClass 不新增 enum**：两层形态由既有 `wasm` class 承载——`WorkerPool.runtimeClassName: rund`（xuanji 扩展字段）选定 kata worker pod 形态（两层），不设该字段即 legacy runc 单层形态；wasm 仍是可池化顶层 class，其隔离语义 = worker pod 内嵌套 wasm sandbox；扩展字段变更按 xuanji 约定登记 xuanji.md；
-- **WorkerPool / ActorTemplate 用上游既有字段表达**：`WorkerPool.spec.sandboxClass: wasm` + `WorkerPool.spec.runtimeClassName: rund`（扩展字段）、`ActorTemplate.spec.sandboxClass: wasm`（上游字段）；xuanji 扩展字段仅三个：`capabilities: [...]`、`egressPolicy: {...}`、`sessionConfigRef`（actor 级配置注入，平台侧权威、请求级可刷新，类比 DE 的请求级 PATCH /role）；
-- **Ateom 协议演进**：wasm class（kata 形态）的 `RunWorkload` 语义 = 一次请求执行——携带 capability manifest 调用 ateom，ateom 在 actor 的 wasm 沙箱内 spawn context、执行、销毁、返回；`CheckpointWorkload/RestoreWorkload` 作用域 = actor（wasm 状态 + workspace）。
+- **SandboxClass 不新增 enum**：两层结构由既有 `wasm` class 承载；**pod runtime 是正交旋钮**——`WorkerPool.runtimeClassName`（xuanji 扩展字段）选 `runc`（基线默认）或 `rund`（kata，可选强隔离），**两层结构不依赖 kata**（runc worker pod 同样两层）；legacy 单层 wasm-pool 是迁移前的旧结构（见 D5），与 runtime 旋钮无关；wasm 仍是可池化顶层 class，其隔离语义 = worker pod 内嵌套 wasm sandbox；扩展字段变更按 xuanji 约定登记 xuanji.md；
+- **WorkerPool / ActorTemplate 用上游既有字段表达**：`WorkerPool.spec.sandboxClass: wasm` + `WorkerPool.spec.runtimeClassName: runc|rund`（扩展字段，runtime 旋钮）、`ActorTemplate.spec.sandboxClass: wasm`（上游字段）；xuanji 扩展字段仅三个：`capabilities: [...]`、`egressPolicy: {...}`、`sessionConfigRef`（actor 级配置注入，平台侧权威、请求级可刷新，类比 DE 的请求级 PATCH /role）；
+- **Ateom 协议演进**：wasm class 的 `RunWorkload` 语义 = 一次请求执行——携带 capability manifest 调用 ateom，ateom 在 actor 的 wasm 沙箱内 spawn context、执行、销毁、返回；`CheckpointWorkload/RestoreWorkload` 作用域 = actor（wasm 状态 + workspace）。
 
 ### D5. 与既有单层模型的关系
 
 - 过渡期保留现有 wasm-pool 部署作为 legacy 路径（`wasm-legacy` 标签），新 actor 默认走两层模型；
-- 密度换隔离：单层模型单机数千 wasm 实例的密度让位于"每 RUNNING actor 一个 kata worker pod"的重量级边界；以温池 + actor suspend 归还 worker 缓解成本；
+- 密度换隔离：单层模型单机数千 wasm 实例的密度让位于"每 RUNNING actor 一个 worker pod"的重量级边界；以温池 + actor suspend 归还 worker 缓解成本；
 - gvisor/microvm class 不受本决策影响，仍为独立顶层 class。
 
 ## Consequences
@@ -134,33 +136,35 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 
 ### 代价与风险
 
-- 每 RUNNING actor 一个 kata worker pod：内存/启动成本高于池化 wasm kernel；依赖温池命中率与 suspend 策略；
+- 每 RUNNING actor 一个 worker pod：内存/启动成本高于池化 wasm kernel；依赖温池命中率与 suspend 策略；选 rund 时再叠加 kata VM 的内存/启动开销（runc 基线无此开销）；
 - **每租户一池**（2026-09-17 对标修正）：池化从集群级退化为租户级，小租户池利用率低，温池命中率与成本按租户规模权衡；
 - **wasm 定制工具生态需自建**（无 git/chromium/dws/a1 等原生工具复用），agent 能力面受 wasm 工具成熟度约束；
 - **worker pod 含业务语义后非纯无状态**：绑定期缓存租户身份，须 suspend 擦除保证归还池后无残留（擦除完整性是安全边界）；
-- kata 沙箱内 actor checkpoint（wasm 状态 + workspace）体积 > 纯 wasm kernel 快照：suspend/resume 延迟与存储成本上升；
-- rund RuntimeClass 在目标集群的可用性需逐集群验证（ACK 已具备；自建集群需 kata/rund 部署）；
+- worker pod 内 actor checkpoint（wasm 状态 + workspace）体积 > 纯 wasm kernel 快照：suspend/resume 延迟与存储成本上升；
+- rund RuntimeClass 在目标集群的可用性需逐集群验证（ACK 已具备；自建集群需 kata/rund 部署）——**仅当选择 rund 时**；runc 基线无此依赖（runc 设为默认的原因之一）；
 - Ateom 协议演进与 WorkerPool `runtimeClassName` 扩展字段涉及上游文件改动（xuanji.md 登记）与 ateom-wasmd 的语义演进（per-actor wasm sandbox + capability 强制执行 + 容量申报，sandbox 仓）；
 - capability 令牌的中途吊销、跨请求状态写回语义需在下个 feature 明确。
 
 ### 后续行动
 
 1. 概念文档 [two-tier-sandbox-model.md](../concepts/two-tier-sandbox-model.md) 与示例清单 `manifests/xuanji/two-tier-example.yaml`（本 ADR 配套，已同步归一术语 + DE 对标修正）；
-2. sandbox 仓：ateom-wasmd 演进为 wasm class（kata 形态）的 **ateom herder**（wasm host 运行时 + per-request context spawn/destroy + 出口代理 + capability 校验 + 全事件审计流 + `SetWorkerCapacity` 容量申报）；e2bgw 侧补齐请求面自研管控（capability 表下发、审计归集、注入 `ate-target-actor` 头）；
+2. sandbox 仓：ateom-wasmd 演进为 wasm class 的 **ateom herder**（wasm host 运行时 + per-request context spawn/destroy + 出口代理 + capability 校验 + 全事件审计流 + `SetWorkerCapacity` 容量申报）；e2bgw 侧补齐请求面自研管控（capability 表下发、审计归集、注入 `ate-target-actor` 头）；
 3. substrate 仓：WorkerPool 增 `runtimeClassName` 扩展字段（**enum 不变**）；ActorTemplate schema 增补三个扩展字段；Ateom proto 演进；
 4. **业务面容器**（2026-09-17 对标新增）：设计租户逻辑 sidecar（身份代理/配置投射/持久卷管理/计费钩子）及其与控制面容器的接口契约；worker pod 模板落固定双容器布局；
 5. **wasm 定制工具生态**（2026-09-17 对标新增）：定义优先工具集与 host function ABI，绑定 capability 模型（不支持原生工具）；
-6. 集群验证：cluster-msaFE8 上以 wasm class（`runtimeClassName: rund`）拉起 worker pool，跑 actor 级 e2e（ResumeActor 注入 → 请求执行 → 出口 allowlist 生效 → Suspend/Resume）。
+6. 集群验证：cluster-msaFE8 上以 wasm class（`runtimeClassName: runc` 基线 + `rund` 对照）拉起 worker pool，跑 actor 级 e2e（ResumeActor 注入 → 请求执行 → 出口 allowlist 生效 → Suspend/Resume）。
 
 ## 开放问题
 
-> 2026-09-17 DE 对标已决：张力 A（员工钉住 vs 池化）→ 混合解（控制面权威 + 绑定缓存 + suspend 擦除）+ 泛化租户、每租户一池；张力 B（多容器隔离）→ 固定双容器切控制面/业务面，actor 不以容器隔离；张力 C（工具生态）→ wasm 定制工具、不支持原生工具。下列为衍生 open item。
+> 2026-09-17 DE 对标已决：张力 A（员工钉住 vs 池化）→ 混合解（控制面权威 + 绑定缓存 + suspend 擦除）+ 泛化租户、每租户一池；张力 B（多容器隔离）→ 固定双容器切控制面/业务面，actor 不以容器隔离；张力 C（工具生态）→ wasm 定制工具、不支持原生工具；张力 D（runtime 选型）→ runc/rund 与两层结构**正交**，runc 基线默认、rund 可选强隔离（双容器同属平台信任域 + wasm 隔离租户代码 ⟹ pod 级强隔离非主要边界）。下列为衍生 open item。
 
 - worker pod 空闲时 actor suspend 的粒度与唤醒延迟预算（actor 体验 vs 成本）；
 - capability 中途吊销的传播机制（proxy 侧即时生效 vs context 生命周期内冻结）；
 - actor 工作区的配额与回收（DE 用 OSS/NAS 持久面；本模型默认 rustfs/OSS，配额策略待定）；
 - 单 worker pod 内并发 context 上限与燃料/内存预算的 actor 级配额模型；
 - **多租户**：租户级配额/隔离边界、每租户一池的容量规划与租户间公平性、跨租户调度约束；
+- **节点租户模型 → runtime 默认值**：节点按租户专属（runc 足够）vs 多租户共享（rund 提供跨租户内核隔离）；每租户池的节点亲和/污点策略；
+- **业务面容器信任边界**：当前前提是业务面=平台运营代码（co-location 成立）；若未来业务面需跑租户不可信代码，co-location 不再成立——须拆 pod 或容器间另设隔离（与 runtime 旋钮正交）；
 - **业务面容器职责边界**：租户逻辑具体承载什么（身份代理/配置投射/持久卷管理/计费钩子），与控制面容器的接口契约（共享卷 / localhost IPC / unix socket）；
 - **wasm 定制工具生态**：优先工具集、host function ABI、与 capability 模型的绑定方式；
 - **租户身份权威与注入**：控制面权威 + worker pod 绑定缓存 + suspend 擦除的具体机制；是否纳入 DE 式企业身份（工牌/BUC SSO/按工号服务授权）；

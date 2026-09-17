@@ -7,8 +7,11 @@
 #
 # Topology (two planes, ADR 0002, substrate vocabulary — NO new SandboxClass enum):
 #   Tier-1 worker pod plane : Kubernetes + Substrate + Containerd + runc/rund;
-#                             worker pod = sandbox class `wasm` in kata form
-#                             (WorkerPool.runtimeClassName: rund), a TENANT-level
+#                             worker pod = sandbox class `wasm`, runtime selected
+#                             by WorkerPool.runtimeClassName = `runc` (baseline
+#                             default) OR `rund` (kata, opt-in strong isolation) —
+#                             runtime is ORTHOGONAL to the two-tier structure (a
+#                             runc worker pod is equally two-tier). A TENANT-level
 #                             business body (DE "employee" generalized to "tenant";
 #                             holds tenant identity/config/persistent volume),
 #                             pooled warm PER TENANT, hosts 1 RUNNING actor by
@@ -55,7 +58,7 @@ spec:
   replicas: 3
   sandboxClass: wasm
   ateomImage: <ATEOM_WASMD_IMAGE>        # control-plane container: ateom (wasm class herder / wasm host): per-request context spawn/destroy + 出口代理 + capability 校验 + 审计流
-  runtimeClassName: rund                 # (sketch, xuanji extension) kata/rund RuntimeClass on ACK; unset = legacy runc single-layer pool
+  runtimeClassName: runc                 # (sketch, xuanji extension) runc = baseline default; rund = kata opt-in strong isolation (for cross-tenant shared nodes); ORTHOGONAL to the two-tier structure
   template:
     resources:
       requests: {cpu: "2000m", memory: "4Gi"}
