@@ -160,7 +160,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 2. sandbox 仓：ateom-wasmd 演进为 wasm class 的 **ateom herder**（wasm host 运行时 + per-request context spawn/destroy + 出口代理 + capability 校验 + 全事件审计流 + `SetWorkerCapacity` 容量申报）；e2bgw 侧补齐请求面自研管控（capability 表下发、审计归集、注入 `ate-target-actor` 头）；
 3. substrate 仓：WorkerPool 增 `runtimeClassName` 扩展字段（**enum 不变**）；ActorTemplate schema 增补三个扩展字段；Ateom proto 演进；
 4. **业务面容器**（2026-09-17 对标新增）：设计租户逻辑 sidecar（身份代理/配置投射/持久卷管理/计费钩子）及其与控制面容器的接口契约；worker pod 模板落固定双容器布局；
-5. **wasm 定制工具生态**（2026-09-17 对标新增）：定义优先工具集与 host function ABI，绑定 capability 模型（不支持原生工具）；
+5. **wasm 定制工具生态**（2026-09-17 对标新增）：定义优先工具集与 host function ABI，绑定 capability 模型（不支持原生工具）；host function 安全面（最小集/边界校验/硬化门禁）见 **[ADR 0003](0003-wasm-host-function-security.md)**；
 6. 集群验证：cluster-msaFE8 上以 wasm class（`runtimeClassName: runc` 基线 + `rund` 对照）拉起 worker pool，跑 actor 级 e2e（ResumeActor 注入 → 请求执行 → 出口 allowlist 生效 → Suspend/Resume）。
 
 ## 开放问题
@@ -173,7 +173,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 - 单 worker pod 内并发 context 上限与燃料/内存预算的 actor 级配额模型；
 - **多租户**：租户级配额/隔离边界、每租户一池的容量规划与租户间公平性、跨租户调度约束；
 - **节点租户模型 → runtime 默认值**：节点按租户专属（runc 足够）vs 多租户共享（rund 提供跨租户内核隔离）；每租户池的节点亲和/污点策略；
-- **wasm 隔离可信度的建立**（runc 基线的前置）：host function 面最小化 + fuzzing + 审计、wasmtime CVE 跟踪、能力模型形式化；runtime 默认值随成熟度翻转（早期 rund → host function 验证后 runc for 可信租户/专属节点）；runsc/gVisor 中间档的集群 RuntimeClass 支持验证；
+- **wasm 隔离可信度的建立**（runc 基线的前置）→ 安全模型与硬化/验证门禁见 **[ADR 0003](0003-wasm-host-function-security.md)**（host function 最小面 + ABI 边界校验 + fuzzing/红队/审计门禁 + wasmtime CVE 跟踪）；门禁全绿即「wasm 隔离可信」达到 runc 准入；runtime 适用面随门禁成熟放宽（早期倾向 rund → 门禁全绿后 runc for 可信租户/专属节点）；runsc/gVisor 中间档的集群 RuntimeClass 支持验证；
 - **业务面容器信任边界**：当前前提是业务面=平台运营代码（co-location 成立）；若未来业务面需跑租户不可信代码，co-location 不再成立——须拆 pod 或容器间另设隔离（与 runtime 旋钮正交）；
 - **业务面容器职责边界**：租户逻辑具体承载什么（身份代理/配置投射/持久卷管理/计费钩子），与控制面容器的接口契约（共享卷 / localhost IPC / unix socket）；
 - **wasm 定制工具生态**：优先工具集、host function ABI、与 capability 模型的绑定方式；
