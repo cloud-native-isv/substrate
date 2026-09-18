@@ -19,7 +19,7 @@ ADR 0002 的 runtime 解耦进一步确立：**runc 基线的充分性条件依�
 
 ### 威胁模型
 
-- **攻击者**：租户提供的 wasm agent 模块（不可信代码），目标是逃逸出 wasm 沙箱、越过 capability 限制、触达控制面容器原生进程乃至宿主/邻租户。
+- **攻击者**：租户提供的 wasm agent 模块（不可信代码），目标是逃逸出 wasm 沙箱、越过 capability 限制、触达控制面容器原生进程乃至宿主/邻租户。**[ADR 0005](0005-rust-agent-execution-body.md) 转向后细化**：执行体主体改为**平台编写的 safe Rust agent**（静态编译、可审计，本身非不可信负载），不可信面收窄为**经工具流入的数据**（LLM 输出、用户任务文本、`python_exec` 提交的 Python 代码、外部 API 响应）+ `python_exec` 子沙箱；本 ADR D1–D9 全部仍适用，且因主体可信而**更易论证**（guest TCB 最小化 + 内存安全贯穿 guest，见 ADR 0005 D4）。
 - **攻击面**：① host function 入参（wasm→native 边界的 ptr/len/offset/字符串/路径/令牌/结构体）；② capability 校验逻辑（绕过/重放/伪造句柄）；③ 出口代理（SSRF、allowlist 绕过、TLS 处理）；④ 凭据通道（明文泄漏进 wasm 内存）；⑤ wasmtime 运行时自身漏洞；⑥ 资源耗尽（燃料/内存/句柄/出口频率）。
 - **信任边界**：wasm 线性内存内 = 不可信；host function 入口 = 信任切换点（必须全量校验）；控制面容器原生进程 = 平台可信（但被 host function 缺陷击穿后即失守）；pod 边界（runc/rund）= 纵深外层。
 - **审计信任原则**（采纳既有方案 v2.1）：审计数据的**产生与存储必须全部位于信任边界外侧**——guest 侧审计（CPython `sys.addaudithook`、wasi-observe/wasi-otel）与被审计代码同权级、位于边界内侧：hook 门控状态可被内省手段（`sys.modules`/`gc`/frame 遍历）篡改、数据上报前可被污染、一次性执行路径零覆盖，故一律定级 **untrusted 遥测、永不参与安全结论**（仅作明确标注的可选辅助信号）。可信审计 = 外部三环（D7）。
