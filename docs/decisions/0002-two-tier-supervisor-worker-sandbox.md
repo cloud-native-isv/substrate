@@ -75,7 +75,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 - **选型判据 = wasm 隔离可信度 × 节点租户模型 × 租户敏感度 × 密度/成本诉求**——
   - **倾向 runc**：wasm 隔离可信 + 低/中敏感租户 + 专属节点 + 高密度/低成本诉求（拿 runc 的密度与兼容红利）；
   - **倾向 rund**：wasm 隔离未经充分验证（host function 未 fuzzing/审计、租户模块未 vetted）或 高敏感租户 或 跨租户共享节点——kata 独立 guest kernel 提供**不依赖 wasm 正确性**的兜底强隔离；
-  - **runc 的充分性前提**（界定「倾向 runc」的边界，非否定 runc 价值）：runc 安全性条件依赖「wasm 隔离可信」；失效级联（缺陷 host function / wasmtime 漏洞 → 租户代码逃逸进控制面容器原生进程 → runc 共享宿主内核不足兜底 → 危及宿主与同节点邻 pod）见 D2/D3；故 wasm 未验证前，高敏感/共享节点场景**必须** rund；
+  - **runc 的充分性前提**（界定「倾向 runc」的边界，非否定 runc 价值）：runc 安全性条件依赖「wasm 隔离可信」；失效级联（缺陷 host function / wasmtime 漏洞 → 租户代码逃逸进控制面容器原生进程 → runc 共享宿主内核不足兜底 → 危及宿主与同节点邻 pod）见 D2/D3；故 wasm 未验证前，高敏感/共享节点场景**必须** rund；**runc 外层（容器/节点）遏制硬化与可核查的 runc 准入判据见 [ADR 0004](0004-runc-worker-pod-hardening.md)**（本 ADR 只定原则与判据维度，外层设计在 0004）；
   - **成熟度趋势**：早期 host function 未硬化时 rund 覆盖面更大；随 wasm 隔离验证成熟，runc 适用面扩大（更多租户/场景下放 runc 拿密度红利）。中间档可选 runsc/gVisor（强于 runc、轻于 rund，需验证集群 RuntimeClass 支持）；
 - **业务语义 = 租户级业务体**（2026-09-17 DE 对标修正）：worker pod 不再是纯控制面温资源，而承载**租户**（DE「员工」的泛化，工牌身份是租户身份的特例）的身份/配置/持久卷。与 substrate 原生语义的差别即在此——worker pod 含业务语义。为不丢池化优势，租户身份**权威仍在控制面**，worker pod 仅在**绑定期间缓存**、suspend 时擦除归还（每租户）池；
 - **固定双容器布局**（2026-09-17 DE 对标修正）：容器**固定**、不随 actor 变动；**actor 不以容器隔离**（actor 隔离用 wasm，见 D2），容器只用来切分 worker pod 内的**控制面/业务面**逻辑——
@@ -98,7 +98,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 - **请求级 workload 执行（context）**：每个请求在 actor 的 wasm 沙箱内 spawn 一个**用过即销毁**的执行单元（DE 每请求进程的对应物），capability 子集在 spawn 时授予；
 - **WebAssembly 沙箱承担四项核心机制**（安全与执行语义收敛在 wasm 层，即 ateom 内，而非 worker pod 层独立组件）：
   1. **高频创建能力**——请求级 context 亚毫秒 spawn/destroy，支撑请求级高频周转（与 Tier-1 低频分工）；
-  2. **隔离机制**——**主要边界 = wasm**：wasm 线性内存边界隔离 context ↔ 同 actor 其他 context、并隔离租户代码（真正承载租户隔离的层）；**次要边界 = pod runtime**（按旋钮）：runc 容器级隔离 worker pod ↔ 宿主/邻 pod，rund 时再叠加 kata VM 内核隔离（用于跨租户共享节点）；**actor 间隔离在控制面容器内以 wasm 承载，不以容器隔离 actor**（容器固定，见 D1 双容器布局）；**两层是纵深防御栈、非冗余替代**（2026-09-17 补充前提）——外层（pod runtime）必须强到能兜住内层（wasm）失效：**失效级联** = 缺陷 host function / wasmtime 漏洞 → 租户代码逃逸出 wasm 落入控制面容器原生进程 → 若 runc（共享宿主内核）一次容器/内核逃逸即危及宿主与邻 pod（跨租户），若 rund（kata 独立 guest kernel）逃逸被关在 guest VM 内；**故 runc 的充分性条件依赖「wasm 隔离可信」**（见 D1 双因子判据与 D3 host function 面）；
+  2. **隔离机制**——**主要边界 = wasm**：wasm 线性内存边界隔离 context ↔ 同 actor 其他 context、并隔离租户代码（真正承载租户隔离的层）；**次要边界 = pod runtime**（按旋钮）：runc 容器级隔离 worker pod ↔ 宿主/邻 pod，rund 时再叠加 kata VM 内核隔离（用于跨租户共享节点）；**actor 间隔离在控制面容器内以 wasm 承载，不以容器隔离 actor**（容器固定，见 D1 双容器布局）；**两层是纵深防御栈、非冗余替代**（2026-09-17 补充前提）——外层（pod runtime）必须强到能兜住内层（wasm）失效：**失效级联** = 缺陷 host function / wasmtime 漏洞 → 租户代码逃逸出 wasm 落入控制面容器原生进程 → 若 runc（共享宿主内核）一次容器/内核逃逸即危及宿主与邻 pod（跨租户），若 rund（kata 独立 guest kernel）逃逸被关在 guest VM 内；**故 runc 的充分性条件依赖「wasm 隔离可信」**（见 D1 双因子判据与 D3 host function 面）；内层（wasm host function 预防 + 三环检测）见 [ADR 0003](0003-wasm-host-function-security.md)，**外层（runc 容器/节点遏制 + 爆炸半径限制 + 逃逸响应 + 准入判据）见 [ADR 0004](0004-runc-worker-pod-hardening.md)**；
   3. **审计机制**——ateom 对每次 workload 执行产生全事件审计流（类比 DE 的 agentshell）：spawn/destroy、host function 调用、出口请求、capability 使用均可审计；**审计架构 = 三环外部可信模型**（Ring 0 host function 边界 / Ring 1 ateom 应用层 / Ring 2 内核 eBPF，全部在信任边界外侧、guest 不可绕过；完备性论证：deny-by-default 导入表 ⟹ Ring 0+1 覆盖 100% 外部可见行为），详见 [ADR 0003](0003-wasm-host-function-security.md) D7；Ring 2 与 runc/rund 的可观测性交互见 ADR 0003 D7.1；
   4. **Capability-based security 安全模型**——workload 执行的全部权限来自 spawn 时授予的 capability 子集（见 D3），host function 是唯一执行点；
 - 生命周期：context **请求结束即销毁**，不做快照/恢复；跨请求状态只允许显式写回 actor 工作区（workspace 卷），context 自身无持久态。

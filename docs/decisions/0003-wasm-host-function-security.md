@@ -123,7 +123,7 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 
 - host function panic / 异常 → **终止该 context**，不放行、不静默吞错、不降级到「无校验」路径。
 - 资源限额触发 → context 终止 + 审计。
-- 检测到逃逸 / 越权迹象 → 隔离 context + 告警；**runc 池**额外触发节点级响应（驱逐 / 取证 / 复核同节点邻租户）。
+- 检测到逃逸 / 越权迹象 → 隔离 context + 告警；**runc 池**额外触发节点级响应（驱逐 / 取证 / 复核同节点邻租户）——节点级响应编排与 runtime 降级复核见 [ADR 0004](0004-runc-worker-pod-hardening.md) D5。
 
 ## Consequences
 
@@ -148,6 +148,7 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 
 - 本 ADR **落实** ADR 0002 开放问题「wasm 隔离可信度的建立」与后续行动 5「wasm 定制工具生态」的安全面；
 - **D8 门禁全绿是 ADR 0002 中 runc 基线成立的前置条件**；门禁状态即「wasm 隔离可信度」的度量，直接喂给 ADR 0002 D1 的 runtime 选型判据（每租户池策略）。
+- **本 ADR 是内层（L1 预防 + L4 检测的审计模型）**；runc 的**外层遏制**（L2 容器/pod 硬化 + L3 节点/集群爆炸半径 + 逃逸响应）与把 D8 门禁纳入其中的**统一 runc 准入判据**在 [ADR 0004](0004-runc-worker-pod-hardening.md)。两 ADR 合力构成 runc 安全增强的完整设计链。
 
 ### 后续行动
 
