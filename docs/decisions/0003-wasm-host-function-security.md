@@ -29,7 +29,7 @@ ADR 0002 的 runtime 解耦进一步确立：**runc 基线的充分性条件依�
 
 ### D1. 最小 host function 面（allowlist，默认拒绝）
 
-host function 集合是**显式 allowlist**，未列出的一律不可见（与 WASI 能力模型同构、与 ADR 0002 D3「未授予即不可见」一致）。新增任何 host function 须走 review + 在本表登记 + 补 fuzzing/测试，否则不得进入运行时。
+host function 集合是**显式 allowlist**，未列出的一律不可见（与 WASI 能力模型同构、与 ADR 0002 D3「未授予即不可见」一致）。新增任何 host function 须走 review + 在本表登记 + 补 fuzzing/测试，否则不得进入运行时。**暴露的工具/host function 多寡是 [ADR 0006](0006-security-spectrum-model.md) 三维安全光谱的维度 ③**（少=安全端、攻击面小、Ring 0/1 完备性论证最干净；多=能力端、每工具仍须过登记 + D8 门禁的受控扩张）。
 
 | 能力域 | host function（最小集） | 授予的 capability | 备注 |
 |---|---|---|---|

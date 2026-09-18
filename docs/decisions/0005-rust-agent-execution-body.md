@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-09-18
-- 关联: [ADR 0002](0002-two-tier-supervisor-worker-sandbox.md) D2（actor 执行体 = wasm runtime + wasm agent program，本 ADR 把「wasm agent program」具体化）；[ADR 0003](0003-wasm-host-function-security.md)（host function 安全模型——本 ADR 改变其威胁模型与最小面构成）；[ADR 0004](0004-runc-worker-pod-hardening.md) L1（本 ADR 强化 runc 准入的预防层）
+- 关联: [ADR 0002](0002-two-tier-supervisor-worker-sandbox.md) D2（actor 执行体 = wasm runtime + wasm agent program，本 ADR 把「wasm agent program」具体化）；[ADR 0003](0003-wasm-host-function-security.md)（host function 安全模型——本 ADR 改变其威胁模型与最小面构成）；[ADR 0004](0004-runc-worker-pod-hardening.md) L1（本 ADR 强化 runc 准入的预防层）；**[ADR 0006](0006-security-spectrum-model.md)（本 ADR = 三维安全光谱的维度 ②「执行体形态」；下文的「转向」是 ② 的*默认/推荐位*（rust-wasm 安全端 + rust+python_exec 混合位），非禁止 cpython-wasm 主体——后者是 ② 的合法兼容端位置，须由 ① 靠 rund 或 ③ 靠最小面补偿，见 ADR 0006 D3/D4）**
 - Supersedes: -
 - Superseded by: -
 

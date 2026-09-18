@@ -72,7 +72,7 @@ WebAssembly 不应再作为**独立自足**的沙箱 class 存在：它擅长请
 
 - 技术栈：**Kubernetes（编排/调度/网络/存储/RuntimeClass）+ Substrate（Actor/WorkerPool/Ateom/suspend-resume）+ Containerd + runc/rund**；worker pod 的 **runtime 由 `WorkerPool.runtimeClassName` 选定，同时支持 `runc` 与 `rund`（kata）**——二者**各具独立价值、非「默认 vs 兜底」的不对称关系**：`runc` 资源利用率高、使用场景更广（无 VM 开销、密度高、启动快、内存/CPU 更省、任何 OCI 集群可用、无 kata RuntimeClass 部署依赖）；`rund` 安全性更高（独立 guest kernel、硬件虚拟化边界、逃逸难度数量级更高）。runtime 与两层结构**正交**：runc worker pod 同样是两层（两层性来自 wasm 执行体 + 双容器 + 每租户池，不来自 kata）；
 - **runtime = 每租户池的策略旋钮；混合机群（runc 池 + rund 池并存）是预期形态**（2026-09-17 补充）：与「每租户一池」天然契合——平台按各租户威胁模型逐池选 runc/rund，在不需要 VM 隔离处不付 kata 开销、在需要处拿到强隔离，整体价值最大化；
-- **选型判据 = wasm 隔离可信度 × 节点租户模型 × 租户敏感度 × 密度/成本诉求**——
+- **选型判据 = wasm 隔离可信度 × 节点租户模型 × 租户敏感度 × 密度/成本诉求**——（**runtime 是 [ADR 0006](0006-security-spectrum-model.md) 三维安全光谱的维度 ①**；「wasm 隔离可信度」本身由维度 ② 执行体形态 + 维度 ③ 工具面 + ADR 0003 D8 门禁共同决定，故 ① 的选型依赖 ②③ 位置）
   - **倾向 runc**：wasm 隔离可信 + 低/中敏感租户 + 专属节点 + 高密度/低成本诉求（拿 runc 的密度与兼容红利）；
   - **倾向 rund**：wasm 隔离未经充分验证（host function 未 fuzzing/审计、租户模块未 vetted）或 高敏感租户 或 跨租户共享节点——kata 独立 guest kernel 提供**不依赖 wasm 正确性**的兜底强隔离；
   - **runc 的充分性前提**（界定「倾向 runc」的边界，非否定 runc 价值）：runc 安全性条件依赖「wasm 隔离可信」；失效级联（缺陷 host function / wasmtime 漏洞 → 租户代码逃逸进控制面容器原生进程 → runc 共享宿主内核不足兜底 → 危及宿主与同节点邻 pod）见 D2/D3；故 wasm 未验证前，高敏感/共享节点场景**必须** rund；**runc 外层（容器/节点）遏制硬化与可核查的 runc 准入判据见 [ADR 0004](0004-runc-worker-pod-hardening.md)**（本 ADR 只定原则与判据维度，外层设计在 0004）；
