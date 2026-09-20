@@ -115,7 +115,7 @@
 
 ## 8. 全景图增量分解（四层信任域 / 多 active actor / MCP 能力后端）
 
-> 依据：[四层信任域全景图](../concepts/trust-domain-panorama.md)（2026-09-20，I/P/S/Agent + S 层 MCP 能力后端）。本节把全景图相对 §2/§3 既有 **F1–F8 / S1–S9** 的**新增项**按分工分解；既有项不重复。
+> 依据：[四层信任域全景图](../concepts/trust-domain-panorama.md)（2026-09-20，I/P/S/Agent + S 层 MCP 能力后端）+ [ADR 0007 MCP 接口中介的原生能力后端](../decisions/0007-mcp-native-capability-backend.md)（决策版）。本节把全景图相对 §2/§3 既有 **F1–F8 / S1–S9** 的**新增项**按分工分解；既有项不重复。
 > 信任域定位：**F9–F12** 落 P 层（平台）+ S 层 worker pod 的**集群侧**；**S10–S13** 落 S 层 worker pod **内（ateom）+ S↔Agent / S↔MCP 边界**（详见 sandbox 仓 `two-tier-sandbox-layer-design.md` §6）。
 
 ### 8.1 新增 substrate fork delta（F9–F12）

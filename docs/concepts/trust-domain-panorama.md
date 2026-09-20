@@ -177,7 +177,7 @@ MCP 后端 = 工具面的**「原生能力层」**。于是三维光谱的取值
 - [ADR 0004](../decisions/0004-runc-worker-pod-hardening.md)（runc 硬化）= S 层外层遏制（L2/L3/L4）；
 - [ADR 0005](../decisions/0005-rust-agent-execution-body.md)（Rust 执行体）= Agent 层执行体形态；
 - [ADR 0006](../decisions/0006-security-spectrum-model.md)（安全光谱）= 三维滑标在各层取值（§4 补 MCP 后端维度）；
-- **ADR 0007（待立）= MCP 能力后端决策记录**：承载 §3 的中介信任定级、调用链、(a)/(b) 路由、within-S/cross-S 共享滑标、C1–C3 与 R1–R5。本文 §3 是其全景版叙述，ADR 0007 是决策版（含被否方案与判据）。
+- **ADR 0007（已立）= [MCP 接口中介的原生能力后端](../decisions/0007-mcp-native-capability-backend.md)**：承载 §3 的中介信任定级、调用链、(a)/(b) 路由、within-S/cross-S 共享滑标、C1–C3 与 R1–R5。本文 §3 是其全景版叙述，ADR 0007 是决策版（含被否方案与判据）。
 
 **本文引入的 fork delta（须登记 `xuanji.md`，实现时）**：
 
