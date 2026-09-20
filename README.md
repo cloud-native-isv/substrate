@@ -78,6 +78,8 @@ details under `.specify/memory/features/`.
 | 010 | Control Plane State Store    | Redis/Valkey-backed store for actor and scheduling metadata.                         | Implemented |
 | 013 | E2B Protocol Plane           | E2B-compatible protocol surface for sandbox lifecycle and interaction. (xuanji)      | Draft       |
 | 014 | Wasm Sandbox Runtime         | WebAssembly sandbox backend in the atelet/ateom lifecycle contract. (xuanji)         | Draft       |
+| 019 | MCP Native Capability Backend | Native capabilities (compiler/git/browser) as defined MCP tools, ateom-mediated; cross-S shared pool, per-tenant microvm units. (xuanji) | Draft       |
+| 020 | Multi-Actor Worker Pod       | One worker pod concurrently hosts N agent sandboxes of a digital employee (breaks 1:1). (xuanji) | Draft       |
 
 ### Non-Functional
 
