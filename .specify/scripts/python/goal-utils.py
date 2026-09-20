@@ -735,6 +735,12 @@ def main(argv: list[str] | None = None) -> int:
                                 help="validate one definition")
     p_validate.add_argument("target", help="goal slug or path to goal.md")
 
+    p_check_stmt = sub.add_parser(
+        "check-statement", parents=[common],
+        help="standalone dry-run shape validation of one Target statement "
+             "(GD-2/GD-3); requires NO goal — usable before `create`")
+    p_check_stmt.add_argument("statement", help="candidate Target statement")
+
     sub.add_parser("list", parents=[common], help="enumerate the archive")
 
     p_status = sub.add_parser("status", parents=[common], help="change lifecycle state")
@@ -804,10 +810,31 @@ def main(argv: list[str] | None = None) -> int:
             result = {"migrated_team": args.team_slug, "goal_slug": identity,
                       "created": str(created.relative_to(repo_root)),
                       "inline_kept": not args.drop_inline}
+        elif args.action == "check-statement":
+            # Standalone pre-creation path (F-E12): `targets <slug> --check`
+            # needs an existing goal (exit 3 without one), which made the
+            # dry-run unusable exactly when it is most needed — before
+            # `create`. This runs the SAME-source shape grammar
+            # (_reject_bad_target_statement: GD-2/GD-3, zero writes); the
+            # criteria-restatement comparison needs the goal's criteria and
+            # stays with `targets <slug> --check` after creation.
+            try:
+                _reject_bad_target_statement(args.statement)
+            except GoalError as exc:
+                _emit({"verdict": "rejected", "error": str(exc),
+                       "scope": "shape-only"}, args.json)
+                return EXIT_INPUT_ERROR
+            result = {"verdict": "ok", "scope": "shape-only",
+                      "note": "criteria-restatement check requires the goal's "
+                              "criteria — run `targets <slug> --check` after "
+                              "creation for the full verdict"}
         elif args.action == "targets":
             path = definition_path(repo_root, args.slug)
             if not path.is_file():
-                _emit({"error": f"goal not found: {args.slug}"}, args.json)
+                _emit({"error": f"goal not found: {args.slug} — to validate a "
+                                "statement BEFORE the goal exists, use "
+                                "`check-statement \"<statement>\"` "
+                                "(shape-only: GD-2/GD-3)"}, args.json)
                 return EXIT_NOT_FOUND
             chosen = [args.add_statement is not None, args.list_targets,
                       args.set_state is not None, args.check_statement is not None]

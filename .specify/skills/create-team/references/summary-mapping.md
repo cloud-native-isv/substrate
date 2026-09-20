@@ -142,7 +142,7 @@ tracked、append-only、JSON Lines。每行一个**条目状态事件**。只由
 
 ### 6.5 `target_ref` 归属折叠(038)
 
-可选 [[STR-003]] 把条目归属到绑定 goal 的一个 Target(目标切片,概念见 `shared/definitions/goal-definitions.md` Target Decomposition,授权面是 `/speckit.goal targets`):
+可选 [[STR-003]] 把条目归属到绑定 goal 的一个 Target(目标切片,概念见 `.specify/shared/definitions/goal-definitions.md` Target Decomposition,授权面是 `/speckit.goal targets`):
 
 - **归属**:行携带合法局部形且该身份存在于绑定 goal 的 `## Targets` 节 → 计入该 Target 的归属集合;末行定态语义(IL-2)不变——同一 `item_id` 以最后事件为准。
 - **降级**:指向不存在身份(或限定形等非法形态)→ 按 goal 整体降级计入,表单 `targets.invalid_refs` 计数并显式声明;MUST NOT 臆造 Target(FR-014)。

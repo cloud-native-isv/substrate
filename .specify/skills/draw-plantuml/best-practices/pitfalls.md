@@ -73,3 +73,9 @@
 **现象**：不同图表字号看起来不一致——源 `.puml` 常带 `skinparam component { FontSize 14 }` / `package { FontSize 15 }` 等块内覆盖；且 PlantUML 各元素字号参数（`packageTitleFontSize`/`legendFontSize`/`sequenceMessageFontSize` 等）默认值各异，**不跟随 `defaultFontSize`**，导致 package 标题/图例/序列图 group 标题仍用旧字号。
 **后果**：跨图、跨图集字号不统一，视觉杂乱；用户端观感不一致。
 **规避**：渲染脚本已统一处理——`strip_style` 删除块内 `FontSize N` 覆盖行，注入块显式设置全部元素字号参数为 16（`defaultFontSize`/`titleFontSize`/`captionFontSize`/`noteFontSize`/`stereotypeFontSize`/`legendFontSize`/`packageTitleFontSize`/`sequenceMessageFontSize`/`sequenceActorFontSize`/`sequenceGroupTitleFontSize`）。验证：SVG 中 `font-size` 应只有单一值（16×12.5=200）。
+
+## 13. 全图统一线宽（边框与流线无强弱分层）
+
+**现象**：zone 框、子模块框、叶元素框与流线全部同粗细同深浅（典型：脚本旧基线统一 2px + 关键路径 2px 彩线），结构层级与数据流在视觉上同档竞争。
+**后果**：注意力无落点——读者无法先抓「有哪些大块」再读交互，整图显杂乱；07 号组件图 v2 初版被用户纠正「强弱模糊、线段和边框没有进行强弱的区分看起来很杂乱」。
+**规避**：编码前先做强弱计划（[style.md §十一](../references/guide/style.md)）：大区 `rectangle` 3px 最深 > 子模块 `package` 2px 中 > 叶元素 1px 浅 > 流线 1px 最浅；关键路径只用色相抬升、`[thickness=2]` 封顶。渲染后 `grep -oE 'stroke-width:[0-9.]+' <out>.svg | sort -u` 须 ≥3 档。注意：**嵌套 `<style>` 选择器（`package { package { … } }`）实测不生效**，必须用扁平选择器 + 元素关键字分档。

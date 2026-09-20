@@ -143,8 +143,9 @@ SUMMARIZE 按 summary 配置触发 goal 总结(每 N 周期)
 2. 与用户确认 `quality_dimensions` 及权重(和为 1.0)——裁判维度不清的竞技场只会产出噪声排位。
 3. 确认 `task_source` 可稳定供题;题库枯竭即机制空转,需在 constraints.md 写入补题责任。
 4. 落 `.specify/teams/<slug>/team.md`,frontmatter 加 `preset: capability-arena`;`config` 填 cadence/redraw_rounds/variants/convergence;连续团队三件套(constraints.md / STATE.md / run-log.jsonl)初始化。
-5. 竞技产物与评分转储一律写 `.specify/teams/.work/<slug>/`;只有排位档案、报告与经批准的单元改进落真实路径。
-6. 变体模式下,先以一个周期实测校准 `convergence.threshold`,避免阈值过高每次空转到休止。
+5. 按 `create-mode.md` schema 写入 `## Self-Improvement Contract`，本团队的运行报告/裁判反馈只作证据，能力单元改动仍路由到对应 `improve-*`。
+6. 竞技产物与评分转储一律写 `.specify/teams/.work/<slug>/`;只有排位档案、报告与经批准的单元改进落真实路径。
+7. 变体模式下,先以一个周期实测校准 `convergence.threshold`,避免阈值过高每次空转到休止。
 
 ## Constraints & Hard Rules
 

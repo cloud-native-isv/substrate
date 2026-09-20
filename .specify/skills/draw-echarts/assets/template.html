@@ -28,34 +28,20 @@
     })();
   </script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: #fafafa;
-      padding: 20px;
-    }
-    .container {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      padding: 20px;
-      width: 100%;
-      max-width: 900px;
-    }
-    #chart {
-      width: 100%;
-      height: 500px;
-    }
+    /* INLINE-VERBATIM: skills/draw-diagram/assets/delivery.css
+       页面骨架样式（背景/卡片/标题/正文/图框/复现附录/暗色/打印）的唯一 owner 是上面那个文件。
+       生成产物时把它**逐字节复制**到本 <style> 块此处 —— 不凭记忆重写、不改数值、
+       不用 <link> 外链（外链会让 HTML 单独打开时失去样式，违反交付契约 D1）。
+       下面只写本引擎的**图表内部**样式。 */
+
+    /* ECharts 需要一个有确定高度的宿主；白底保证暗色模式下画布里的默认墨色仍可读 */
+    #chart { height: 500px; }
   </style>
 </head>
 <body>
-  <div class="container">
+  <main class="container">
     <div id="chart"></div>
-  </div>
+  </main>
   <script>
     // ============================================================
     // Initialize ECharts instance

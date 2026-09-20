@@ -9,10 +9,19 @@
 ```
 references/
 ├── index.md           ← 本文件（汇总索引）
+├── sds-realization.md ← SDS 实现手册（受 draw-diagram 委派时的档位/几何落地）
 ├── howto/             ← 操作指南（分步指南，对应工作流步骤）
 ├── guide/             ← 最佳实践与优化指南
 └── document/          ← 官方文档与参考手册
 ```
+
+---
+
+## 根级文档
+
+| 文档 | 对应步骤 | 内容说明 |
+|------|---------|---------|
+| [sds-realization.md](sds-realization.md) | Step 4/7/8（**仅受 draw-diagram 委派时**） | SDS 实现手册（语法层落地点）——输入契约（只实现不改语义）、`weight_plan` 档位 → skinparam/`!define` 宏映射（含实测 stroke-width）、graphviz 自动布局下的几何**逼近**配方（MinimumWidth / 隐藏边秩脚手架 / `<<ph>>` 占位 / 虚线边框）、量测自检、**偏离声明模板**。SDS schema 与档位语义属语义层：`../../draw-diagram/references/semantic-model.md` |
 
 ---
 
@@ -99,6 +108,8 @@ UML 理论、PlantUML 语法参考、官方文档和建模方法论的原始参�
 | 布局怎么规划 | [howto/10-layout-planning.md](howto/10-layout-planning.md) + [guide/layout.md](guide/layout.md) §一 |
 | 标签和注释怎么写 | [howto/11-code-generation.md](howto/11-code-generation.md) §二 + [guide/content.md](guide/content.md) §1.5 |
 | 样式怎么配 | [guide/style.md](guide/style.md) |
+| 受 draw-diagram 委派：SDS 档位怎么落成线宽、几何怎么逼近 | [sds-realization.md](sds-realization.md) §1（档位→语法，实测）+ §2（graphviz 逼近手段的能与不能） |
+| 自动布局兑现不了的 SDS 项怎么声明 | [sds-realization.md](sds-realization.md) §3（量化偏离声明模板）+ §2.2（量测取证） |
 | 怎么渲染和验证 | [howto/12-rendering-and-output.md](howto/12-rendering-and-output.md) |
 | WBS/甘特成图够不够清晰、标签有没有越界、某写法有没有改排期 | `../scripts/measure-svg-layout.py`（量测三判据 + `--compare` A/B）；判据说明见 [howto/14-gantt-diagram.md](howto/14-gantt-diagram.md) 「量测自检」与 [howto/13-wbs-diagram.md](howto/13-wbs-diagram.md) 「尺寸、清晰度与留白」 |
 | 布局出问题怎么排查 | [howto/10-layout-planning.md](howto/10-layout-planning.md) §三 + [guide/layout.md](guide/layout.md) §四 |

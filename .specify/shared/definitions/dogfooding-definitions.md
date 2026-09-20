@@ -105,6 +105,25 @@ Spec Kit 仓库的 Dogfooding 本质是**一人分饰两角**:既是框架的作
    活动工件(本仓 `.specify/` 文件)只应作为机制运行的输出存在。
 3. 任一时刻的修改动作 MUST 先自答:**"我现在戴的是框架作者帽(改 `skills/`
    等源)还是框架用户帽(消费 `.specify/`)?"** 修复落在与目标受众匹配的一侧。
+4. **三副本拓扑对路径解析的陷阱(规范性)**:自用仓同时含有框架源(`scripts/`、
+   `templates/`、`shared/`)与 `.specify/` 运行时,故任何"向上找最近的、含
+   `.specify/` 的祖先目录"式根解析启发式都会**在本仓自匹配**——把每次调用都解析到
+   框架仓,而不是调用方自己的工作区。守卫:引擎自定位 MUST 只在**自身已解析路径上
+   存在字面 `.specify` 路径分量**时触发(即"我是被从镜像副本调用的"),MUST NOT
+   以"某个祖先恰好含有 `.specify`"为据。该判据 MUST 有**反向断言**(从框架源副本
+   调用时不得自解析),因为只从一侧运行的测试看不见这个缺陷:它表现为工作区状态被
+   写进框架仓,而不是表现为一次失败。
+   同族另两个变体(均已实际产出 `.specify/.specify/` 残留投影):(a) **镜像位置根
+   算术**——以 `Path(__file__).resolve().parents[2]` 取根的引擎,从镜像副本
+   `.specify/scripts/python/` 调用时根解析为 `.specify`,镜像目标全部深嵌一层;
+   (b) **cwd 即根**——`specify init --here`(及任何以 cwd 为项目根的流转)在 cwd 位于
+   `.specify/` 内时把框架树装进运行时目录。统一守卫(反向断言):**名为 `.specify` 的
+   目录永远不是仓/项目根**——根推导后若 `root.name == ".specify"` 则向上纠正或直接
+   拒绝(携带守卫的引擎:`scripts/python/sync-mirrors.py`、`gate-check.py`(walk-up
+   跳过名为 `.specify` 的祖先)、`tools-utils.py`;CLI 侧 `render_agents_for_tool` 与
+   `specify init` 两分支直接拒绝)。漂移守护:
+   `tests/contract/test_mirror_root_guard.py`(镜像位置调用不产嵌套 + canonical/镜像
+   等价 + render/init 拒绝)。
 
 ### 2.2 与既有机制的同构映射
 

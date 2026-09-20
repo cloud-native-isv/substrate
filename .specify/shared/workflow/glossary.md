@@ -22,6 +22,10 @@ easily-confused words).
 
 - When a correction is applied, **surface it** so it is traceable and the user can override
   it — e.g. `note: interpreted 『speck it』as canonical 『Spec Kit』 (glossary)`.
+- How that correction is **worded for the reader** — vocabulary, the context it must carry, and
+  which terms may stand unexplained — is governed by
+  `.specify/shared/guidelines/user-facing-comprehension.md` (this file covers surface class ⑨);
+  its condition sets MUST NOT be restated here.
 - The correction is an **interpretation aid only** — never destructively rewrite the user's
   literal input.
 - If a variant is **ambiguous** (maps to more than one canonical term) or unrecognized, do

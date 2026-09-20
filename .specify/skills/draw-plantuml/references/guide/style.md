@@ -27,8 +27,9 @@ scale 4
 skinparam defaultFontSize 16
 skinparam defaultFontName "Arial, Helvetica, sans-serif"
 skinparam padding 8
-skinparam ArrowThickness 2
-skinparam BorderThickness 2
+skinparam ArrowThickness 1
+skinparam BorderThickness 1
+' 以上 1px 为视觉强弱最轻基线（流线/叶元素档）；结构档由 <style> 提升，见 §十一
 
 ' === SVG 输出优化 ===
 skinparam svgDimensionStyle false
@@ -120,8 +121,8 @@ skinparam actorStyle awesome
 | `skinparam defaultFontSize 16` | 统一字体 16px，配合 scale 4 保证文字可读性；所有图表（含专项图）必须一致，避免跨图字号不统一 | 所有图表 |
 | `skinparam defaultFontName "Arial, ..."` | 使用无衬线字体，渲染清晰抗锯齿 | 所有图表 |
 | `skinparam padding 8` | 元素内边距 8px，避免内容拥挤贴边 | 所有图表 |
-| `skinparam ArrowThickness 2` | 箭头线条加粗为 2px，配合放大后保持视觉清晰 | 所有图表 |
-| `skinparam BorderThickness 2` | 边框线条加粗为 2px，避免放大后边框过细 | 所有图表 |
+| `skinparam ArrowThickness 1` | 流线最轻基线 1px；关键路径用色相抬升、`[thickness=2]` 封顶（≤ 子模块边框档），见 §十一 | 所有图表 |
+| `skinparam BorderThickness 1` | 叶元素边框最轻基线 1px；大区/子模块边框档由源内 `<style>` 提升，见 §十一 | 所有图表 |
 | `skinparam svgDimensionStyle false` | SVG 不内联 width/height，使用 viewBox 实现无损缩放 | 所有图表（SVG） |
 | `skinparam svgLinkTarget _blank` | SVG 中的超链接在新窗口打开 | 所有图表（SVG） |
 | `skinparam actorStyle awesome` | Actor 使用 FontAwesome 风格图标 | 仅用例图/含 actor 的图 |
@@ -132,7 +133,7 @@ skinparam actorStyle awesome
 
 1. **布局方向**：确认 `top to bottom direction` 仅在类图/组件图/部署图中使用（其他图类型不应出现此指令）
 2. **通用 skinparam**：确认通用 skinparam（shadowing、roundCorner）全部存在且值正确；确认色彩模式选择正确（单色图加 `monochrome true`，彩色图省略）
-3. **高质量渲染 skinparam**：确认 `dpi 300`、`scale 4`、`defaultFontSize 16`、`defaultFontName`、`padding 8`、`ArrowThickness 2`、`BorderThickness 2` 全部存在
+3. **高质量渲染 skinparam**：确认 `dpi 300`、`scale 4`、`defaultFontSize 16`、`defaultFontName`、`padding 8`、`ArrowThickness 1`、`BorderThickness 1` 全部存在；含多层结构的图另按 §十一 确认 `<style>` 强弱档已声明且渲染后 `stroke-width` ≥3 档可辨
 4. **SVG 优化 skinparam**：确认 `svgDimensionStyle false` 和 `svgLinkTarget _blank` 存在
 5. **条件 skinparam**：如图表含 actor 或为用例图，确认 `actorStyle awesome` 已添加
 6. **位置**：所有样式配置必须在 `@startuml` 之后、图表元素定义之前
@@ -259,8 +260,52 @@ EOF
 
 > **渲染服务依赖（换后端必复验）**：`<back:#…>` 色块是 HTML/Creole 语法，其渲染支持程度取决于**具体渲染服务**（服务器版本、不同镜像、本地 jar 的实现可能有差异）。更换渲染服务器/后端（如远端 server → 本地 jar，或换一台自建服务器）后，**必须重渲并肉眼复验图例色块与 CJK 字体**——色块渲染成空白、中文变豆腐块都是换后端的高发问题（见 [howto/12-rendering-and-output.md §1.4](../howto/12-rendering-and-output.md)）。
 
+## 十一、语义视觉强弱分层（visual weight）
+
+**权重 = 注意力吸引**：线越粗、色越深，用户越先看它。语义优先级决定权重优先级：**大模块划分 > 小模块划分 > 模块间数据流**——读者先看懂「有哪些大块」，再看「块里有什么」，最后才沿流线读交互；若三者同粗细同深浅（典型病征：全图统一 2px 边框 + 2px 彩色箭头），注意力无落点，图显杂乱。
+
+**两个正交维度**：**粗细+深浅编码权重档**（本节）；**色相编码语义路径**（[large-diagram-playbook.md §2](./large-diagram-playbook.md) 的弱化管线/关键路径着色）。关键路径在流线档内靠色相抬升，**不靠加粗越过结构档**。
+
+默认四档（可增减，但档间须可辨）：
+
+| 档 | 语义对象 | 元素关键字 | LineThickness | LineColor（深浅） |
+|----|----------|-----------|---------------|-------------------|
+| T1 | 大区/顶层分区边框 | `rectangle`（带标题的 zone 框） | 3 | 最深 `#37474F` |
+| T2 | 子模块边框（区内仓库/子系统容器） | `package` | 2 | 中 `#607D8B` |
+| T3 | 叶元素边框 | `component`/`cloud`/`database`/`actor` | 1 | 浅 `#90A4AE` |
+| T4 | 流线 | 箭头 | 1（默认）/ 关键路径 `[thickness=2]` 封顶 | 最浅 `#A3B1BA` / 关键路径用语义色相 |
+
+**写法（经 PlantUML server 实测：两种紧凑写法都不可靠——嵌套 `<style>` 选择器（`package { package { … } }`）不生效；单行冒号连接属性（`LineThickness 3 : LineColor #…`）在真实大图上解析爆炸、stroke-width 出天文数字。须用扁平选择器 + 多行属性）**——zone 用 `rectangle`、子模块用 `package` 正是为了拿到两个独立选择器：
+
+```plantuml
+<style>
+rectangle {
+  LineThickness 3
+  LineColor #37474F
+}
+package {
+  LineThickness 2
+  LineColor #607D8B
+}
+component, cloud, database, actor {
+  LineThickness 1
+  LineColor #90A4AE
+}
+arrow {
+  LineThickness 1
+  LineColor #A3B1BA
+}
+</style>
+```
+
+渲染脚本注入的 `ArrowThickness 1 / BorderThickness 1` 只是 T3/T4 基线；源中全局 `ArrowThickness`/`BorderThickness` 行**不再被剥离**（位于注入块之后，可整体覆盖基线），per-元素档一律走上表 `<style>`。
+
+**自检**：渲染后 `grep -oE 'stroke-width:[0-9.]+' <out>.svg | sort -u` 应见 ≥3 档（实测 T1/T2/T3 = 37.5/25/12.5 @scale4）；肉眼确认大区框明显压得住子模块框、子模块框压得住流线。**反例（07 号组件图 v2 初版）**：zone 与子模块同为 `package` 且全图统一 2px 边框、关键路径 2px 彩线——边框与流线强弱同档，用户纠正「强弱模糊、线框无区分看起来很杂乱」；按本节重映射关键字 + 分档后三档可辨。
+
 ## 扩展阅读
 
 - **布局优化技巧**：参见 [layout.md](./layout.md)
 - **内容组织与标签规则**：参见 [content.md](./content.md)
 - **间距调整**：`skinparam nodesep` / `skinparam ranksep` 参数说明见 [layout.md](./layout.md) §二.4
+
+> **draw-diagram 委派对接**：经前门委派、输入为 SDS 时，`weight_plan` 档位 → 本引擎语法的映射（含复刻类源图实测权重覆盖、几何逼近与偏离声明）以 **[../sds-realization.md](../sds-realization.md)** 为准；本节档位表是**无 SDS 输入**（直接调用本技能）时的默认档。

@@ -26,13 +26,14 @@ Consult the project glossary (`.specify/memory/glossary.md`, ambient via the Doc
    - Derive the next number from `.specify/specs/` directories (INCLUDING `.specify/specs/.archive/` — archived specs keep their numbers and a globally-max archived number would otherwise collide) plus branch names in the exact top-level `<NNN>-<slug>` form ONLY. Slash-namespaced remote branches (e.g. `origin/community/4059-*`, `origin/fix/4198-*`) are NOT spec numbering — their trailing digits must be excluded, or the next number gets inflated (e.g. 200 instead of 045)
    - Next number = highest + 1 (or 1 if none found)
 
-3. **Run script** `
+3. **Run script** 
 ```bash
 cat << 'EOF' | .specify/scripts/bash/create-new-requirements.sh --json --short-name "<SHORT_NAME>"
 $ARGUMENTS
 EOF
 ```
-` from repo root (replace `<SHORT_NAME>`). Parse JSON for BRANCH_NAME and SPEC_FILE. Run only once.
+ from repo root (replace `<SHORT_NAME>`). Parse JSON for BRANCH_NAME and SPEC_FILE. Run only once.
+   - Note: the script **pre-creates SPEC_FILE** with template placeholder content — you MUST `Read` it before writing (or overwrite via `Edit`); a blind `Write` fails with "File has not been read yet".
 
 4. **Load** `.specify/templates/requirements-template.md` for required sections.
 
@@ -65,40 +66,27 @@ Apply [Feature Integration Protocol](.specify/shared/workflow/feature-integratio
 
 ## Guidelines
 
-For detailed quality validation, success criteria guidelines, and AI generation best practices, see `.specify/shared/guidelines/requirements-guidelines.md`.
+For detailed quality validation, success criteria guidelines (including the reader baseline these artifacts are written for), and AI generation best practices, see `.specify/shared/guidelines/requirements-guidelines.md`.
 
 Key rules:
 - Focus on WHAT and WHY, not HOW
-- Written for business stakeholders
 - No embedded checklists (separate command)
 - Max 3 [NEEDS CLARIFICATION] markers
 
 ## Feedback
 
-At wrap-up (the same lifecycle point where this command prompts for a Git commit), perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this command reached its wrap-up stage. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against `/speckit.requirements`'s declared purpose and produce a short review plus ≥1 concrete, command-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this command's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id` (e.g. the feature key + a run timestamp); if a nested skill/command already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "/speckit.requirements" --unit-type command \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up (the same lifecycle point where this command prompts for a Git commit), run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this command's scope; persist one entry via `feedback-utils.py --action record --unit-id "/speckit.requirements" --unit-type command`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.
 
 ## Documentation
 
 At the same wrap-up point as the Feedback step, apply the docs-sync evaluation per the canonical convention in `.specify/shared/workflow/docs-step.md`: assess whether information produced by this run (new capabilities, key decisions, structural changes) needs to be recorded into the project documentation space, and conclude with exactly one of `需记录（目标文档 + 要点）` or `无需记录`. Never block wrap-up; incremental judgment only (no full reconcile sweep); when a move/archive-level change is needed, recommend running `/speckit.docs` instead of executing it here.
 
+## Artifact Commit
+
+At wrap-up, **before** the Feedback and Documentation steps, commit the artifact this command produced — and only that artifact, staged by explicit path. Follow the canonical convention in `.specify/shared/workflow/artifact-commit-step.md`: run the deletion-surface audit first, use a single-line message per `.specify/templates/commit-template.md`, never `git add -A`, and never fold another command's uncommitted artifacts into this commit (report that as an upstream deviation instead). A read-only run that produced no artifact skips this step and says so in one line rather than creating an empty commit. Committing here does not advance the feature's lifecycle status and does not push.
+
 ## Handoffs
 
-**Before**: Optional `/speckit.feature` to ensure feature registry is up to date.
+**Before**: Optional `/speckit.feature` to ensure feature registry is up to date — **recommended whenever `.specify/memory/features.md` is absent or still a placeholder**, otherwise `/speckit.clarify` has to bootstrap the registry mid-run while binding the Feature.
 
 **After**: If spec has `[NEEDS CLARIFICATION]` or `Related Feature: Need clarification` → `/speckit.clarify`. Otherwise → `/speckit.plan`.

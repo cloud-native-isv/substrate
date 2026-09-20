@@ -19,6 +19,11 @@ both sides.
 Modes:
   --check   report drift, exit 2 if any (CI gate); never writes
   --write   sync all mirrors from canonical sources (default)
+  --only PATH  (repeatable) restrict the run to the given repo-relative path
+            prefix (e.g. --only scripts/python/feedback-utils.py), so a
+            feature-scoped sync never drags unrelated mirror drift into the
+            change surface; the regen-command-copies delegation is skipped
+            unless a prefix targets templates/commands/.
 
 Write-mode failures are collected per file, never fatal mid-pass: an unwritable
 mirror file (e.g. a root-owned leftover) is reported as FAIL, the remaining
@@ -49,6 +54,12 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# Guard: invoked via the .specify/scripts/python/ mirror copy, parents[2]
+# resolves to `.specify` and every mirror target doubles into
+# `.specify/.specify/` (stray-projection defect). A dir named `.specify`
+# is never a repo root.
+if REPO_ROOT.name == ".specify":
+    REPO_ROOT = REPO_ROOT.parent
 
 # (source, mirror, strict_extras, exclude_parts) pairs; source is canonical.
 # strict_extras=True means a mirror-only file is an ERROR under --check: the tree
@@ -60,7 +71,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # copies come straight from templates/commands/ via regen-command-copies.py).
 MIRROR_PAIRS = [
     ("templates", ".specify/templates", False, {"commands"}),
-    ("skills", ".specify/skills", False, set()),
+    ("skills", ".specify/skills", False, {"site"}),
     ("agents", ".specify/agents/templates", False, set()),
     ("scripts", ".specify/scripts", True, set()),
     ("shared", ".specify/shared", False, set()),
@@ -102,23 +113,62 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="report drift, exit 2 if any")
     mode.add_argument("--write", action="store_true", help="sync mirrors (default)")
+    parser.add_argument("--only", action="append", default=None, metavar="PATH",
+                        help="restrict the run to this repo-relative path prefix "
+                             "(repeatable); skips the regen-command-copies "
+                             "delegation unless a prefix targets templates/commands/")
     args = parser.parse_args()
     check_only = args.check
+    only = [p.strip().strip("/") for p in (args.only or []) if p.strip()]
+
+    def pair_subprefixes(src_name: str) -> list[str] | None:
+        """None = pair out of scope; list of sub-prefixes (empty str = whole pair)."""
+        if not only:
+            return [""]
+        subs: list[str] = []
+        for p in only:
+            if p == src_name:
+                subs.append("")
+            elif p.startswith(src_name + "/"):
+                subs.append(p[len(src_name) + 1:])
+        return subs or None
+
+    def in_scope(rel: Path, subs: list[str]) -> bool:
+        rel_s = rel.as_posix()
+        return any(not sp or rel_s == sp or rel_s.startswith(sp + "/")
+                   for sp in subs)
+
+    if only:
+        matched = any(pair_subprefixes(src) for src, _d, _s, _e in MIRROR_PAIRS)
+        regen_targeted = any(p == "templates/commands"
+                             or p.startswith("templates/commands/") for p in only)
+        if not matched and not regen_targeted:
+            print(f"error: --only prefix matches no mirror pair or regen surface: "
+                  f"{', '.join(only)}")
+            return 2
+        print(f"scope --only: {', '.join(only)}")
 
     drift = False
     orphans = False
     failures: list[tuple[str, str]] = []
     for src_name, dst_name, strict_extras, exclude_parts in MIRROR_PAIRS:
+        subs = pair_subprefixes(src_name)
+        if subs is None:
+            continue
         src = REPO_ROOT / src_name
         dst = REPO_ROOT / dst_name
         if not src.exists():
             continue
-        src_files = list(iter_files(src, exclude_parts))
+        src_files = [f for f in iter_files(src, exclude_parts)
+                     if in_scope(f, subs)]
         if not src_files:
             # placeholder-only source (e.g. empty skills/): mirror is canonical, skip
             print(f"skip  {src_name}/ (placeholder-only source; {dst_name}/ is canonical)")
             continue
         missing, differing, extra = compare_pair(src, dst, exclude_parts)
+        missing = [r for r in missing if in_scope(r, subs)]
+        differing = [r for r in differing if in_scope(r, subs)]
+        extra = [r for r in extra if in_scope(r, subs)]
         if not (missing or differing):
             print(f"ok    {src_name}/ == {dst_name}/ ({len(src_files)} files)")
         else:
@@ -151,10 +201,14 @@ def main() -> int:
 
     # Per-tool command copies: delegate to the existing canonical generator.
     regen = REPO_ROOT / "scripts/python/regen-command-copies.py"
-    regen_args = [sys.executable, str(regen)] + (["--check"] if check_only else [])
-    result = subprocess.run(regen_args, cwd=REPO_ROOT)
-    if result.returncode != 0:
-        drift = True
+    run_regen = not only or any(
+        p == "templates/commands" or p.startswith("templates/commands/")
+        for p in only)
+    if run_regen:
+        regen_args = [sys.executable, str(regen)] + (["--check"] if check_only else [])
+        result = subprocess.run(regen_args, cwd=REPO_ROOT)
+        if result.returncode != 0:
+            drift = True
 
     if failures:
         print(

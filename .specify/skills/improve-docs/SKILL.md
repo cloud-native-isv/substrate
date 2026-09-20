@@ -100,7 +100,7 @@ Report: the document changed, the evidence behind each edit, class per edit, bef
 - **Never delete content as an improvement.** Superseded prose is corrected or annotated; removal at file scope goes through `create-docs` (archive-not-delete).
 - **Never assert what you did not verify.** An unverifiable claim is either dropped with a note or marked as needing confirmation — do not launder a guess into documentation.
 - **Never edit a generated file or a mirror.** Files carrying an `AUTO-GENERATED` header, `.specify/**` mirrors, and per-tool command copies are outputs: fix the canonical source, then run `python3 scripts/python/sync-mirrors.py --write`.
-- **Never touch machine-managed stores** (`.specify/memory/**` data files, `.specify/docs/**` run artifacts, `docs/public/`) as if they were documentation.
+- **Never touch non-document managed state as documentation.** `.specify/docs/target-structure.md` is a **cross-run non-document contract**: read only when context requires it and **never edit** it. `.specify/docs/plans/` and `.specify/docs/audit/` are run artifacts; `.specify/memory/**` is machine-managed data; `docs/public/` is generated presentation output.
 - **Never restyle without a finding.** Cosmetic churn on an unfaulted document is a violation of the anti-churn discipline, not an improvement.
 - **Reserved filenames stay reserved** (`README.md` / `ARCHITECTURE.md` / `CONTRIBUTING.md` / `CHANGELOG.md` at the root only; directory indexes are `index.md`).
 - **Do not improve this skill or `create-docs` here** → `improve-skills`.
@@ -125,26 +125,14 @@ Report: the document changed, the evidence behind each edit, class per edit, bef
 | `.specify/scripts/python/feedback-utils.py` | Recorded feedback digest (`--action list --contains`) |
 | `.specify/shared/patterns/reconcile-pattern.md` | Tolerance-band and anti-churn semantics shared with `create-docs` |
 
+## Self-Improvement Alignment
+
+The document being edited is not an Execution Subject by default, so this flow is Assisted Improvement of a Harness asset, even when the document reports its own validation results. Do not install self-modifying behavior in the document. This `improve-docs` Skill is itself an Execution Subject: qualified evidence from its own completed runs may enter `.specify/shared/workflow/self-improvement-workflow.md` and route to `improve-skills`.
+
 ## Feedback
 
 **Runtime-mode gate.** If `${SKILL_WORKDIR}/.specify/` does not exist, this skill is
 running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
 directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At the end of a substantial run of this skill, perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this run reached a meaningful wrap-up. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against this skill's declared purpose and produce a short review plus ≥1 concrete, skill-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this skill's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id`; if a parent flow already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "skill:improve-docs" --unit-type skill \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:improve-docs" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

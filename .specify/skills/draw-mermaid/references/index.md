@@ -9,6 +9,7 @@
 ```
 references/
 ├── index.md           ← 本文件（汇总索引）
+├── sds-realization.md ← SDS 实现与逼近（几何脚手架、档位→线宽映射、偏离声明模板）
 ├── howto/             ← 操作指南（分步指南，对应工作流步骤）
 ├── guide/             ← 最佳实践与优化指南
 └── document/          ← 官方文档与参考手册
@@ -99,6 +100,7 @@ UML 理论、Mermaid 语法参考、官方文档和建模方法论的原始参�
 | 某种图怎么画 | [howto/02–09](howto/) 对应图表类型 |
 | 专项图怎么画（WBS/甘特/思维导图/JSON/YAML/ER/C4/Salt） | [howto/13–20](howto/) 对应专项图表 |
 | 布局怎么规划 | [howto/10-layout-planning.md](howto/10-layout-planning.md) + [guide/layout.md](guide/layout.md) §一 |
+| SDS 怎么实现/逼近（档位线宽、几何脚手架、偏离声明） | [sds-realization.md](sds-realization.md) |
 | 标签和注释怎么写 | [howto/11-code-generation.md](howto/11-code-generation.md) §二 + [guide/content.md](guide/content.md) §1.5 |
 | 样式怎么配 | [guide/style.md](guide/style.md) |
 | 怎么渲染和验证 | [howto/12-rendering-and-output.md](howto/12-rendering-and-output.md) |

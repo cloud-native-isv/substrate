@@ -776,3 +776,7 @@ chart.on('click', function(params) {
   console.log(params.name, params.value);
 });
 ```
+
+## 强弱实现（接收 draw-diagram weight_plan）
+
+语义层（draw-diagram）决定「什么该更显眼」，本技能决定「怎么画粗」。tier → 绝对值映射表的 owner 是 SKILL.md「SDS 实现与强弱落地 → 强弱落地」小节（此处不重述数值）；映射理据、复刻覆盖规则与兑现管线见 [sds-realization.md](sds-realization.md)。graph/lines/sankey 等 series 同规则：边界类走 `itemStyle.borderWidth` / `graphic` rect `lineWidth`，流线类走 `lineStyle.width`，关键路径仅色相抬升、**粗细封顶 = T2**；全图单一线宽判不合格。

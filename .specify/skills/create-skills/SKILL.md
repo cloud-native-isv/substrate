@@ -20,7 +20,7 @@ Spec Kit skills serve both code projects and non-code agent applications (e.g. Q
 - `${SKILL_WORKDIR}/.specify/` **does not exist** → **standalone mode**: the target is a plain skills directory owned by the host application. In this mode:
   - `SKILL_HOME` is a sibling directory in the host skills directory; **align the new Skill's format with the existing skills there** (inspect one or two siblings first).
   - **Skip** Step 7 (propagation to built-in role agents) — that surface does not exist. Step 5 (identity finalization) applies in both modes; use the host skills directory paths, not `.specify/**`.
-  - In Step 3, emit a **self-contained** `## Feedback` section (gated reflection, no `feedback-utils.py` invocation) instead of the engine-backed canonical block.
+  - In Step 3, emit a **self-contained** `## Feedback` section (gated reflection, no `feedback-utils.py` invocation) instead of the engine-backed reference form.
   - Do not scaffold or reference any `.specify/**` path in the generated Skill.
 
 State the detected mode briefly in the final report.
@@ -54,6 +54,7 @@ Distill a reusable Skill from the current conversation history:
 
 - **skill name** determines `SKILL_HOME`. Example: `name = "testing"` → `SKILL_HOME = .specify/skills/testing/` (project-level).
 - **description** must include keywords and trigger scenarios; avoid vague descriptions.
+- **Writability pre-flight (fail fast)**: before drafting any content, touch-test the parent directory of `SKILL_HOME` (e.g. `mkdir -p "$SKILL_HOME" && touch "$SKILL_HOME/.wtest" && rm "$SKILL_HOME/.wtest"`). The host skills directory may be root-owned in some environments (container-created leftovers); report an unwritable target up front with the `sudo chown -R $USER <dir>` remedy instead of discovering it at the first write.
 
 Storage location options (`SKILL_HOME`):
 - `.specify/skills/<name>/` — project-level primary (preferred in Spec Kit project mode)
@@ -61,7 +62,7 @@ Storage location options (`SKILL_HOME`):
 - `${HOME}/.copilot/skills/<name>/` — personal-level
 - host skills directory `<skills-dir>/<name>/` — standalone mode (the directory the host agent application loads skills from)
 
-When authoring the new Skill, follow the path conventions from `templates/commands/skills.md` (`## Path Conventions`):
+When authoring the new Skill, follow the canonical `${SKILL_HOME}` / `${SKILL_WORKDIR}` path conventions:
 
 - Use `${SKILL_HOME}/<relative-path>` for every Skill-owned resource reference (scripts, references, assets).
 - Use `${SKILL_WORKDIR}/<relative-path>` for every runtime/user-facing path the new Skill reads or writes (inputs in the user's project, outputs delivered to the user).
@@ -89,7 +90,8 @@ Optional frontmatter (on demand):
 - Result goal
 - Key steps (executable, checkable)
 - Resource references (use relative paths: `./scripts/x.py`, `./references/details.md`)
-- A `## Feedback` section as the final workflow section (mandatory). In Spec Kit project mode, copy the canonical block from `.specify/shared/workflow/feedback-step.md` (it begins with the runtime-mode gate), substituting `skill:<name>` / `--unit-type skill`; in standalone mode, write a self-contained variant — keep the runtime-mode gate and the reflection steps, drop the `feedback-utils.py` invocation and threshold prompt. A new Skill lacking a `## Feedback` section is **non-conformant** and MUST fail validation.
+- A `## Self-Improvement Contract` immediately before Feedback, following `.specify/shared/workflow/self-improvement-workflow.md` Create-Flow Integration without copying its steps
+- A `## Feedback` section as the final workflow section (mandatory). In Spec Kit project mode, copy the **skill reference form** from `.specify/shared/workflow/feedback-step.md` § *Embedded reference forms* (it begins with the runtime-mode gate), substituting only `skill:<name>`. That form is a pointer plus the unit id, so the section MUST NOT restate the owner's reflection rules, submission-prompt semantics or red lines — a restated copy is what drifts. In standalone mode, write a self-contained variant — keep the runtime-mode gate and the reflection steps, drop the `feedback-utils.py` invocation and threshold prompt. A new Skill lacking a `## Feedback` section is **non-conformant** and MUST fail validation.
 
 **Size control**: Keep `SKILL.md` under 500 lines. Move large details into `./references/`.
 
@@ -156,7 +158,8 @@ Minimum checks:
 - [ ] Size: `SKILL.md` < 500 lines
 - [ ] No unrelated documentation files
 - [ ] Topology & links (when the host keeps a skill-topology registry or fans Skills out to several agent load directories): registry updated, dangling-symlink scan returns zero, each load directory resolves to the new content, and description-caching host registries refreshed — see [name-collision-and-layering.md](./references/name-collision-and-layering.md) §3
-- [ ] Feedback: a `## Feedback` section is present as the final workflow section, beginning with the runtime-mode gate. Spec Kit project mode requires the canonical engine-backed block from `.specify/shared/workflow/feedback-step.md`; standalone mode requires the self-contained variant (no engine call). A Skill without the section is non-conformant — fix before reporting completion.
+- [ ] Self-Improvement: `## Self-Improvement Contract` is present exactly once immediately before Feedback and references the canonical workflow
+- [ ] Feedback: a `## Feedback` section is present as the final workflow section, beginning with the runtime-mode gate. Spec Kit project mode requires the skill reference form from `.specify/shared/workflow/feedback-step.md` § *Embedded reference forms* — a pointer plus `--unit-id "skill:<name>"`, not a restatement of the owner's rules; standalone mode requires the self-contained variant (no engine call). A Skill without the section is non-conformant — fix before reporting completion.
 - [ ] Standalone mode only: format is consistent with sibling skills in the host directory, and no `.specify/**` path is referenced
 - [ ] Spec Kit project mode: **run the existing skill-conformance contract suite** (`pytest tests/contract/ -q -k "skill or runtime_mode"`) before reporting completion — new skills are subject to ALL pre-existing conformance contracts (runtime-mode gate, feedback-section shape); a later full-suite regression is the wrong place to discover a miss. **Fallback**: if the project has no `tests/` or `tests/contract/` directory, the suite is not applicable — verify conformance via the manual checklist items above (frontmatter / Feedback section / registry / size) and state "contract suite not applicable" explicitly in the completion report; do not spin on the missing suite or report it as a failure
 
@@ -222,12 +225,11 @@ Skill behavior in the `/` menu is controlled by frontmatter:
 - `disable-model-invocation: true`: Not auto-triggerable
 - Both set: Both disabled
 
-## Continuous Improvement
+## Self-Improvement Integration
 
-1. Validate the skill with real tasks
-2. Record pain points and inefficient steps
-3. Revise `SKILL.md` or resource directories
-4. Validate again, forming a stable iteration
+A created Skill is an Execution Subject. Before validation, add a compact `## Self-Improvement Contract` immediately before `## Feedback`; it MUST identify the canonical Skill directory, own-run observation sources, `improve-skills` as the mutation route, validation/pressure-test route, later comparison signal, and escalation boundary. Follow `.specify/shared/workflow/self-improvement-workflow.md` Create-Flow Integration and `.specify/shared/guidelines/self-improvement.md`; do not copy their workflow or evidence-state definitions into the generated Skill. The current creation run establishes capability only—it is not evidence that the new Skill has improved.
+
+This `create-skills` Skill is itself an Execution Subject: its own qualified run evidence routes through `improve-skills`, with the same canonical-owner and outcome-pending rules.
 
 ## Feedback
 
@@ -235,20 +237,4 @@ Skill behavior in the `/` menu is controlled by frontmatter:
 running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
 directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At the end of a substantial run of this skill, perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this run reached a meaningful wrap-up. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against this skill's declared purpose and produce a short review plus ≥1 concrete, skill-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this skill's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id`; if a parent flow already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "skill:create-skills" --unit-type skill \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:create-skills" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

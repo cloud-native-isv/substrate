@@ -23,7 +23,7 @@ Use it when the information needed lives in the user's head and the decisions br
 Consult `.specify/memory/glossary.md` and apply `.specify/shared/workflow/glossary.md`: map recorded homophone/confusable variants to canonical terms before acting, surfacing each correction. Vocabulary discipline matters more here than in most commands, and it runs **both ways**:
 
 - **Inbound** — an interview records the user's own words into a durable artifact, so a misheard proper noun propagates into every downstream decision.
-- **Outbound** — questions must use the glossary's **canonical** term for a concept, and gloss it inline the first time it appears in each question (the user may read that question in isolation, days later). A question phrased in codebase jargon gets a confident wrong answer.
+- **Outbound** — questions must use the glossary's **canonical** term for a concept. Which terms may stand unexplained, how each is glossed at first use, and what context a question must carry for a reader who opens it alone days later are defined once in `.specify/shared/guidelines/user-facing-comprehension.md`; its condition sets MUST NOT be restated here.
 
 At wrap-up propose new project-specific terms (`origin=auto`, `status=proposed`) with user confirmation.
 
@@ -146,8 +146,8 @@ The pattern's four required declarations, as this command sets them (plus the pe
 - **Retraction is always available — say so.** Tell the user up front that any earlier answer can be revised by its ID, and that whatever depended on it will be re-asked. Never treat a change of mind as an interruption.
 - **A retraction propagates; it is never a local edit.** Walk the recorded `dependsOn` edges, classify every descendant (still valid / needs confirmation / invalidated), roll back the invalidated spans, and re-open those decisions. Leaving a descendant derived from a retracted premise is the failure this machinery exists to prevent.
 - **Surface conflicts; never resolve them silently.** When an answer contradicts a settled decision, name both and let the user choose which gives way.
-- **Every question carries its own context, in a blockquote.** State why it arises now, name the earlier decisions it builds on, and say what the answer will change — rendered as a markdown quote block (`> `) so the background and the question read as distinct blocks. The user must be able to answer without scrolling back or reconstructing the session.
-- **No jargon, no unexplained abbreviations.** Ask in the user's vocabulary, not the codebase's. Spell out special terms inline on first use *in each question* — "dead-letter queue (a holding area for messages that failed every retry)", never a bare `DLQ`. Decision IDs are the only permitted short form, and even then name the decision alongside the ID.
+- **Every question carries its own context, in a blockquote.** What that context must contain is owned by the comprehension discipline pointed to in the Glossary section above; this command adds only the rendering requirement — a markdown quote block.
+- **No jargon, no unexplained abbreviations.** Governed by the comprehension discipline pointed to in the Glossary section above, which owns the permitted-jargon whitelist, the forbidden-jargon blacklist, and the in-place annotation rule; the conditions are not restated here.
 - **One decision per question.** A question containing "and" usually holds two; split them and let the dependency edges order them.
 - **No option menus, no recommended answers.** The answer space belongs to the user — that is the difference between this and `/speckit.clarify`. Offering choices anchors them to the closest one; recommending an answer records the agent's opinion under their name. Examples are allowed only when the user asks, as explicitly non-exhaustive illustrations.
 - **Use a host tool only where it presents the prompt better; otherwise use markdown.** A choice widget (e.g. `AskUserQuestion`) fits closed prompts — run-mode selection, conflict resolution, retraction triage, deferral, the exit gate — where the option set is the true, complete space. Frontier questions stay markdown: no widget fits an unknown space, and inventing options to use one is the anchoring failure with extra steps. Fall back to plain text whenever nothing suitable exists; never skip a question over it.
@@ -162,23 +162,7 @@ The pattern's four required declarations, as this command sets them (plus the pe
 
 ## Feedback
 
-At wrap-up (the same lifecycle point where this command prompts for a Git commit), perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this command reached its wrap-up stage. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against `/speckit.interview`'s declared purpose and produce a short review plus ≥1 concrete, command-specific optimization point. Interview-specific signals worth reflecting on: questions the user answered with "you could have looked that up" (fact/decision split leaked), rounds that asked a blocked question, branches re-asked because a write-through was skipped, and whether the resolved run mode turned out to be the right one (a Special interview whose tree kept escaping its target, or an Informal one that was really converging a single artifact all along). If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this command's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id` (e.g. the target-artifact key + a run timestamp); if a nested skill/command already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "/speckit.interview" --unit-type command \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up (the same lifecycle point where this command prompts for a Git commit), run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this command's scope; persist one entry via `feedback-utils.py --action record --unit-id "/speckit.interview" --unit-type command`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.
 
 ## Documentation
 

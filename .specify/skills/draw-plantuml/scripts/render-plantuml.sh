@@ -199,7 +199,7 @@ strip_style() {
   local input="$1"
   sed -E \
     -e '/^[[:space:]]*skinparam[[:space:]]+monochrome[[:space:]]+true[[:space:]]*$/d' \
-    -e '/^[[:space:]]*skinparam[[:space:]]+(shadowing|roundCorner|dpi|defaultFontSize|defaultFontName|padding|ArrowThickness|BorderThickness|svgDimensionStyle|svgLinkTarget|actorStyle)[[:space:]]/d' \
+    -e '/^[[:space:]]*skinparam[[:space:]]+(shadowing|roundCorner|dpi|defaultFontSize|defaultFontName|padding|svgDimensionStyle|svgLinkTarget|actorStyle)[[:space:]]/d' \
     -e '/^[[:space:]]*scale[[:space:]]/d' \
     -e '/^[[:space:]]*FontSize[[:space:]]+[0-9.]+[[:space:]]*$/d' \
     "$input"
@@ -255,8 +255,12 @@ scale ${scale}
 skinparam defaultFontSize 16
 skinparam defaultFontName "Noto Sans CJK SC"
 skinparam padding 8
-skinparam ArrowThickness 2
-skinparam BorderThickness 2
+' === 视觉强弱基线（semantic visual weight）===
+' 注入值 = 最轻档（流线/叶元素边框）。语义层级「大区边框 > 子模块边框 > 流线」
+' 由源内 <style> 块或 per-element skinparam 提升（见 references/guide/style.md §十一）；
+' 源中全局 ArrowThickness/BorderThickness 不被剥离，可整体覆盖本基线。
+skinparam ArrowThickness 1
+skinparam BorderThickness 1
 skinparam svgDimensionStyle false
 skinparam svgLinkTarget _blank
 ' === 统一字号 16px（PlantUML 各元素字号参数默认值各异，不跟随 defaultFontSize） ===

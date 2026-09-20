@@ -31,9 +31,32 @@ Use a pinned ECharts 5.x version (e.g. `echarts@5.6.0`). Leverage built-in featu
 ### 4. Rich Interactivity by Default
 ECharts provides built-in interactivity (tooltip, legend toggle, zoom, data highlight). Enable these features by default. Add custom interactions only when explicitly requested.
 
+## SDS 实现与强弱落地
+
+**Input contract**：受 draw-diagram 委派时，输入 = SDS（Semantic Drawing Spec）文件路径 —— 逻辑模型 + 几何（canvas、每图元 `box{x,y,w,h}`、zone 盒、relation 锚点）+ weight_plan 档位 + typography 层级；schema owner：[semantic-model.md](../draw-diagram/references/semantic-model.md)。本技能 **MUST NOT 改写语义**（元素、关系、分区、布局/档位决策）——语法层只拥有：引擎语法、SDS 实现、渲染质量实践、偏离逼近。
+
+### 强弱落地（tier → 绝对值；owner = 本节）
+
+| SDS 档位 | ECharts 绝对值 |
+|----------|----------------|
+| T1 大模块/分区边界 | zone `graphic` rect `lineWidth: 2.5`；按 `style_intent` 可用虚线 |
+| T2 小模块/组件边界 | 节点 `itemStyle.borderWidth: 2.0` |
+| T3 数据流 | 边 `lineStyle.width: 1.6` |
+| T4 注释 | `lineStyle.width: 1.2` |
+
+关键路径仅色相抬升、线宽封顶 ≤ T2；色相只编码语义、永不编码权重。**复刻覆盖**：`fidelity_intent=reproduction` 的 SDS 携带源图实测线宽，覆盖上表默认值（规则细节见 [sds-realization.md](references/sds-realization.md)）。全图单一线宽/单一边框粗细判不合格。
+
+### 几何落地
+
+`graph` + `layout:'none'` + 4 个隐形 1×1 角锚点节点 + 固定坐标 `*.config.json` 精确兑现 SDS 盒位（SDS box 左上角原点；graph 节点 x/y 为盒中心 → 需换算）。ECharts 是绝对坐标引擎：**预期零偏离**；确实无法兑现的项 MUST 按 Deviation Declaration 规则（semantic-model.md）逼近并量化声明。
+
+映射理据、固定坐标复刻管线（目标像素测量 → config JSON → render.mjs 确定性导出）、bounds-fit 角锚点与边线 lines-series-压节点技巧、渲染质量清单：[references/sds-realization.md](references/sds-realization.md)。
+
 ## Workflow
 
 This skill creates ECharts data visualizations based on user-provided data and requirements. Follow the steps below in order.
+
+**SDS gate**：若输入是 draw-diagram 委派的 SDS 路径，Step 1–2 的语义推导（数据理解、图类/布局选择）已由 SDS 承载——不得重推或改写；直接从 Step 3 开始，按「SDS 实现与强弱落地」+ [references/sds-realization.md](references/sds-realization.md) 兑现。Step 4–5（HTML 组装、验证交付）始终适用。无 SDS 的直接调用按下列步骤全流程执行。
 
 ### Step 1: Understand Data & Requirements
 
@@ -74,7 +97,7 @@ Match data characteristics and goals to the appropriate ECharts chart type:
 
 ### Graph / Network & State Machine Views
 
-- **Force-directed `graph` is a relationship view, not an architecture diagram.** In force layout, nodes overlap freely and there are no subsystem boundaries or containment/hierarchy semantics. Use force layout for relationship exploration (who talks to whom, clustering). For **component/architecture views with subsystem boundaries**, prefer a fixed layout (`layout: 'none'` with explicit `x`/`y` per node, or `circular` for ring topologies) plus partitioned background zones (a `graphic` rect layer or a background `scatter` series) to visually group subsystems; or explicitly label the deliverable as a "关系视图 / relationship view" instead of presenting it as an architecture diagram.
+- **布局选择是语义决策，本节只保留引擎事实。** SDS 在场时，`layout_intent`、zones、每图元盒位由 SDS 承载（谁和谁同区、谁居中、分区等高都是语义层决定），语法层照 [references/sds-realization.md](references/sds-realization.md) 精确兑现，不得在此重新决策；无 SDS 的直接调用才在本层选择。引擎事实：力导向 `graph` 节点自由重叠、无子系统边界与从属语义——是关系视图而非架构图；边界/包含类视图的 ECharts 形态是固定布局（`layout:'none'` + 显式 `x`/`y`，环形拓扑可 `circular`）+ `graphic` rect 分区背景层；仅表达关系时把产物明确标注为「关系视图 / relationship view」，不得冒充架构图。
 - **Edge labels occlude in dense graphs.** Do not render all edge labels by default in force layouts with many edges. Default `edgeLabel` to hidden and reveal on hover via `emphasis.edgeLabel: { show: true }`, and/or enable `labelLayout: { hideOverlap: true }` avoidance. Provide a global toggle only when the user explicitly asks for always-on labels.
 - **State machines (`graph` with `categories`):** give `[*]` start/end pseudo-nodes a **visible label** (`[*]`, or localized 开始/结束) — never an empty label — and style nodes by state class (steady/transition/exception states) through `categories[].itemStyle` so node fill/border matches the legend and the edge colors.
 - **Inferred vs source-described edges (推断边 vs 源描述边):** when the source description does not specify a transition (e.g. "RUNNING 直接 Delete 未详述") and the model completes it, distinguish the inference from described facts visually — recommended: **dashed gray** (`lineStyle: { type: 'dashed', color: '#999' }`) for inferred/completed edges, **solid** colored edges for source-described transitions, **red dashed** for manual-intervention actions (e.g. operator Delete/恢复 on a CRASHED state that only appears in prose, not in the state graph). Add the distinction to the legend or a prominent in-chart footnote (`title.subtext` / `graphic`), not only in a page footer.
@@ -83,9 +106,9 @@ Match data characteristics and goals to the appropriate ECharts chart type:
 
 ### Scope Boundary: When ECharts Is Not the Right Tool
 
-ECharts is a data-viz library, not a diagramming tool. **Deployment diagrams, sequence diagrams, and UML class diagrams** are outside its natural expression. For such views:
+ECharts is a data-viz library, not a diagramming tool. **Deployment diagrams, sequence diagrams, and UML class diagrams** are outside its natural expression — this capability boundary is an ECharts syntax fact; the *routing decision* itself belongs to the draw-diagram front door (routing matrix + exclusivity registry). For such views:
 - Recommend the sibling diagram skills (draw-plantuml, draw-mermaid) to the user; or
-- If the user insists on ECharts, deliver an approximate view (e.g. a `graph` for deployment topology) **and explicitly document the substitution tradeoff** in the delivery notes: what the view shows and what it cannot show (deployment layers, containment, temporal order).
+- If ECharts must render the view anyway, deliver an approximate view (e.g. a `graph` for deployment topology) and **declare the deviation quantitatively** (dimension + magnitude + reason) per the Deviation Declaration rule in [semantic-model.md](../draw-diagram/references/semantic-model.md), documenting what the view shows and what it cannot show (deployment layers, containment, temporal order).
 
 Never silently substitute one view type for another.
 
@@ -191,6 +214,7 @@ For dark theme:
 
 ## Output Requirements
 
+- **Delivery contract (read first; rules owned by the front door)**: [../draw-diagram/references/delivery-contract.md](../draw-diagram/references/delivery-contract.md) — D1/D2 delivery form, D3–D5 user-facing text rules (**in-chart labels and the HTML prose obey the same rules**), D6 pre-delivery self-check. **The rule text and its examples live only in the contract; they are not restated here.** The items below are this engine's **mechanics**; the contract wins on conflict.
 - Output as a **single `.html` file** (self-contained, no external dependencies except the pinned ECharts script; offline-critical output ships a REAL local `vendor/echarts.min.js`, never an empty stub)
 - **Offline-critical / review-facing deliverables**: `vendor/echarts.min.js` present and non-empty (verified by `scripts/vendor-echarts.sh` / `scripts/verify-deliverable.mjs`) AND a static PNG/SVG snapshot of each chart delivered alongside the HTML as render evidence
 - ECharts version: **pinned 5.x** (e.g. `https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js`), never a floating `@5` tag
@@ -207,6 +231,7 @@ For dark theme:
 
 | Document | Content |
 |----------|---------|  
+| [sds-realization.md](references/sds-realization.md) | SDS 实现（语法层）：SDS box→ECharts 坐标换算、bounds-fit 角锚点、边线 lines-series-压节点、固定坐标复刻管线（测量 → config JSON → render.mjs 确定性导出）、tier 映射理据与复刻覆盖规则、cycle3 渲染质量清单 |
 | [echarts-guide.md](references/echarts-guide.md) | ECharts v5 quick reference: option structure, chart types, components, dataset, styling, common chart recipes, plus graph/state-machine/component-view recipes, label-overlap avoidance, and pinned-version/offline fallback patterns |
 | [echarts-official-docs.md](references/echarts-official-docs.md) | ECharts official documentation: container sizing, themes, dataset patterns, encode mapping. Load on-demand for deeper understanding |
 
@@ -260,26 +285,40 @@ Before delivering the final HTML file, verify:
 - [ ] Deliberately omitted domain parts (undefined states, out-of-scope items) are annotated explicitly
 - [ ] Substituted view types (e.g. a relationship view standing in for a deployment diagram) are documented with their tradeoff
 
+## Evaluation Form(绘制评价单)
+
+**定位与边界。** 本节是交付 ECharts 产物后的 Evaluation Form(绘制评价单)，承载用户对本次已交付可视化结果的评价；它不是 `## Feedback`，也不替代或改变该节的 agent 自省。`## Feedback` 保持其既有的「不向用户征询」规则，本节只处理用户主动给出的绘制评价。
+
+**触发与一次性征询。** 仅在本技能已交付 ECharts 产物及必要使用说明后，随该次交付附上一句非阻塞征询：`已交付 ECharts 图表；如愿意，请评价它是否准确、清晰且适合用途，或说明希望调整之处。` 不得等待回复、重复询问或因沉默降低交付结果。
+
+**无评价。** 用户没有给出评价即视为本次绘制满意；不创建评价条目、不调用反馈引擎，也不在后续回合追问。
+
+**有评价。** 用户一旦主动给出评价，保留其原意，将 review 内容标为 `## Evaluation Form`，并从评价中提取至少一条评价要点；随后以本节的 probe 记录（不是以 `wrap-up` probe 记录）：
+
+```bash
+python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
+  --unit-id "skill:draw-echarts" --unit-type skill \
+  --lifecycle-point evaluation-form \
+  --run-id "<drawing-run-id>:evaluation-form" --feature "<feature-key-if-any>" \
+  --review-file "<evaluation-form-review-file>" \
+  --points-file "<evaluation-form-points-file>"
+```
+
+这会经 `skill-draw-echarts-evaluation-form` probe 把评价条目写入 `.specify/memory/feedback/`。不得把本节记录与同次运行的 `## Feedback` 自省共用 `run_id`，也不得把用户评价改写为 agent 自评。
+
+**处置、回用与传递边界。** 该条目进入既有的 `record→threshold→package→manual→mark-submitted` 链路，并由既有 feedback 处置流程持续标记为 `processed` 或 `ignored`；`processed` 时在 `disposition_reason` 中保留可执行结论。后续执行本技能前，查询本技能已处置的评价单并将适用结论用于 ECharts 图表实现与交付验收：
+
+```bash
+python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action list \
+  --unit-id "skill:draw-echarts" --disposition processed --contains "Evaluation Form"
+```
+
+本节绝不自动发送任何内容。若记录结果的既有 threshold 机制要求提示，只能按既有协议给出一次非阻塞的手动打包/提交提示；本节自身的评价征询始终只有交付时的一次。
+
 ## Feedback
 
 **Runtime-mode gate.** If `${SKILL_WORKDIR}/.specify/` does not exist, this skill is
 running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
 directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At the end of a substantial run of this skill, perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this run reached a meaningful wrap-up. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against this skill's declared purpose and produce a short review plus ≥1 concrete, skill-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this skill's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id`; if a parent flow already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "skill:draw-echarts" --unit-type skill \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:draw-echarts" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

@@ -118,10 +118,7 @@ This is the load-bearing difference from a clarification pass, and it is easy to
 
 **Comprehension rules (可理解性规则)** — these are not stylistic preferences; violating them corrupts the answer:
 
-- **Plain language first.** Ask in the user's domain vocabulary, not the codebase's internals. "What should happen when processing a message fails?" beats "What is the `max_retry` semantic?"
-- **No unexplained abbreviations or jargon.** Spell out on first use in every question — the user may be reading this one in isolation, days later. Write "a holding area for messages that exhausted their retries", not "DLQ". Decision IDs (`D3`) are the one permitted short form, because the format defines them — and even then, name the decision rather than only citing its ID.
-- **Annotate special terms inline**, in parentheses, at the point of use. A term defined three questions ago still gets its gloss. Prefer the project glossary's canonical wording when one exists.
-- **Never assume shared context.** The agent has read the repo; the user has not necessarily read it today. State the facts the question depends on rather than implying them.
+User-facing wording and context rules are defined once in `.specify/shared/guidelines/user-facing-comprehension.md` (this file covers surface class ④); its condition sets MUST NOT be restated here. The four rules that used to be listed here are that document's whitelist, blacklist, and context floor.
 - **One decision per question.** A question containing "and" usually holds two decisions — split them, and let the dependency edges order them.
 - **Ask what, not whether.** "What should happen when X?" invites the user's actual model; "Should we do X?" narrows it to yes/no and smuggles in a proposal.
 
@@ -252,7 +249,7 @@ A unit claiming this mode must declare four things: the **target artifact**, the
 | **Skill** | The same four items in its `SKILL.md` | A **non-interactive escape hatch**: when no live user is available, degrade to a declared default and say so — never fabricate answers |
 | **Agent / team member** | The mode in its workflow section, plus the human-in-the-loop constraint | Which team pattern it runs under, and what a fire-and-forget subagent invocation is allowed to do (process the requested batch against the durable ledger, then return) |
 
-A host may **narrow** the pattern (fewer rounds, a fixed taxonomy of questions) but may not drop the write-through rule, the persisted decision records (ID + `dependsOn` + span), retraction propagation, the self-contained **open**-question format (mandatory context, no preset options, no recommended answer), the fact/decision split, or the user-confirmation exit gate.
+A host may **narrow** the pattern (fewer rounds, a fixed taxonomy of questions) but may not drop the write-through rule, the persisted decision records (ID + `dependsOn` + span), retraction propagation, the self-contained **open**-question format (mandatory context, no preset options, no recommended answer), the fact/decision split, or the user-confirmation exit gate, or the pointer to the comprehension discipline (which a host narrowing this pattern MUST NOT drop).
 
 ## Adoption Map (接入图谱)
 
@@ -277,8 +274,7 @@ Where the pattern already lives in this project, and where it fits:
 - **Retraction as a local edit**: changing one answer and moving on, leaving descendants that were derived from the old one. The artifact then reads as consistent while encoding two incompatible premises.
 - **Silent conflict resolution**: quietly overwriting an earlier settled decision because a later answer contradicts it. Name both and let the user choose which gives way.
 - **Deep premises asked late**: settling a widely-depended-on decision after the branches that rest on it, so one retraction invalidates a whole session's work. Order by descendant count at `I1`.
-- **Context-free questions**: asking a question that only makes sense to someone who just read the repo — no reason it arises now, no statement of what earlier answers it builds on, no note of what the answer will change. The user guesses at intent and answers a different question than the one meant.
-- **Jargon and bare abbreviations**: `DLQ`, `TTL`, `idempotent`, an internal symbol name, or a bare `D3` with no gloss. Every unexplained term is an invitation to answer confidently and wrongly.
+- **Context-free questions** and **jargon / bare abbreviations**: both are governed by the comprehension discipline named in the header pointer, which owns the conditions and the context floor; the labels stay here so the anti-pattern list remains navigable.
 - **Presetting the answer space**: offering an option menu in an interview. Three choices make the user pick the closest one instead of saying what was actually on their mind — and the good answer is usually the option the agent never imagined. That is clarify's shape, not this one.
 - **Recommending an answer**: it turns elicitation into review. The user finds the recommendation plausible, agrees, and the artifact records the agent's opinion under the user's name — fabrication by a subtler route.
 - **Widget-driven questioning**: inventing 2–4 options for a frontier question so it can be asked through a choice widget. The tool's schema is not a reason to preset an answer space — the prompt belongs in plain text.

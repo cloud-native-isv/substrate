@@ -33,7 +33,10 @@ def _find_repo_root() -> Path:
     # Walk up to the nearest ancestor containing a .specify/ directory so
     # both the canonical and the mirror copy resolve the same repo root.
     for parent in Path(__file__).resolve().parents:
-        if (parent / ".specify").is_dir():
+        # skip a parent that IS `.specify`: a stray nested projection
+        # (`.specify/.specify/`) would otherwise self-match here and
+        # mis-root the mirror copy onto the runtime dir
+        if parent.name != ".specify" and (parent / ".specify").is_dir():
             return parent
     return Path(__file__).resolve().parents[2]
 

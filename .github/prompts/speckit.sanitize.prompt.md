@@ -100,16 +100,7 @@ At the same wrap-up point as the Feedback step, apply the docs-sync evaluation p
 
 ## Feedback
 
-At wrap-up, perform the agent self-reflection step (never solicit feedback content from the user) following the canonical convention in `.specify/shared/workflow/feedback-step.md`: gate on qualification & completion; reflect against this command's declared purpose; keep strictly to this command's operation (`scope: local`); persist via the engine with a stable `run_id`:
-
-```bash
-python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-  --unit-id "/speckit.sanitize" --unit-type command \
-  --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-  --review "<review prose>" --points-file "<points file>"
-```
-
-If the returned `should_prompt` is `true`, append ONE non-blocking line inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); MUST NOT block wrap-up, MUST NOT 自动传输.
+At wrap-up (the same lifecycle point where this command prompts for a Git commit), run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this command's scope; persist one entry via `feedback-utils.py --action record --unit-id "/speckit.sanitize" --unit-type command`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.
 
 ## Handoffs
 

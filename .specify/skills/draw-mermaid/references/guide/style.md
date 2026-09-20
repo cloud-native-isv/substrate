@@ -83,3 +83,7 @@ flowchart LR
 - [ ] 字号层级统一，无内联字号/加粗？
 - [ ] 深色背景用 dark 主题时，正文颜色对比度足够？
 - [ ] 渲染后 Read 检查：颜色是否如预期、是否有渲染警告？
+
+## 强弱实现（接收 draw-diagram weight_plan）
+
+语义层（draw-diagram）决定「什么该更显眼」，本技能决定「怎么画粗」：节点边框用 `classDef` 按档定义 `stroke-width`（T1 大区 4px / T2 子模块 2px / T3 叶元素 1px）并经 `:::`/`class` 应用；流线默认 1px，关键路径用 `linkStyle <i> stroke:<语义色相>,stroke-width:2px`（**粗细封顶 = T2**，不得反压结构边框）；深浅用边框色值（参考 #37474F / #607D8B / #90A4AE / #A3B1BA）。全图单一线宽判不合格；渲染后自查档位可辨。

@@ -63,5 +63,5 @@ directory) — skip this entire Feedback step: no engine call, no feedback entry
   self-contained `## Feedback` section (reflection summary in the reply only —
   no engine invocation).
 - When **validating/repairing** a skill found in a standalone directory: the
-  engine-backed Feedback block is NOT required; a self-contained reflection
-  section (or the gated canonical block) is conformant.
+  engine-backed Feedback section is NOT required; a self-contained reflection
+  section (or the gated reference form) is conformant.

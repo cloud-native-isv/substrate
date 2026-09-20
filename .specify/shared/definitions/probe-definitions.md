@@ -26,12 +26,15 @@
 | external-custom | external | 宿主项目自定义单元运行的回顾与优化点 | host-custom | record→local-consumption(不上送) | wrap-up |
 | command-gate | internal | 保留确认点触发后的用户决定观察事实(门控必要性证据) | commands | record→threshold→package→manual→mark-submitted | confirm-gate |
 | skill-gate | internal | 保留确认点触发后的用户决定观察事实(门控必要性证据) | skills | record→threshold→package→manual→mark-submitted | confirm-gate |
+| skill-evaluation-form | internal | 绘图技能交付产物后由用户主动给出的 Evaluation Form(绘制评价单),用于评价该次已交付结果 | skills | record→threshold→package→manual→mark-submitted | evaluation-form |
 
 ## Objects
 
-> 既有 49 个隐式埋点(31 skills + 18 复杂命令 wrap-up)与嵌入点清单一一对应
-> (SC-001 对账基准);`/speckit.feedback` 命令自身的第 50 个 Object 随命令模板
-> 落地同变更登记(见 contracts/probe-registry.md C-3.4)。
+> SC-001 对账基准(历史快照,仅作当时留痕,不代表当前数量):彼时的隐式埋点
+> 与嵌入点清单一一对应,`/speckit.feedback` 命令自身的 Object 随命令模板落地
+> 同变更登记(见 contracts/probe-registry.md C-3.4)。当前生效的埋点集合以本
+> 注册表为准,用 `feedback-utils.py --action probes --validate` 读取与对账,
+> MUST NOT 在他处复写计数。
 >
 > 51–70 行为 044 Phase 7 的门控必要性 probe(insertion_type=confirm-gate):
 > 每个非 intrinsic 保留确认点一个 Object,锚点是点位的单行 probe 指针
@@ -44,6 +47,7 @@
 | speckit-analyze-wrapup | command-wrapup | /speckit.analyze | wrap-up |
 | speckit-checklist-wrapup | command-wrapup | /speckit.checklist | wrap-up |
 | speckit-clarify-wrapup | command-wrapup | /speckit.clarify | wrap-up |
+| speckit-derive-wrapup | command-wrapup | /speckit.derive | wrap-up |
 | speckit-docs-wrapup | command-wrapup | /speckit.docs | wrap-up |
 | speckit-goal-wrapup | command-wrapup | /speckit.goal | wrap-up |
 | speckit-history-wrapup | command-wrapup | /speckit.history | wrap-up |
@@ -60,7 +64,6 @@
 | speckit-tasks-wrapup | command-wrapup | /speckit.tasks | wrap-up |
 | speckit-todo-wrapup | command-wrapup | /speckit.todo | wrap-up |
 | speckit-tools-wrapup | command-wrapup | /speckit.tools | wrap-up |
-| skill-agent-cli-setup-wrapup | skill-wrapup | skill:agent-cli-setup | wrap-up |
 | skill-archive-session-wrapup | skill-wrapup | skill:archive-session | wrap-up |
 | skill-browser-extension-wrapup | skill-wrapup | skill:browser-extension | wrap-up |
 | skill-browser-utils-wrapup | skill-wrapup | skill:browser-utils | wrap-up |
@@ -76,7 +79,10 @@
 | skill-database-utils-wrapup | skill-wrapup | skill:database-utils | wrap-up |
 | skill-document-utils-wrapup | skill-wrapup | skill:document-utils | wrap-up |
 | skill-draw-d3js-wrapup | skill-wrapup | skill:draw-d3js | wrap-up |
+| skill-draw-diagram-wrapup | skill-wrapup | skill:draw-diagram | wrap-up |
+| skill-draw-drawio-wrapup | skill-wrapup | skill:draw-drawio | wrap-up |
 | skill-draw-echarts-wrapup | skill-wrapup | skill:draw-echarts | wrap-up |
+| skill-draw-excalidraw-wrapup | skill-wrapup | skill:draw-excalidraw | wrap-up |
 | skill-draw-mermaid-wrapup | skill-wrapup | skill:draw-mermaid | wrap-up |
 | skill-draw-plantuml-wrapup | skill-wrapup | skill:draw-plantuml | wrap-up |
 | skill-git-submodule-edit-wrapup | skill-wrapup | skill:git-submodule-edit | wrap-up |
@@ -86,6 +92,7 @@
 | skill-improve-skills-wrapup | skill-wrapup | skill:improve-skills | wrap-up |
 | skill-improve-team-wrapup | skill-wrapup | skill:improve-team | wrap-up |
 | skill-improve-tools-wrapup | skill-wrapup | skill:improve-tools | wrap-up |
+| skill-manage-agents-wrapup | skill-wrapup | skill:manage-agents | wrap-up |
 | skill-memory-recall-wrapup | skill-wrapup | skill:memory-recall | wrap-up |
 | skill-memory-record-wrapup | skill-wrapup | skill:memory-record | wrap-up |
 | skill-study-project-wrapup | skill-wrapup | skill:study-project | wrap-up |
@@ -113,6 +120,13 @@
 | gate-summarize-project-four-gates | skill-gate | skill:summarize-project | gate-summarize-project-four-gates |
 | gate-summarize-project-structure-freeze | skill-gate | skill:summarize-project | gate-summarize-project-structure-freeze |
 | gate-summarize-project-degraded-gates | skill-gate | skill:summarize-project | gate-summarize-project-degraded-gates |
+| skill-draw-diagram-evaluation-form | skill-evaluation-form | skill:draw-diagram | evaluation-form |
+| skill-draw-d3js-evaluation-form | skill-evaluation-form | skill:draw-d3js | evaluation-form |
+| skill-draw-drawio-evaluation-form | skill-evaluation-form | skill:draw-drawio | evaluation-form |
+| skill-draw-echarts-evaluation-form | skill-evaluation-form | skill:draw-echarts | evaluation-form |
+| skill-draw-excalidraw-evaluation-form | skill-evaluation-form | skill:draw-excalidraw | evaluation-form |
+| skill-draw-mermaid-evaluation-form | skill-evaluation-form | skill:draw-mermaid | evaluation-form |
+| skill-draw-plantuml-evaluation-form | skill-evaluation-form | skill:draw-plantuml | evaluation-form |
 
 ## External Probe 登记契约
 
@@ -126,7 +140,7 @@ unit: custom:<owner>/<name>  # MUST 匹配 ^custom:[a-z0-9._/-]+$
 lifecycle_point: wrap-up
 ```
 
-- 注入路径:`/speckit.feedback` 模式三(引擎 `--action probe-inject`)。
+- 注入路径:`/speckit.feedback` § Probe Injection(引擎 `--action probe-inject`)。
 - 外部条目(`kind: external`)保留在宿主项目本地,**永不进入**框架上送打包路径
   (engine `--action package` 100% 排除,见 contracts/engine-cli.md C-4)。
 - 校验:`--action probes --validate` 覆盖本文件 Classes/Objects 与外部 probe 文件。

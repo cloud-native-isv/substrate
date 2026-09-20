@@ -327,13 +327,18 @@ def check_coverage(prose: str, f: Findings, report: dict) -> None:
 
 
 def check_dates(prose: str, f: Findings, report: dict) -> None:
-    # CG-8 基准日唯一
-    days = sorted(set(re.findall(r"(?:基准日|today)\s*[=＝:：]?\s*(\d{4}-\d{2}-\d{2})", prose)))
+    # CG-8 基准日唯一。字面量形态以 progress-presentation.md §7 固定小节为准：
+    # `- 基准日 D0：<baseline>` —— 标签与日期之间允许出现 D0 指称符与空白，
+    # 旧正则看不见 D0 形态，导致模板强制的写法反而 WARN"未找到基准日"。
+    days = sorted(set(re.findall(
+        r"(?:基准日|today)\s*(?:D0)?\s*[=＝:：]?\s*(\d{4}-\d{2}-\d{2})", prose)))
     report["baseline_dates"] = days
     if len(days) > 1:
-        f.fail("CG-8", f"报告中存在多个基准日字面量 {days} → 全报告只能有一个基准日 D0")
+        # 注意：按"不同取值"判 FAIL——同一基准日在多章重复出现（截至表述、
+        # 图题、元信息）是模板要求的正常形态，不构成违规。
+        f.fail("CG-8", f"报告中存在多个不同的基准日取值 {days} → 全报告只能有一个基准日 D0")
     elif not days:
-        f.warn("CG-8", "未找到「基准日 / today = yyyy-mm-dd」字面量（进行期项目须显式声明基准日）")
+        f.warn("CG-8", "未找到「基准日 D0：/ 基准日：/ today = yyyy-mm-dd」字面量（进行期项目须显式声明基准日）")
 
     # 日期格式公约
     bad = re.findall(r"\d{4}[/.]\d{1,2}[/.]\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日|\d{1,2}月\d{1,2}日", prose)

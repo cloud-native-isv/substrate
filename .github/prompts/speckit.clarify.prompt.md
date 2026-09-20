@@ -40,6 +40,8 @@ For the active mode's detailed taxonomy categories and integration rules, load: 
 
 Each mode has its own taxonomy. For each category, mark status (Clear / Partial / Missing). Add candidate questions for Partial/Missing categories unless clarification would not materially change implementation.
 
+**Same-author detection delegation**: this scan usually runs on an artifact the same agent just wrote — the ordinary case is a `requirements → clarify` chain without a break — so the scan inherits the author's own reading, and an ambiguity unnoticed while writing is unlikely to be noticed while scanning. When that condition holds, delegate the coverage scan to fresh-context read-only subagents. Apply the canonical gate in `.specify/shared/workflow/objective-analysis-gate.md` (single source of truth; do not restate its rules here). This command has no severity tiers, so the local analogue of the propagation-surface cap is the materiality filter above: do not raise a question whose answer changes no **downstream artifact**.
+
 If spec contains `Feature ID: Need clarification` or `Feature Name: Need clarification`, treat Feature Linkage as high-priority.
 
 ### Question Generation & Interactive Loop
@@ -47,6 +49,8 @@ If spec contains `Feature ID: Need clarification` or `Feature Name: Need clarifi
 This loop is **clarification (澄清), not interviewing (采访)** — a distinction worth keeping straight because both ask the user questions. Here the answer space is **already bounded** by the target artifact and the mode's taxonomy, so questions are **closed**: an options table plus a **Recommended** pick that the user ratifies or corrects. That is why this command may propose answers at all.
 
 From `.specify/shared/patterns/interview-pattern.md` it borrows only the **context discipline** (every question states why it arises and what the answer will change) and the **fact-vs-decision split** (never ask the user for anything the repo can answer). It deliberately does **not** adopt that pattern's open-question rule — presenting options is correct when the possibilities really are known.
+
+The **no-jargon half** of that borrowing is not restated here either: which terms may stand unexplained, which internal forms must never reach the user, what each question must carry for a reader who opens it alone, and how the option table's consequence previews are worded are all defined once in `.specify/shared/guidelines/user-facing-comprehension.md` (this command covers surface class ⑤); its condition sets MUST NOT be copied into this template.
 
 **Escalation**: when the coverage scan shows the answer space is not actually bounded — the decisions *branch*, answers keep unlocking questions nobody anticipated, or the cap is reached with critical ambiguities still open — stop and recommend `/speckit.interview` on the same target artifact (open questions, unbounded rounds, durable ledger). Do not silently exceed the cap, do not fabricate the remainder, and do not force an options table onto a decision whose options you are guessing.
 
@@ -59,8 +63,10 @@ From `.specify/shared/patterns/interview-pattern.md` it borrows only the **conte
    - Only include questions whose answers materially impact downstream artifacts
    - Balance category coverage; favor high-impact unresolved categories
 
-3. **Sequential questioning loop** — present ONE question at a time:
-   - Multiple-choice: table format (Option | Description), state **Recommended** option with reasoning
+3. **Questioning loop** — order-dependent questions singly; mutually independent ones MAY batch:
+   - **Batching rule**: ask a question alone when its framing depends on an earlier answer (the later options change with the earlier choice); when questions are mutually independent — neither answer alters the other's option set — they MAY be presented as one batch, consistent with step 1's rule for residuals. Default to single when unsure.
+   - Multiple-choice: table format (Option | Description | Consequence), state **Recommended** option with reasoning
+   - **Consequence preview (per option)**: every option MUST carry a one-line preview of what choosing it changes in the target artifact — sections or requirement IDs added/rewritten, obligations triggered — so the user chooses between outcomes, not labels. Where an option carries a known cost or semantic tension, name it in that preview; the active mode's integration rules (taxonomy reference) then bind that cost into the artifact rather than leaving it as a recorded answer only. When the questioning surface exposes a per-option preview/detail field, put the consequence there; otherwise make it the third table column.
    - Short-answer: state **Suggested** answer with reasoning
    - User replies: "yes"/"recommended" → use suggestion; otherwise validate answer
    - Stop when: all critical ambiguities resolved, user signals "done", or 5 questions reached
@@ -100,27 +106,15 @@ The rule above governs *clarification* runs. When the USER explicitly changes th
 
 ## Feedback
 
-At wrap-up (the same lifecycle point where this command prompts for a Git commit), perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this command reached its wrap-up stage. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against `/speckit.clarify`'s declared purpose and produce a short review plus ≥1 concrete, command-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this command's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id` (e.g. the feature key + a run timestamp); if a nested skill/command already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "/speckit.clarify" --unit-type command \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up (the same lifecycle point where this command prompts for a Git commit), run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this command's scope; persist one entry via `feedback-utils.py --action record --unit-id "/speckit.clarify" --unit-type command`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.
 
 ## Documentation
 
 At the same wrap-up point as the Feedback step, apply the docs-sync evaluation per the canonical convention in `.specify/shared/workflow/docs-step.md`: assess whether information produced by this run (new capabilities, key decisions, structural changes) needs to be recorded into the project documentation space, and conclude with exactly one of `需记录（目标文档 + 要点）` or `无需记录`. Never block wrap-up; incremental judgment only (no full reconcile sweep); when a move/archive-level change is needed, recommend running `/speckit.docs` instead of executing it here.
+
+## Artifact Commit
+
+At wrap-up, **before** the Feedback and Documentation steps, commit the artifact this command produced — and only that artifact, staged by explicit path. Follow the canonical convention in `.specify/shared/workflow/artifact-commit-step.md`: run the deletion-surface audit first, use a single-line message per `.specify/templates/commit-template.md`, never `git add -A`, and never fold another command's uncommitted artifacts into this commit (report that as an upstream deviation instead). A read-only run that produced no artifact skips this step and says so in one line rather than creating an empty commit. Committing here does not advance the feature's lifecycle status and does not push.
 
 ## Handoffs
 

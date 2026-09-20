@@ -23,6 +23,7 @@ capability, .md                     responsibility, .md                         
 - **Instance → Execution** (runtime): a dispatch mechanism turns the definition into a live run — a harness **tool call** (native subagent), in-session adoption when no mechanism exists (**virtual**), or an **MCP / shell**-launched separate agent process (**external**). Mode selection and the visibility rules live in `subagent-definitions.md`.
 - **Cardinality**: one Template serves many Instances (the same `qa-engineer` capacity fills seats in different teams); one Instance serves many Executions (each `run` spawns an independent execution; concurrent runs never affect the definition).
 - **Edit routing**: `refine` operations (`improve-agent`, `improve-team`) act on Templates and Instances — never on Executions. A misbehaving Execution is terminated or re-dispatched; the fix lands in the layer below.
+- **Self-Improvement boundary**: Templates and Instances may be Execution Subjects; an Execution is own-run evidence, never the self-edited target. Persistent agents reference `shared/workflow/self-improvement-workflow.md` through the contract composed by `create-agent`.
 
 ## Storage Layout
 

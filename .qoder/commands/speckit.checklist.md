@@ -35,6 +35,8 @@ For detailed methodology, examples, anti-examples, and quality dimension pattern
    - plan.md (if exists): Specification context for gap-finding only
    - tasks.md (if exists): Specification decomposition for missing requirement detection only
 
+**Same-author detection delegation**: the checklist is an audit instrument for a spec this same agent usually just wrote, so it inherits the author's blind spots — the gaps the spec never mentions are largely the gaps the author never thought of while writing it, and a re-read by that author reproduces the same reading. When that condition holds, derive the gap-finding pass from fresh-context read-only subagents. Apply the canonical gate in `.specify/shared/workflow/objective-analysis-gate.md` (single source of truth; do not restate its rules here). This command has no severity tiers; its local analogue of the propagation-surface cap is the traceability rule step 5 already states — a **CHK** item carries the requirement or gap it guards, so an item guarding nothing is visible as untraceable instead of passing as coverage.
+
 5. **Generate checklist** — Create "Unit Tests for Requirements":
    - Create `REQUIREMENTS_DIR/checklists/` if needed
    - Use short descriptive filename: `[domain].md` (e.g., `ux.md`, `api.md`, `security.md`)
@@ -58,23 +60,7 @@ Apply [Feature Integration Protocol](.specify/shared/workflow/feature-integratio
 
 ## Feedback
 
-At wrap-up (the same lifecycle point where this command prompts for a Git commit), perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this command reached its wrap-up stage. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against `/speckit.checklist`'s declared purpose and produce a short review plus ≥1 concrete, command-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this command's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id` (e.g. the feature key + a run timestamp); if a nested skill/command already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "/speckit.checklist" --unit-type command \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up (the same lifecycle point where this command prompts for a Git commit), run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this command's scope; persist one entry via `feedback-utils.py --action record --unit-id "/speckit.checklist" --unit-type command`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.
 
 ## Documentation
 

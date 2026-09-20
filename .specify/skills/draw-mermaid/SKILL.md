@@ -22,6 +22,7 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 
 ## 核心原则
 
+- **引擎独有能力（路由选中本引擎的理由）**：仓库原生声明式文本图——`.mmd` 文本即产物、diff 友好、可版本管理，GitHub/GitLab/CI 等平台原生免工具链直渲；代价是布局自动（dagre），受 SDS 委派时几何只能逼近并声明偏离（见「SDS 实现与强弱落地」）
 - **UML 语义，而非随意方框**：UML 类图表必须遵循标准 UML 图表类型，使用正确的 UML 元素和关系（Mermaid 的 classDiagram / sequenceDiagram / stateDiagram-v2 / erDiagram / flowchart 各司其职）
 - **架构优先的叙事**：图和文字互补——文字解释*为什么*，图展示*什么*
 - **统一样式**：用 `%%{init: {themeVariables}}%%` / `classDef` 保持统一样式，UML 图每张核心元素 ≤7 个（硬上限 ≤15）
@@ -36,6 +37,29 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 2. **减法与拆分**：信息量大时优先整洁美观而非面面俱到，每图突出**一个核心点**；单图表达不下则按架构接缝**拆为图集**（概览图 + 下钻子图，图间层次与交叉引用，每图自足，图集共享稳定词汇）（principles §4.2/§4.3）。
 3. **UML 语义 + 视觉语义**：先选对图类型/元素种类/关系/构造型/接口（§1）；再按人类视角规划视觉语义——角色即位置、一对多用「单代表+多重性」、关联即同色、分组即框选（§2）。
 4. **文字修饰 + 收尾美化**：元素上只留简洁标题、详细说明外置到布局安全的注释（flowchart 的 `:::注释节点`/link 注释、sequence 的 note、class 的 note）、字号层级跨图统一（§3）；最后做对齐/着色/线条与大图专项美化（playbook）。
+
+## SDS 实现与强弱落地
+
+**输入契约**：受 [draw-diagram](../draw-diagram/SKILL.md) 委派时，输入是 **SDS 文件路径**（Semantic Drawing Spec：逻辑模型 + Geometry（canvas / 每图元 box{x,y,w,h} / 分区盒 / 关系锚点）+ weight_plan 档位 + typography 层级）。SDS schema 与 Deviation Declaration 规则的 owner 是 [../draw-diagram/references/semantic-model.md](../draw-diagram/references/semantic-model.md)。**MUST NOT 改写语义**：元素/关系/分区集合、布局语义、weight_plan 档位一律以 SDS 为冻结输入——本技能只负责引擎语法、SDS 实现/逼近、渲染质量。无 SDS（用户直调）时按下方工作流自行补齐同等模型。
+
+### 强弱实现（tier → stroke-width）
+
+SDS 的相对档位（T1>T2>T3>T4）由本层经 `linkStyle` / `classDef` / `style` 落实为绝对线宽；**复刻类 SDS（fidelity_intent=reproduction）携带的源图实测线宽优先，覆盖下表默认值**：
+
+| 档位 | SDS 语义角色 | Mermaid 载体与语法 | 默认线宽 |
+|------|-------------|------------------|---------|
+| T1 | 大模块/顶层分区边界 | 顶层 subgraph（cluster）边框：`style <zoneId> stroke-width:3px`（配深色 stroke） | 3px |
+| T2 | 小模块/组件边界 | 嵌套 subgraph 与组件节点边框：`classDef module stroke-width:2px` | 2px |
+| T3 | 数据流/依赖连线 | 流线：`linkStyle <idx|default> stroke-width:1.5px` | 1.5px |
+| T4 | 注释/副标题 | 注释节点与弱虚线：`classDef note stroke-width:1px`（配 `-.->`） | 1px |
+
+关键路径（weight_plan.key_paths）仅以色相抬升、线宽封顶 = T2；全图单一线宽判不合格（验收判据 owner：semantic-model.md）。
+
+### 几何逼近与偏离声明
+
+Mermaid 为**自动布局引擎**（dagre，无绝对坐标 API）→ SDS Geometry 只能**逼近**：ghost spacer 锚点（等高/顶对齐分区）、`~~~` 行锁链（行序/rank 控制）、invisible links（列对齐）。无法兑现项（精确 x/y、等高分区、锚点位置等）MUST 在**结果清单中量化声明**（偏离维度 + 幅度 + 原因）——未声明的偏离按 semantic-fidelity 扣分，已声明的计入语法实现质量、不算语义缺陷。
+
+→ 逼近技术细节（含 wrappingWidth 陷阱、curve:linear、版本 pin、本地 bundle 渲染回退）、档位映射依据与偏离声明模板：[references/sds-realization.md](references/sds-realization.md)
 
 ## PlantUML ↔ Mermaid 图表类型对照
 
@@ -72,6 +96,8 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 
 ### Step 1: 语义解析 + 吃透上下文（上下文驱动）
 
+**受 draw-diagram 委派时本步跳过**：SDS 即语义输入（逻辑模型/几何/强弱已在语义层定案），不得重新建模或就语义再问用户（仅语法/渲染事项可确认）。以下适用于无 SDS 的直调场景：
+
 分析用户输入以理解绘制意图；通过补充推断或交互式提问（`AskUserQuestion`，最多一轮 ≤4 个问题）确认意图。**面对文档/代码等丰富上下文时，先产出一份带出处的上下文摘要**（组件、关系、核心流程、关键决策），后续绘图与自检都对着它，保证程序整体正确、不臆造。
 
 → [00-semantic-analysis.md](references/howto/00-semantic-analysis.md)；上下文驱动见 [diagram-principles.md §4.1](references/guide/diagram-principles.md)
@@ -88,13 +114,12 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 
 → [references/howto/](references/howto/)（02–09）；UML 语义先行见 [diagram-principles.md §1](references/guide/diagram-principles.md)
 
-### Step 4: 规划布局 + 视觉语义（人类视角）
+### Step 4: 几何落地（SDS 优先，规划仅作回退）
 
-编码前先规划空间语义：
-- **视觉语义**：角色即位置（枢纽居中偏上、节点沿边/底，Hub/Edge/Entry/Sink）；一对多用**单代表元素 + 多重性标注**（`collections`/`«×N»`），不画 N 份兄弟盒；关联即同色（同子系统同色相族，`classDef`/`style`）；分组即框选（`subgraph` 具名边界、同色系分组）。
-- **方向/宽高比决策**：数「最宽层宽 B」与「主流深 D」选方向（`TD` 宽浅、`LR` 深窄长链）；`C≈round(sqrt(N×1.3))` 估列数摆近正方形网格（嵌套 subgraph 内同理）；单层兄弟 ≤6，超出下沉/拆 subgraph。
+- **有 SDS（受委派）**：几何是语义层已定案的决策（谁和谁同区、谁居中、分区等高、方向/宽高比、锚点）——**不得重新规划**，按「SDS 实现与强弱落地」小节以脚手架逼近（ghost spacer 锚点、`~~~` 行锁链、invisible links），并对无法兑现项做量化偏离声明。
+- **无 SDS（直调回退）**：编码前先补空间语义——角色即位置（枢纽居中偏上、节点沿边/底）；一对多用**单代表元素 + 多重性标注**（`collections`/`«×N»`）；关联即同色；分组即框选（`subgraph` 具名边界）。方向/宽高比：数「最宽层宽 B」与「主流深 D」选 `TD`/`LR`，`C≈round(sqrt(N×1.3))` 估列数，单层兄弟 ≤6。
 
-→ [10-layout-planning.md](references/howto/10-layout-planning.md)、[layout.md §一/§2.1/§2.5](references/guide/layout.md)；视觉语义见 [diagram-principles.md §2](references/guide/diagram-principles.md)
+→ [sds-realization.md](references/sds-realization.md)；回退规划见 [10-layout-planning.md](references/howto/10-layout-planning.md)、[layout.md §一/§2.1/§2.5](references/guide/layout.md)、[diagram-principles.md §2](references/guide/diagram-principles.md)
 
 ### Step 5: 生成 Mermaid 代码
 
@@ -139,6 +164,7 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 
 ## 输出要求
 
+- **交付契约（必读；规则 owner 在前门）**：[../draw-diagram/references/delivery-contract.md](../draw-diagram/references/delivery-contract.md) —— D1/D2 交付形态、D3–D5 面向用户的文字规则（**图内标签与 HTML 正文同规**）、D6 交付前自检。**条文与示例只存在于契约，本节不复写。**以下各条是本引擎的**机械落地**，与契约冲突时以契约为准。
 - 输出为单个 HTML 文档，包含渲染的图表；**每图附「可复现信息」折叠块**（内嵌 `.mmd` 源码 + 渲染命令，`<details>` 块，见 [12-rendering-and-output.md §4.4](references/howto/12-rendering-and-output.md)），不依赖外部渲染服务在线即可复现
 - 图表通过 [render-mermaid.sh](scripts/render-mermaid.sh) 渲染，同时产出 PNG 与 SVG（**默认远端渲染**：脚本默认 `MERMAID_BACKEND=server`；本地渲染必须先在用户确认后以 `MERMAID_BACKEND=local` 显式启用）
 - **默认优先选用 PNG 格式**引用/嵌入图片（最美观，且在 Preview / Markdown 预览中可直接查看）；仅当图表过宽/过大或需任意无损缩放时改用 SVG
@@ -154,49 +180,40 @@ skill_id: "<SKILL:.specify/skills/draw-mermaid/SKILL.md>"
 
 **实战沉淀（务必阅读）**：竞技评审与重绘中固化的经验教训，见 [best-practices/best-practices.md](best-practices/best-practices.md)（最佳实践）与 [best-practices/pitfalls.md](best-practices/pitfalls.md)（陷阱）——绘制前对照最佳实践，绘制后自查陷阱清单。
 
+## Evaluation Form(绘制评价单)
+
+**定位与边界。** 本节是交付 Mermaid 产物后的 Evaluation Form(绘制评价单)，承载用户对本次已交付图表结果的评价；它不是 `## Feedback`，也不替代或改变该节的 agent 自省。`## Feedback` 保持其既有的「不向用户征询」规则，本节只处理用户主动给出的绘制评价。
+
+**触发与一次性征询。** 仅在本技能已交付 Mermaid 产物及必要使用说明后，随该次交付附上一句非阻塞征询：`已交付 Mermaid 图；如愿意，请评价它是否准确、清晰且适合用途，或说明希望调整之处。` 不得等待回复、重复询问或因沉默降低交付结果。
+
+**无评价。** 用户没有给出评价即视为本次绘制满意；不创建评价条目、不调用反馈引擎，也不在后续回合追问。
+
+**有评价。** 用户一旦主动给出评价，保留其原意，将 review 内容标为 `## Evaluation Form`，并从评价中提取至少一条评价要点；随后以本节的 probe 记录（不是以 `wrap-up` probe 记录）：
+
+```bash
+python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
+  --unit-id "skill:draw-mermaid" --unit-type skill \
+  --lifecycle-point evaluation-form \
+  --run-id "<drawing-run-id>:evaluation-form" --feature "<feature-key-if-any>" \
+  --review-file "<evaluation-form-review-file>" \
+  --points-file "<evaluation-form-points-file>"
+```
+
+这会经 `skill-draw-mermaid-evaluation-form` probe 把评价条目写入 `.specify/memory/feedback/`。不得把本节记录与同次运行的 `## Feedback` 自省共用 `run_id`，也不得把用户评价改写为 agent 自评。
+
+**处置、回用与传递边界。** 该条目进入既有的 `record→threshold→package→manual→mark-submitted` 链路，并由既有 feedback 处置流程持续标记为 `processed` 或 `ignored`；`processed` 时在 `disposition_reason` 中保留可执行结论。后续执行本技能前，查询本技能已处置的评价单并将适用结论用于 Mermaid 图表实现与交付验收：
+
+```bash
+python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action list \
+  --unit-id "skill:draw-mermaid" --disposition processed --contains "Evaluation Form"
+```
+
+本节绝不自动发送任何内容。若记录结果的既有 threshold 机制要求提示，只能按既有协议给出一次非阻塞的手动打包/提交提示；本节自身的评价征询始终只有交付时的一次。
+
 ## Feedback
 
 **Runtime-mode gate.** If `${SKILL_WORKDIR}/.specify/` does not exist, this skill is
 running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
 directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At wrap-up (the same lifecycle point where this unit would prompt for a Git commit),
-run this self-reflection step. It is agent self-reflection — **never** solicit feedback
-content from the user.
-
-1. **Gate on qualification & completion.** Only proceed if this run reached wrap-up and
-   did substantial work. Skip entirely for trivial/no-op runs. If the run was aborted or
-   failed before wrap-up, follow the *Abort / partial-run rule* below.
-2. **Reflect (no user input).** Review the just-completed run against this unit's declared
-   purpose/description. Produce a short prose review plus **≥1 concrete, unit-specific
-   optimization point**. If the run was clean, record exactly one line:
-   `No significant optimization points identified this run.`
-   **Token 效率自评**(纪律定义见 `.specify/shared/guidelines/token-efficiency.md`)——同步自查三问:本次运行是否发生 (1) **原文转储**(机器管理数据文件整体注入上下文)、(2) LLM **代做确定性工作**(固定规则判断未交程序)、(3) **重复读取**同一内容?有发现 → 对应优化点条目行 MUST 内嵌字面量 `token-efficiency`(稳定标记,供 `--action list --contains token-efficiency` 检索聚合);干净运行 MUST NOT 追加空洞的 Token 观察条目。量化口径:定性描述或行/字节代理指标,精确 Token 计数不可得时 MUST **不编造**具体数值。
-3. **Scope guard.** Keep strictly to *this* unit's operation. Do NOT produce a
-   global/whole-project assessment — that is `/speckit.review`'s job. Every entry is
-   `scope: local`.
-4. **Dedup guard.** Choose a stable `run_id` for this run (e.g. the feature key + a run
-   timestamp). If a parent flow already recorded feedback for this same `(unit_id, run_id)`,
-   the engine will no-op — do not force a duplicate.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "skill:draw-mermaid" --unit-type skill \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt.** Read `should_prompt` from the `record` output
-   (or run `--action status`). When it is `true`, surface a **single** consolidated
-   non-blocking notification inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); the wrap-up MUST NOT pause for the choice and MUST NOT trigger any automated transmission (silence = skip). Below threshold, do NOT prompt.
-   The detailed prompt semantics (package → manual send → mark-submitted, plus the
-   skip / silence options) live in the canonical protocol:
-   `.specify/shared/workflow/feedback-step.md` § *Threshold prompt protocol*.
-
-**Abort / partial-run rule.** If the run failed or was interrupted before wrap-up, either
-skip recording OR record with `--partial` and a `## Review` that begins with
-`**Partial run** — `. Never present a partial run as a complete review.
-
-**Nesting rule.** When a command invokes a skill (or a skill invokes a skill), each
-qualifying unit records feedback for **its own** scope only, keyed by its own
-`(unit_id, run_id)`. The same unit+run MUST NOT be recorded twice.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:draw-mermaid" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

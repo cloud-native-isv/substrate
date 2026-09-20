@@ -10,7 +10,7 @@ skill_id: "<SKILL:.specify/skills/create-agent/SKILL.md>"
 
 Author a **single agent artifact** for the Spec Kit agent system — a **capacity** template, a capacity-scoped **supervisor**, a **custom** `.agent.md`, or a **project-custom** agent. This skill is the single authoring engine invoked by `/speckit.agents` for single-agent work; the command gathers project context and delegates here rather than rendering templates inline. Multi-agent teams (organizing/running several agents) are out of scope — see `/speckit.team` and the `create-team` skill.
 
-> **Class → Instance**: a template here is an **abstract agent Class** — a `agent-capacity-<X>-template.md` with unfilled `{{PLACEHOLDERS}}`. Authoring **instantiates** that Class: `create-agent` fills the placeholders and writes a **concrete agent definition** into its layer's store under `.specify/agents/` (role Templates → `templates/`, responsibility-bound Instances → `instances/`; see § Layer Targeting). At runtime, `/speckit.agents run` spawns a **live instance (object)** from that definition — many instances from one definition, each independent. This skill operates at the Class/definition layer, never on running instances. In the canonical Agent taxonomy (`shared/definitions/agent-definitions.md`) these three layers are **Agent Template → Agent Instance → Agent Execution**; the Execution layer's dispatch modes are governed by `shared/definitions/subagent-definitions.md`.
+> **Class → Instance**: a template here is an **abstract agent Class** — a `agent-capacity-<X>-template.md` with unfilled `{{PLACEHOLDERS}}`. Authoring **instantiates** that Class: `create-agent` fills the placeholders and writes a **concrete agent definition** into its layer's store under `.specify/agents/` (role Templates → `templates/`, responsibility-bound Instances → `instances/`; see § Layer Targeting). At runtime, `/speckit.agents run` spawns a **live instance (object)** from that definition — many instances from one definition, each independent. This skill operates at the Class/definition layer, never on running instances. In the canonical Agent taxonomy (`.specify/shared/definitions/agent-definitions.md`) these three layers are **Agent Template → Agent Instance → Agent Execution**; the Execution layer's dispatch modes are governed by `.specify/shared/definitions/subagent-definitions.md`.
 
 > **Conceptual Model**: the multi-agent Role × Stage × Type + Team/Loop model is defined once in the team domain — see `skills/create-team/references/conceptual-model.md`. This skill authors the single **capacity** Classes that fill a team's Role seats.
 
@@ -20,7 +20,7 @@ Canonical template home: `skills/create-agent/templates/` (installed mirror: `.s
 
 ## Layer Targeting (mandatory, explicit)
 
-Every operation of this skill MUST declare which **agent layer** it operates on (taxonomy: `shared/definitions/agent-definitions.md`). Never infer the layer silently — if the request does not state it and the `kind` does not imply it unambiguously, ask the user before writing anything.
+Every operation of this skill MUST declare which **agent layer** it operates on (taxonomy: `.specify/shared/definitions/agent-definitions.md`). Never infer the layer silently — if the request does not state it and the `kind` does not imply it unambiguously, ask the user before writing anything.
 
 | Layer | Project directory | What lives there | Operated by |
 |-------|-------------------|------------------|-------------|
@@ -37,7 +37,7 @@ Select the capability from the request `kind` (or infer from user intent):
 | kind | Layer | Produces | Source templates | Primary section |
 |------|-------|----------|------------------|-----------------|
 | `capacity` | template | One capacity agent Class (six mandatory sections) | `skills/create-agent/templates/agent-capacity-*-template.md` | Workflow steps 1–5 below |
-| `supervisor` | template | A capacity agent that runs its own self-improvement loop | capacity template + `skills/create-agent/templates/agent-supervision-delegation.md` inlined | § Supervisor Capability |
+| `supervisor` | template | A capacity agent that orchestrates a role-scoped EEI quality loop; persistent output also receives the standard Self-Improvement Contract | capacity template + `skills/create-agent/templates/agent-supervision-delegation.md` inlined | § Supervisor Capability |
 | `custom` | instance | A single narrow, general-purpose custom `.agent.md` (not bound to a project) | free-form per intent | § Mode Confirmation |
 | `project-custom` | instance | A project-bound custom agent that marks its project and guards against being run elsewhere | `skills/create-agent/templates/agent-project-custom-template.md` | § Project-Custom Capability |
 | `execution-config` | execution | A dispatch config (and optional wrapper script) for running an agent | § Execution Config Capability | § Execution Config Capability |
@@ -81,13 +81,14 @@ Analyze the conversation history and project context to infer a useful role:
 
 ### 3. Create the template file
 
-Write `skills/create-agent/templates/agent-capacity-<slug>-template.md` following the skeleton in [`./references/template-authoring.md`](./references/template-authoring.md) — Qoder-compatible frontmatter plus six mandatory body sections (Identity & Responsibilities, Project Context, Workflow, Upstream, Downstream, Output Format).
+Write `skills/create-agent/templates/agent-capacity-<slug>-template.md` following the skeleton in [`./references/template-authoring.md`](./references/template-authoring.md) — Qoder-compatible frontmatter plus six mandatory body sections (Identity & Responsibilities, Project Context, Workflow, Upstream, Downstream, Output Format). For every persistent Template/Instance, append `${SKILL_HOME}/templates/agent-self-improvement.md` as the cross-cutting `## Self-Improvement Contract`; temporary executions do not receive it.
 
 ### 4. Validate the template
 
 - Verify YAML frontmatter has required fields (name, description, user-invocable)
 - Verify Qoder-compatible fields are present (`model`, `tools`, `maxTurns`); pick role-appropriate `tools`/`maxTurns`/`color`
 - Verify all six mandatory sections are present
+- For a persistent Template/Instance, verify the `## Self-Improvement Contract` from `${SKILL_HOME}/templates/agent-self-improvement.md` is present exactly once
 - Verify only approved `{{PLACEHOLDER}}` variables are used
 - Verify upstream/downstream references are consistent with existing role chain
 - Verify token-efficiency compliance per `.specify/shared/guidelines/token-efficiency.md`: deterministic steps delegated to programs; no whole-file injection of machine-managed data files
@@ -101,6 +102,7 @@ Write `skills/create-agent/templates/agent-capacity-<slug>-template.md` followin
 ## Constraints
 
 - Templates MUST follow the established role-based structure (six mandatory sections)
+- Every persistent Template/Instance MUST include `## Self-Improvement Contract` exactly once; temporary Executions/configs MUST NOT claim a separate subject identity
 - Templates MUST use only approved `{{PLACEHOLDER}}` variables
 - Frontmatter uses Qoder-compatible fields — `model` (default `auto`, Qoder smart routing), `tools`/`disallowedTools`, `maxTurns`/`timeoutMins`, `skills`/`mcpServers`, `permissionMode`, `background`, `isolation`, `color`. Only `name` and `description` are strictly required; set `model`/`tools`/`maxTurns` for every role and leave the rest unset unless needed.
 - Role instructions MUST be written in first-person professional identity
@@ -177,7 +179,7 @@ A project-custom agent MUST always carry both the `project:` frontmatter marker 
 
 ## Execution Config Capability
 
-Use this capability (`kind: execution-config`) to author the **execution-layer artifacts** for an agent — the durable dispatch configuration (and optional wrapper script) that turns an Agent Instance/Template into a repeatable **Agent Execution** (see `shared/definitions/subagent-definitions.md` for the three execution modes and the External Dispatch Visibility Contract).
+Use this capability (`kind: execution-config`) to author the **execution-layer artifacts** for an agent — the durable dispatch configuration (and optional wrapper script) that turns an Agent Instance/Template into a repeatable **Agent Execution** (see `.specify/shared/definitions/subagent-definitions.md` for the three execution modes and the External Dispatch Visibility Contract).
 
 ### Directory contract
 
@@ -256,26 +258,14 @@ The feedback document MUST contain:
 
 Only generate feedback when a genuine agent-specific obstacle was encountered.
 
+## Self-Improvement Integration
+
+Persistent Agent Templates and Instances are Execution Subjects; one live Agent Execution is evidence, not an editable subject. For every persistent agent, install a compact `## Self-Improvement Contract` that identifies own-run evidence, the editable layer, `improve-agent` as the improvement route, an independent behavior verifier, and a later comparison signal. Follow `.specify/shared/workflow/self-improvement-workflow.md` Create-Flow Integration; do not copy its stages. Execution configs attach evidence to their referenced Agent and do not become a second subject. This `create-agent` Skill is itself a Skill subject and routes its own qualified run evidence through `improve-skills`.
+
 ## Feedback
 
 **Runtime-mode gate.** If `${SKILL_WORKDIR}/.specify/` does not exist, this skill is
 running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
 directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At the end of a substantial run of this skill, perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this run reached a meaningful wrap-up. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against this skill's declared purpose and produce a short review plus ≥1 concrete, skill-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this skill's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id`; if a parent flow already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "skill:create-agent" --unit-type skill \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:create-agent" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

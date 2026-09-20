@@ -10,6 +10,12 @@ Use this checklist to validate a newly created Skill before reporting completion
 - [ ] `skill_id` is present and uses the `<SKILL:.specify/skills/<name>/SKILL.md>` format
 - [ ] Optional frontmatter fields (`argument-hint`, `user-invocable`, `disable-model-invocation`) are only present when needed
 
+## Self-Improvement
+
+- [ ] The generated Skill contains `## Self-Improvement Contract` exactly once, immediately before `## Feedback`.
+- [ ] The contract identifies canonical owner, own-run evidence, `improve-skills`, validation, later comparison, and escalation by referencing `.specify/shared/workflow/self-improvement-workflow.md` rather than copying it.
+- [ ] It does not authorize same-run self-editing, permission expansion, or an outcome claim before comparison.
+
 ## Structure & Sizing
 
 - [ ] `SKILL.md` is under 500 lines

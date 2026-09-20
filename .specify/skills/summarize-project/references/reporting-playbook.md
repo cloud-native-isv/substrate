@@ -108,9 +108,9 @@
 
 ### 1.7 读者用语纪律（内部标识不得渗入正文）
 
-规则、门禁、分级体系的**内部标识**是生成期可判定性的工具，不是给读者看的语言。以下内部标识——信息源分级代号（`T1`–`T5` tier）、构建/CI 证据分级（`E1`–`E5`）、诚实处理编号（`RC-1`~`RC-5`）、覆盖/自洽门禁名（`CG-COVERAGE`、`CG-1`~`CG-11`）、[consistency-rules.md](consistency-rules.md) 的 `§编号`、统计口径 ID（`M-FEAT-1`、`M-TASK-*`、`M-SPEC-*` 等）、**引擎字段名与枚举值**（`progress_pct`、`delay_days`、`schedule_status`、`schedule_state`、`unknown-schedule`、`progress_basis`、`counts.*`、`gantt.today_offset_days` 等）、**数据层内部标识**（数据库/表/列/视图名与 SQL 本身：`project.db`、`schema/project.sql`、`work_items`、`work_item_deps`、`status_norm`、`entity_ids`、`v_*` 视图、`PRAGMA foreign_keys`、任何 SQL 片段）、以及脚本名（`project-db.py` / `progress-engine.py` / `verify-chart-data.py` / `check-coherence.py` / `detect-project-sources.py` / `validate-project-input.py`）——**只允许出现在 `## 元信息` 或技能内部文档（本 `references/` 下各文件）中**。读者面写业务语言：`unknown-schedule` → 「无计划日期，无法判定延期」，`delayed` → 「逾期 N 天」，`progress_pct=null` → 「进度未量化」。
+面向用户的措辞与上下文规则由 `.specify/shared/guidelines/user-facing-comprehension.md` 统一定义（本文件覆盖界面类 ⑧）；其黑名单条目 ② 的**实例来源**——内部标识的类别枚举与「读者向改写映射」——原在本节，现已提升进该文档，MUST NOT 在此复述。
 
-五个面向读者的报告章节——`## 项目概览` / `## 需求与特性` / `## 功能分解` / `## 项目里程碑` / `## 任务进展`，连同其**图题、图说、正文表格**——**必须使用纯业务语言**：写"该阶段部分完成""里程碑锚点缺失，本维度暂缺""进度未量化，仅报状态计数""下单结算已交付、优惠券开发中"，而**不得**出现 tier 代号、规则编号、门禁名、脚本名、引擎字段名、表名/列名/SQL 等内部黑话。**进度数字同理**——读者看到的是数值本身（`12/20 = 60%`），字段名与取值来源对照只写在 `## 元信息 · 进度数据来源`。这是 §1.3「标题简洁、业务语言、无内部黑话」与"读者兼顾"原则的强化——内部标识服务于判定，业务语言服务于阅读，两者分置。落盘检查单（§7）设一条对应门禁。
+本节只保留该纪律在本技能上的**落地形态**：五个面向读者的报告章节——`## 项目概览` / `## 需求与特性` / `## 功能分解` / `## 项目里程碑` / `## 任务进展`，连同其**图题、图说、正文表格**——一律使用纯业务语言；内部标识只允许出现在 `## 元信息` 或技能内部文档（本 `references/` 下各文件）中。**进度数字同理**——读者看到的是数值本身（`12/20 = 60%`），字段名与取值来源对照只写在 `## 元信息 · 进度数据来源`。落盘检查单（§7）设一条对应门禁。
 
 ### 1.8 进度呈现公约（进度贯穿五章节）
 
@@ -306,7 +306,7 @@ grep -c '^```plantuml' summary.md   # 期望 0（源码不进正文）
 - [ ] **落盘前自洽性门禁已跑**：`python3 ${SKILL_HOME}/scripts/check-coherence.py <报告>` 结果 **FAIL=0**（覆盖状态计数/日期公约/自包含/裸编号/分解树覆盖声明等）；WARN 已人工判读并把结论写入元信息（判读纪律见 [consistency-rules.md](consistency-rules.md) §8.1）
 - [ ] **分解树覆盖完整性已声明**（[consistency-rules.md](consistency-rules.md) §11）：候选全集穷尽、残差清单有名有数、进度百分比分母集合＝分解树覆盖范围、覆盖闭合等式成立；含 WBS 的报告必须有此声明（残差为空也显式写），机械兜底由 `check-coherence.py` 承担
 - [ ] **数据侧图元校验已跑**（有甘特/里程碑图时）：`python3 ${SKILL_HOME}/scripts/verify-chart-data.py --svg <甘特.svg> --kind gantt --expect <由引擎输出转出的 expect.json>` 无 FAIL（条形起止 ⇄ 引擎日期、里程碑菱形 ⇄ `anchor_date` 一致）；通用版面判据另由 `<draw-plantuml>/scripts/measure-svg-layout.py` 过检（§1.4）
-- [ ] **读者用语纪律已过**（§1.7）：五个面向读者章节及其图题/图说/正文表格无内部标识渗入（`T1`–`T5` / `E1`–`E5` / `RC-*` / `CG-*` / `§编号` / `M-*` / 脚本名）——这些只出现在 `## 元信息` 或技能内部文档
+- [ ] **读者用语纪律已过**（§1.7）：五个面向读者章节及其图题/图说/正文表格无内部标识渗入（类别枚举与读者向改写映射见 §1.7 所指的本纪律真源黑名单节，此处 MUST NOT 复述）——这些只出现在 `## 元信息` 或技能内部文档
 - [ ] 交付目录位置与检测脚本给出的默认路径一致（或用户已指定）；**目录自包含**——报告内相对路径引用的文件全部存在于交付目录内，无目录外引用、无外链图片 URL，目录整体移动或外发后仍可完整阅读
 - [ ] 材料缺口已在 `## 元信息` 的 `### 材料缺口` 小节汇总（三列：缺什么 / 已检索来源 / 报告影响）；各章节的缺失均有 `> 材料声明：` 句或图内 caption 呼应（[degradation.md](degradation.md) 第 2、6 节）
 - [ ] 无里程碑材料时 `## 项目里程碑` 仅保留声明、未把普通提交/版本号/`Implemented` 特性升格为里程碑；无排期材料时甘特未出图、git 提交日期未被当作任务 `starts/ends`（[degradation.md](degradation.md) 第 4、5 节）

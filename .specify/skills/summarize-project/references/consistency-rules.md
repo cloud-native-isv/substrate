@@ -28,7 +28,7 @@ python3 ${SKILL_HOME}/scripts/progress-engine.py --print-schema   # 字段契约
 - **中间产物纪律**：数据库与引擎输出都是**派生中间产物**，落在**交付目录的 `data/` 子目录**（`project.db` / `engine-out.json`），默认每次生成报告时**从事实源重建**并随交付目录整体刷新（用户要求基于历史库演进时用 `project-db.py --update`，UPSERT + 变更摘要，元信息注明）；**绝不写入被总结的目标项目的管理工件**（只读红线 §10 的写入白名单见 W-3「计算与校验中间产物」，其范围仅限交付目录）。
 - **引用纪律**：报告与各层参考文档只能**引用引擎输出字段**（`status` / `schedule_status` / `delay_days` / `progress_pct` / `progress_formula` / `gantt.today_offset_days` / `milestones.*` / `coverage.*` / `diagnostics.declarations`），**不得**在文档或报告里重述算法、重算一遍或手工改判。
 - **可复现**：同一输入 + 同一 `--baseline` 必得同一输出（引擎不读系统时钟）；`## 元信息` 记一行引擎运行记录（命令、输入文件、基准日）。
-- **字段名是内部标识**：`unknown-schedule` 等字段值只出现在 `## 元信息` 与技能内部文档；面向读者的五个章节写业务语言（见 reporting-playbook §1.7）。
+- **字段名是内部标识**：字段名与枚举值只出现在 `## 元信息` 与技能内部文档；面向读者的五个章节写业务语言。类别枚举与读者向改写映射归本纪律真源的黑名单节（路径见 [reporting-playbook.md](reporting-playbook.md) §1.7），此处 MUST NOT 复述。
 
 ### 0.2 基准日 D0
 

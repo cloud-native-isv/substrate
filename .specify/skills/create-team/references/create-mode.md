@@ -13,7 +13,7 @@ Produce a team from a user **goal** and (unless one-shot) persist it as `.specif
 3. **Select the pattern** via the Pattern Selection decision tree (`references/patterns.md`) — independent → parallel; sequenced → serial; iterative-quality → iteration; long-lived operation → continuous — **derived from the goal**. On preset reuse, the preset supplies the pattern; still verify it fits.
 4. **Build the roster (static structure)** — a Role × Stage × Type matrix. If the user did not supply members, **propose** them from the goal: prefer existing agents under `.specify/agents/{templates,instances}/`, otherwise temporary stage/worker templates from `templates/`. An **iteration or continuous team MUST include exactly one Team Supervisor** (Meta role). **Judge each member's `type` explicitly by its operating object** — operates on business artifacts/information → `Worker`; operates on other agents/skills/agent-defining configuration → `Meta`. Do **not** derive Type from Stage: an evaluator scoring a business artifact (repo state, rendered output, a document) is a `Worker`, not Meta. The implication runs **one way only**: a member that must **write** team config / agent definitions / skill definitions MUST be `Meta` (necessary); but holding an evaluator / optimizer / "continuous improvement" role does **not** by itself make it Meta (not sufficient) — an agent that iteratively improves a *business artifact* is still a `Worker`. Decide each member's Type from **what it writes to**, never from its role name (see `references/conceptual-model.md` → Type criterion + "Meta and write authority"). Roster rows carry **responsibility** (stage, territory, `blockedBy`, reporting duty); the referenced agent carries **capacity** — never fork a capacity artifact to express a new seat (`references/capacity-vs-responsibility.md`).
 5. **Build the pattern config (dynamic structure)** — parallelism + territories (parallel), DAG `blockedBy` edges + per-handoff verification + file-path-only handoff (serial), quality dimensions + threshold + max_iterations + regression_limit (iteration), or the operating config — maturity + cadence + budget + constraints + independent verifier + state spine (continuous; see `references/operating-loops.md`).
-6. **直接落盘并呈现** — persist the `Team` **directly** to `.specify/teams/<slug>/team.md` using the schema below (skip persistence only for an explicit one-shot run;不设阻塞式停等), then present the persisted **goal** + roster + pattern with the modification path (`/speckit.team` modify / `improve-team`) per the execution-report convention. When a preset was reused, record `preset: <preset_id>` in the frontmatter and apply the preset's `## Instantiation` steps (including any `constraints.md` / `STATE.md` bootstrap).
+6. **直接落盘并呈现** — persist the `Team` **directly** to `.specify/teams/<slug>/team.md` using the schema below (skip persistence only for an explicit one-shot run;不设阻塞式停等), including the schema’s compact `## Self-Improvement Contract`; then present the persisted **goal** + roster + pattern with the modification path (`/speckit.team` modify / `improve-team`) per the execution-report convention. When a preset was reused, record `preset: <preset_id>` in the frontmatter and apply the preset's `## Instantiation` steps (including any `constraints.md` / `STATE.md` bootstrap).
 
 ---
 
@@ -107,6 +107,14 @@ config:
  (threshold/max_iterations/budget/kill-switch), LEAVE = what is persisted/handed off
  (runs report, STATE update, escalations). A loop whose CHECK or STOP cannot be
  stated concretely is not ready to persist.>
+
+## Self-Improvement Contract
+
+- Subject: this persisted team definition; member executions are evidence.
+- Observe: completed run reports and Post-Run Critique.
+- Improve: follow `.specify/shared/workflow/self-improvement-workflow.md`; route through `improve-team`.
+- Boundary: preserve team authority, maturity gates, budget, kill-switch, and verifier independence.
+- Verify: validate now and wait for a comparable later run before claiming improvement.
 ```
 
 ### Schema notes
@@ -117,3 +125,4 @@ config:
 - `config.summary` tunes the periodic summary refresh (enable/disable, cadence, delivery directory, interactivity). Omitting the block leaves the summary **enabled** with the pattern's default cadence — `continuous` defaults to every 5th cycle, never every cycle.
 - `members` MUST resolve to `.specify/agents/{templates,instances}/<slug>.agent.md` (instance wins on filename collision) or a temporary stage/worker template; unresolved members are surfaced as broken references.
 - `config` MUST match `pattern`.
+- Every persisted team MUST contain `## Self-Improvement Contract` exactly once. A one-shot team MUST NOT claim subject identity.

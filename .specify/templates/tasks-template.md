@@ -49,7 +49,13 @@ description: "Task list template for feature implementation"
 - DoD-5: Code reviewed and approved
 - DoD-6: Changes validated against success criteria from requirements.md
 
-**DoD Status**: pending | green   <!-- flip to `green` only when every DoD-N row above is satisfied -->
+**DoD Status**: pending | green | green-with-void   <!-- flip to `green` only when every DoD-N row above is satisfied.
+     Use `green-with-void` when every row is satisfied except one whose PREMISE is measurably false and therefore
+     cannot be satisfied at all (e.g. it names a script that does not write the file it claims to regenerate).
+     Voiding a row requires: (a) cited measurement, not assertion; (b) an inline annotation on this line naming the
+     void row; (c) when the false premise lives in a framework artifact, a correction entry naming every surface that
+     repeats it. A void row is neither "met" nor an open task — never fold it silently into `green`, and never block a
+     finished feature on a requirement that cannot exist. -->
 
 ## Completion Gate
 
@@ -64,12 +70,32 @@ description: "Task list template for feature implementation"
   (see implement.md's IDENTIFY→RUN→READ→VERIFY→CLAIM gate function). After 3
   consecutive failed re-validations with no newly closed item, implement STOPS
   and escalates instead of retrying.
+
+  Every check command MUST name a command that exists in THIS project, existence-checked
+  at authoring time (same rule tasks.md applies to surface-file lists). The commands below
+  are placeholders — substitute this project's real test entry and paths; never inherit a
+  framework-specific runner path, which resolves in the Spec Kit repo and nowhere else.
 -->
 
-- GATE-1: Full test suite has zero NEW failures vs recorded baseline — check: `scripts/bash/run-tests.sh` + `comm -13 baseline current`
+- GATE-1: Full test suite has zero NEW failures vs recorded baseline — check: `<this project's test runner>` + `comm -13 baseline current`
 - GATE-2: Every mirror obligation from plan.md verified byte-identical — check: `diff -rq <source> <mirror>`
 - GATE-3: No `[ ]` or `[>]` task rows remain — check: `grep -cE '^- \[[ >]\]' tasks.md` returns 0
 - GATE-4: verification.md lists every SC-NNN with a status — check: grep SC ids against requirements.md
+
+## Environment Prerequisites
+
+<!--
+  ACTION REQUIRED only when a task depends on an external environment
+  (container runtime, image registry, live cluster, special hardware).
+  This section is the SINGLE landing point for probe conclusions: /speckit.tasks
+  probes at generation time (never cached across runs) and records each verdict
+  here ONCE with its probe command and date. Per-phase prerequisite notes and
+  [~] deferral notes on task rows MUST reference this section instead of
+  restating verdicts. Delete the section entirely when no external environment
+  dependency exists.
+-->
+
+- <dependency>: <available | partial | unavailable> — probe: `<command>` @ <date>; affected phases/tasks: <phase/task refs or none>
 
 ## Format: `[ID] [P?] [Story] Description`
 

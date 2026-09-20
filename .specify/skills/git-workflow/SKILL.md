@@ -61,9 +61,10 @@ skill_id: "<SKILL:.specify/skills/git-workflow/SKILL.md>"
 
 ### Phase 0: 调谐作用域判定
 
-1. 若存在任一遗留数据源（旧位置 `docs/git-workflow.md`、前一代位置 `.specify/memory/git-workflow.md`，或更早版本写在 `.specify/instructions.md` `## Git Workflow` 章节内的托管块），先把其分支映射提取到 `.specify/git-workflow.md` 的 Git Workflow 托管块，并把该遗留文件/旧块报告为「已冗余，待用户确认处理」——**不自动删除**（命令见 [bootstrap-commands.md](./references/bootstrap-commands.md#遗留配置迁移)；instructions 内旧块按 [instructions-lookup.md](./references/instructions-lookup.md) 的迁移规则替换为指针）。
-2. 检查`.specify/git-workflow.md` 的 Git Workflow 托管块是否已填写（存在 MAIN/PRE/DEV 行，且不是 `None yet.` 占位行）。
-3. 检查用户是否传入了操作参数（具体的 git 操作指令）。
+1. **版本漂移探测**：本技能随分支版本化——若会话开始时在旧分支加载了旧版技能文本、或会话中途切换过分支，加载文本可能与当前检出的 `${SKILL_HOME}/SKILL.md` 不一致（判据：状态文件位置约定不同——本技能约定 `.specify/git-workflow.md`，`docs/git-workflow.md` / `.specify/memory/git-workflow.md` 均为更早世代的旧约定）。命中漂移时：以当前检出为准，重新读取本技能与 references 后再继续判定；漂移未排除前不得写入任何状态文件，避免按旧约定重复建文档。无论加载文本约定哪个位置，均无条件探测最新位置 `.specify/git-workflow.md` 的托管块，命中即直接以该块为数据源。
+2. 若存在任一遗留数据源（旧位置 `docs/git-workflow.md`、前一代位置 `.specify/memory/git-workflow.md`，或更早版本写在 `.specify/instructions.md` `## Git Workflow` 章节内的托管块），先把其分支映射提取到 `.specify/git-workflow.md` 的 Git Workflow 托管块，并把该遗留文件/旧块报告为「已冗余，待用户确认处理」——**不自动删除**（命令见 [bootstrap-commands.md](./references/bootstrap-commands.md#遗留配置迁移)；instructions 内旧块按 [instructions-lookup.md](./references/instructions-lookup.md) 的迁移规则替换为指针）。
+3. 检查`.specify/git-workflow.md` 的 Git Workflow 托管块是否已填写（存在 MAIN/PRE/DEV 行，且不是 `None yet.` 占位行）。
+4. 检查用户是否传入了操作参数（具体的 git 操作指令）。
 
 | 块已填写 | 有操作参数 | 进入作用域 |
 |----------|------------|------------|
@@ -251,20 +252,4 @@ skill_id: "<SKILL:.specify/skills/git-workflow/SKILL.md>"
 running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
 directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At the end of a substantial run of this skill, perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this run reached a meaningful wrap-up. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against this skill's declared purpose and produce a short review plus ≥1 concrete, skill-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this skill's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id`; if a parent flow already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "skill:git-workflow" --unit-type skill \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:git-workflow" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

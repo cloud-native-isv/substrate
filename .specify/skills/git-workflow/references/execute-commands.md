@@ -11,7 +11,10 @@ git fetch origin
 git status --short --branch
 ```
 
-若工作区不干净，向用户建议：
+若工作区不干净，先判定残留改动的归属，再选择路径：
+
+- **残留属于本工作流操作本身**（如刚编辑的 `.gitexcludes`、状态文件或同步前置产物）：将其作为本次操作的一部分归组提交，不要求用户另行处理。
+- **残留属于其他工作**：向用户建议以下两种方式之一：
 
 ```bash
 # 方式 1：推荐 — 提交本地改动
@@ -20,6 +23,8 @@ git add . && git commit -m "chore: save local work before sync"
 # 方式 2：临时保存（含未跟踪文件）
 git stash push -u -m "pre-sync-$(date +%Y%m%d)"
 ```
+
+> **警告**：禁止用破坏性手段清空工作区来通过本 Gate——`git reset --hard`、`git checkout -- .`、`git restore .`、`git clean -f` 会不可逆地丢弃未提交工作；只允许上面的提交或 stash 路径。
 
 > **Gate**：`git status --short` 必须为空，才能继续执行。
 

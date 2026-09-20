@@ -196,6 +196,8 @@ g.selectAll("path")
 
 **Reproducibility rule**: a bare simulation starts from random positions — each reload gives a different layout. For reproducible output use fixed coordinates or a grouped force layout (below).
 
+**SDS 在场时**：几何由 SDS 逐 box 给定 → 必走 Option B（预设固定坐标，不启用仿真），本节仿真配方只用于 standalone、无 SDS 的探索型请求（见 [sds-realization.md](sds-realization.md) §3.2）。
+
 ```javascript
 // Option A: grouped force layout (stable regions per group, deterministic anchors)
 const groupX = { 0: 200, 1: 600, 2: 1000 };   // per-group anchor x
@@ -282,24 +284,7 @@ const route = d3.line().x(d => d.x).y(d => d.y).curve(d3.curveStepAfter);
 // node centers, so a panel can be moved without rewriting every edge.
 ```
 
-**Fixed-coordinate validation**: record the partition/grid rule in the data file header (e.g. "panel A: x∈[40,360], y∈[40,300]; node slots on a 24px grid") and run an overlap / panel-bounds check before render:
-
-```javascript
-function validateCoords(nodes, panels, minGap = 8) {
-  const problems = [];
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      if (Math.abs(nodes[i].x - nodes[j].x) < minGap && Math.abs(nodes[i].y - nodes[j].y) < minGap)
-        problems.push(`overlap: ${nodes[i].id} ↔ ${nodes[j].id}`);
-    }
-    const p = panels.find(pan => nodes[i].x >= pan.x0 && nodes[i].x <= pan.x1
-                              && nodes[i].y >= pan.y0 && nodes[i].y <= pan.y1);
-    if (nodes[i].panel && !p) problems.push(`out-of-bounds: ${nodes[i].id}`);
-  }
-  if (problems.length) console.warn("[coords]", problems.join("; "));
-  return problems;
-}
-```
+**Fixed-coordinate validation**: record the partition/grid rule in the data file header (e.g. "panel A: x∈[40,360], y∈[40,300]; node slots on a 24px grid") and run the overlap / panel-bounds check before render. Snippet (`validateCoords`) plus the SDS box-conformance check (`validateAgainstSDS`) live in [sds-realization.md](sds-realization.md) §4 — the fixed-coordinate pipeline has a single owner there.
 
 **Dense-graph guidance**: for >15–20 nodes or dense links, prefer fixed hand-placed coordinates or the grouped force layout; keep edge label text short (≤ ~8–10 chars); every node must be a real component of the modeled system (do NOT mix pseudo-nodes like "queues"/"budgets"/"states" into the node set — move them to annotation text or a distinct non-node layer); give infrastructure nodes (storage, external services, registries) their own group + legend color; the legend must pair color swatches with group names.
 
@@ -617,7 +602,7 @@ Split-mode deliverables (data in `data-*.js`) MUST include an appendix in the HT
 - the file renders by opening it — no build step (CDN mode needs network; vendored mode works offline);
 - which data file/array drives which part of the figure (nodes / links / rels / cells);
 - the source description version/date the data is based on;
-- the coordinate grid/partition rule if fixed coordinates are used (see fixed-coordinate validation above).
+- the coordinate grid/partition rule if fixed coordinates are used (see [sds-realization.md](sds-realization.md) §4).
 Single-file mode should include the same appendix with the data location pointing at the inline `const data` blocks. See [assets/template.html](../assets/template.html) for the boilerplate.
 
 ## Color Palettes Reference
@@ -630,3 +615,16 @@ Single-file mode should include the same appendix with the data location pointin
 | Viridis | Sequential (perceptually uniform) | `d3.interpolateViridis` |
 | RdBu | Diverging (red↔blue) | `d3.interpolateRdBu` |
 | RdYlGn | Diverging (red↔green) | `d3.interpolateRdYlGn` |
+
+## 强弱实现（接收 draw-diagram weight_plan）
+
+档位→绝对线宽的**规范表**在 [SKILL.md](../SKILL.md) §「SDS 实现与强弱落地 · 强弱实现」；映射理由、stroke 深浅阶梯、typography 绝对字号与关键路径色相纪律在 [sds-realization.md](sds-realization.md) §2（本文不复述数值，避免二处漂移）。D3 写法只有一条：把 SDS 的 `tier` 挂在数据上，一次 join 落地。
+
+```javascript
+// TIER_PX / TIER_INK 取自 SKILL.md 强弱表 + sds-realization.md §2.2 深浅阶梯
+zoneSel.attr("stroke-width", d => TIER_PX[d.tier]).attr("stroke", d => TIER_INK[d.tier]);
+flowSel.attr("stroke-width", d => TIER_PX[d.tier])
+       .attr("stroke", d => d.keyPath ? KEY_HUE : TIER_INK[d.tier]);   // 关键路径只换色相，粗细封顶 = T2
+```
+
+复刻型 SDS（`fidelity_intent: reproduction`）用源图实测线宽覆盖默认表：[sds-realization.md](sds-realization.md) §5。全图单一线宽判不合格。

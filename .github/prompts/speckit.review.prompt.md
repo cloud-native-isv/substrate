@@ -27,6 +27,13 @@ Produce a **self-contained, improvement-focused** review report for spec-kit fra
 
 Run `.specify/scripts/bash/check-prerequisites.sh --json --require-spec --include-spec --include-plan --include-tasks`; parse REQUIREMENTS_DIR, FEATURE_ID, FEATURE_NAME, AVAILABLE_DOCS. Then capture via git/shell: REPO_NAME, REPO_URL, BRANCH, COMMIT_SHA, REPO_ROOT_ABS, REVIEW_DATE, REVIEWER, ENVIRONMENT, SPECKIT version, ARTIFACT_INVENTORY (basename, path, line count, one-line summary per artifact).
 
+**Verify that commit-anchored citations will actually resolve** before relying on them — this fails routinely in forks:
+
+- Capture ALL remotes (`git remote -v`), not just `remote.origin.url`. In a fork, `origin` is often the UPSTREAM project while the work lives on a differently-named remote, so a `{REPO_URL}@{COMMIT_SHA}` citation built from `origin` points at a repository that does not contain the commit.
+- Run `git branch -r --contains HEAD`. If it is empty the commit is unpushed and NO URL citation can resolve.
+- Record the result as a `Reachability of COMMIT_SHA` row in §0. When unreachable, cite absolute paths plus `git show <sha>:<path>` recovery instructions instead of URLs, and say so explicitly — a report that looks portable but is not is worse than one that is obviously local.
+- Note that `blob/` URL syntax assumes an HTTPS web remote; SSH-only remotes cannot be rendered that way.
+
 ### 2. Reconstruct process execution history
 
 From `git log` scoped to REQUIREMENTS_DIR: commit ordering, command traces (distinctive artifacts), deviations from prescribed workflow, friction moments (dirty tree, version skew, manual rewrites, repeated template fixes).
@@ -40,6 +47,8 @@ From `git log` scoped to REQUIREMENTS_DIR: commit ordering, command traces (dist
 From REQUIREMENTS_DIR: requirements.md, plan.md, tasks.md (REQUIRED). Plus data-model.md, contracts/, research.md, checklists/, feature detail (IF EXISTS). Also load constitution, templates, scripts, command files as reference targets for recommendations.
 
 ### 4. Diagnostic review — problem-first
+
+**Same-author detection delegation**: when the artifacts under review were produced by the agent now running this command, in the current session — the ordinary case when this review follows an implement run the same agent performed — self-review is weak evidence, and detection MUST be delegated to fresh-context read-only subagents rather than left to §4.5. Apply the canonical gate in `.specify/shared/workflow/objective-analysis-gate.md` (single source of truth; do not restate its rules here). This command's local parameter: the propagation-surface cap is **P1** (used when no downstream artifact or process step inherits the finding).
 
 For each artifact and workflow as a whole, find issues:
 - **Friction**: Extra work forced by template/prompt/script gaps
@@ -56,7 +65,11 @@ Per finding: **ID** (F1, F2...), **Severity** (P0/P1/P2), **Category** (Template
 Every **P0** finding MUST be confirmed by an independent read-only validation subagent before it enters the report:
 
 - The validator receives ONLY the finding (id, claim, severity, location, quoted evidence) — never the diagnostic reasoning or sibling findings — and returns `confirm` / `reject` (with why) / `downgrade` (with proposed severity).
+- **Disjoint from the detection pass**: when §4 delegated detection under the same-author gate, no validator may validate a finding its own detection pass produced (owner: `.specify/shared/workflow/objective-analysis-gate.md` rule 5).
 - Only `confirm`ed findings keep P0; `downgrade`d rows take the proposed severity with a `(validated: downgraded)` note; `reject`ed rows go to an **Unvalidated Findings** appendix in the report — never silently dropped. P1/P2 skip validation.
+- **Evidence snapshot at diagnosis time**: capture the quoted evidence (path + line + literal excerpt) when the finding is diagnosed, not when it is validated — the tree can move between the two, and a validator re-reading a since-changed line rejects a finding that was true when observed.
+- **Counts are enumerated, never asserted**: when a finding claims N occurrences, the validator receives the enumerated instances each carrying its own anchor; dispatch only once every instance is anchored, so an inflated count cannot pass as a single confirmed claim.
+- **Subagent-unavailable fallback**: if the validation subagent dispatch fails twice in a row (upstream error), a direct evidence re-read by the reviewing agent MAY substitute; the finding row MUST then carry `(validated: direct re-read, subagent unavailable)` so the weaker evidence path stays visible to the reader.
 - Do not flag: deliberate `[~]` deferrals with recorded reasons, mirror-by-design duplication under `.specify/`, or pre-existing baseline failures already recorded for the feature.
 
 ### 5. Generate report
@@ -73,25 +86,7 @@ Use after `/speckit.implement` completes. Typical flow: feature → requirements
 
 ## Feedback
 
-At wrap-up (the same lifecycle point where this command prompts for a Git commit), perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-> Note: this is a *local* self-review of the `/speckit.review` run itself, kept strictly distinct from the global project report `/speckit.review` produces.
-
-1. **Gate on qualification & completion.** Only proceed if this command reached its wrap-up stage. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against `/speckit.review`'s declared purpose and produce a short review plus ≥1 concrete, command-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this command's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id` (e.g. the feature key + a run timestamp); if a nested skill/command already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "/speckit.review" --unit-type command \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up (the same lifecycle point where this command prompts for a Git commit), run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this command's scope; persist one entry via `feedback-utils.py --action record --unit-id "/speckit.review" --unit-type command`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.
 
 ## Documentation
 

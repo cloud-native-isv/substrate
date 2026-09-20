@@ -17,7 +17,7 @@
 
 ## 概念消歧：continuous 运营循环 vs reconcile 调谐模式
 
-本模式与 [`shared/patterns/reconcile-pattern.md`](../../../shared/patterns/reconcile-pattern.md) 的**调谐模式（reconcile）**极易混淆——二者都是「反复运行 + LLM 判断 + 写状态文件」的循环。根本区别在于**处理对象 + 终止语义**：
+本模式与 [`.specify/shared/patterns/reconcile-pattern.md`](../../../shared/patterns/reconcile-pattern.md) 的**调谐模式（reconcile）**极易混淆——二者都是「反复运行 + LLM 判断 + 写状态文件」的循环。根本区别在于**处理对象 + 终止语义**：
 
 | 维度 | reconcile（调谐模式） | continuous 运营循环（本文） |
 |------|----------------------|----------------------------|

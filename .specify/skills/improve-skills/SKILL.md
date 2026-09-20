@@ -49,6 +49,7 @@ Batch procedure, ownership resolution, and routing rationale: [`./references/loo
    - Give the user's stated optimization direction a dedicated analysis pass: confirm what is already satisfied, what is missing, and which edits address the request.
    - Group observations by failure mode: trigger/discovery, scope inference, missing context, wrong tool choice, unsafe step, unclear output, validation gap, resource/reference issue, **constraint non-compliance** (diagnose as a constraint-*placement* problem per [`./references/constraint-placement.md`](./references/constraint-placement.md) before rewording the rule), or **cross-skill ownership boundary**.
    - For each item, record: symptom, likely cause in the Skill instructions, desired next behavior, and the section to change. An item deferred for lack of evidence names the concrete evidence that would unlock it.
+   - **Red-line conformance gate (proactive, mandatory)** — run `python3 ${SKILL_HOME}/scripts/redline-check.py <target SKILL.md>`: it collects the target's attributes (automation / sensitive-info / …), fires the red lines bound to each present attribute, and returns PASS or TRIGGERED. A TRIGGERED red line is a **MUST-fix** item — not evidence-gated, not deferrable: remediate it, or record why each flagged signal is a sanctioned, announced exception. Framework, registry, admission rigor, and the HC5 reconciliation: [`./references/red-lines.md`](./references/red-lines.md).
    - Gates before acting — misuse-vs-pitfall gate, fact-check gates (delegation capability / data tables / tier coverage), legacy path idiom detection (bare relative paths / `${SKILL_ROOT}/X` / agent-specific install paths → rewrite as `${SKILL_HOME}/...`), Feedback-section conformance: [`./references/loop-playbook.md`](./references/loop-playbook.md) `## Step 4`.
 
 5. **按规范优化 — correct the root causes with minimal changes**
@@ -69,7 +70,8 @@ Batch procedure, ownership resolution, and routing rationale: [`./references/loo
 
 8. **最终检查 — validate the improvement loop**
    - Re-read the changed Skill and verify each edit maps to an observed execution issue or a user requirement.
-   - **Run the shape gate on every `SKILL.md` you touched**: `python3 ${SKILL_HOME}/scripts/skill-shape.py <SKILL.md>` — exit `0` required, or the report names the specific reason (contract-mandated inline section / recorded exception). Never finish a loop having grown a body past the gate without saying so.
+   - **Run the shape gate on every `SKILL.md` you touched**: `python3 ${SKILL_HOME}/scripts/skill-shape.py <SKILL.md>` — exit `0` required, or the report carries a recorded exception per Hard Constraint 3, including the before/after controllable-token counts (step-2 baseline run vs this run) and their delta. Never finish a loop having grown a body past the gate without saying so.
+   - **Re-run the red-line gate**: `python3 ${SKILL_HOME}/scripts/redline-check.py <SKILL.md>` must exit `0`, or the report records why each remaining signal is a sanctioned exception. A loop MUST NOT finish with a triggered red line left unremediated (see [`./references/red-lines.md`](./references/red-lines.md)).
    - **Reference code is executed, not eyeballed**: run or line-trace changed snippets/scripts against a real target; files-exist/links-resolve is not validation — if you cannot run it this loop, mark it as needing runtime validation rather than reporting it verified. When metadata changed, check frontmatter, resource paths, `skill_id`/directory/`name` agreement, and accept a directory-level `.github/skills -> ../.specify/skills` symlink as a valid compatibility entrypoint.
    - **Structural edits run the affected contract tests** (`tests/contract/` of the governing feature) — heading greps are not proof. On a red suite, prove zero regression with a clean-baseline failure-set diff (prefer `git worktree` over `git stash`): [`./references/loop-playbook.md`](./references/loop-playbook.md) `## Step 8`. **Behavior-changing edits get a pressure re-test (RED-GREEN)** per `create-skills/references/pressure-testing.md`; wording-only or resource-path edits are exempt — state which case applied.
    - Skill-owned executable resources belong in `./scripts/`, never documented as `.specify/scripts/`. **Intervention ledger (evidence-step Step E)**: when the run consumed findings evidence, write `intervention.json` into the baseline evidence-run directory (targetFinding / change / baselineRunId / expectedSignal); never claim "fixed" without the next-run before/after comparison.
@@ -115,8 +117,8 @@ On a genuine agent-specific obstacle (tool call unavailable, unexpected output f
 
 | Directory | Contents |
 |-----------|----------|
-| `${SKILL_HOME}/references/` | `skill-slimming-principles.md`, `loop-playbook.md`, `skill-quality-checklist.md`, `hardening-examples.md`, `constraint-placement.md`, `claude-code-guide.md`, `copilot-guide.md` |
-| `${SKILL_HOME}/scripts/` | `skill-shape.py` — deterministic L1 shape gate for a `SKILL.md` (token budget, fence ratio, long fences, example sections); exit `0` pass / `10` slim-recommended; `--help` for thresholds and calibration |
+| `${SKILL_HOME}/references/` | `skill-slimming-principles.md`, `loop-playbook.md`, `skill-quality-checklist.md`, `hardening-examples.md`, `constraint-placement.md`, `red-lines.md` (attribute-triggered red-line framework, registry catalogue, admission rigor), `claude-code-guide.md`, `copilot-guide.md` |
+| `${SKILL_HOME}/scripts/` | `skill-shape.py` — deterministic L1 shape gate for a `SKILL.md` (token budget, fence ratio, long fences, example sections); exit `0` pass / `10` slim-recommended; `--help` for thresholds and calibration. `redline-check.py` — deterministic attribute-triggered red-line probe (collect attributes → fire bound red lines → verdict `not-applicable`/`gap`/`review`/`compliant`); exit `0` pass / `1` triggered; `--json`, `--scan-all`, `--help` |
 
 ## Hard Constraints
 
@@ -124,7 +126,7 @@ Objective conditions for finishing a loop. Each is checkable, not a matter of ju
 
 1. **Research before optimization.** No edit happens before the step-2 research note (strengths / weaknesses / optimization space) exists; conformance-only polish without implementation research is not an improvement loop.
 2. **User requirements are never silently dropped.** Every user-passed optimization requirement is either implemented, or surfaced as a norm conflict with a closest compliant realization proposed. Priority never exempts the step-8 gates.
-3. **Contract shape is gated, not estimated.** Every `SKILL.md` touched this loop must end at `skill-shape.py` exit `0`, or the report must name the specific reason it cannot (contract-mandated inline section / recorded exception). Do not substitute an impression that the file "looks fine".
+3. **Contract shape is gated, not estimated.** Every `SKILL.md` touched this loop must end at `skill-shape.py` exit `0`, or the step-9 loop report must carry a **recorded exception** with two parts: (a) the qualifying case — a contract-mandated inline section (naming the spec/test that mandates it) or a pre-existing over-budget baseline (the file already exited `10` at the step-2 read); and (b) the before/after `est_tokens_controllable` numbers from the step-2 and step-8 gate runs plus their delta. A case named anywhere but the loop report, or named without both numbers, is not a recorded exception — the gate stays red. Case taxonomy and delta mechanics: [`./references/loop-playbook.md`](./references/loop-playbook.md) `## Step 8`. Do not substitute an impression that the file "looks fine".
 4. **New detail lands in L2/L3 by default.** Do not add worked examples, full command sequences, or multi-line snippets to `SKILL.md` — write them into `./references/` or `./scripts/` and leave a one-line pointer with an anchor in the body.
 5. **Evidence before defect.** Do not label anything a defect without an observed symptom (error text, wrong output, user correction, artifact). `Unobserved` findings are recorded only; counting signals alone never becomes an optimization point.
 6. **Capability verified before it is documented.** Before writing a delegation path, data table, or coverage claim, read the delegate's real surface (`--help`, contract, cached facts) and encode honest limitation branches. Do not write values or capabilities from memory.
@@ -132,6 +134,11 @@ Objective conditions for finishing a loop. Each is checkable, not a matter of ju
 8. **Removal preserves content.** Every slimming move is delete-and-absorb in the same edit; never delete a section and defer relocating its substance.
 9. **No claim of "fixed" without before/after.** Improvement outcomes are decided by the intervention ledger's next-run comparison, not by asserting the edit works.
 10. **Wrap-up commits verify the staging area.** Before any loop-end commit, `git status --short` and confirm only this loop's files are staged; unstage unrelated pre-staged entries or commit by explicit pathspec — never `git add -A`.
+11. **Red lines are mandatory, not recommended.** If `redline-check.py` returns TRIGGERED for the target, the loop MUST NOT finish until every triggered red line is remediated, or each flagged signal is explicitly recorded as a sanctioned, announced exception. Adding a new red line requires passing **all** admission criteria in [`./references/red-lines.md`](./references/red-lines.md) — a general best practice MUST NOT be promoted to a red line (that devalues the real ones).
+
+## Self-Improvement Routing
+
+Start every run with SI-0 from `.specify/shared/workflow/self-improvement-workflow.md`. This skill is an Assisted Improvement executor by default; when the target Skill’s own completed run produced the initiating signal, preserve origin=`self` and use this Skill as the delegated improver. Workflow step 3 is SI-2, step 8 performs SI-6/SI-7, and a later comparable run performs SI-8. Report the current intervention as outcome pending; never call it “improved” before comparison. When improving `improve-skills` itself, keep the target and improver roles explicit and use a separate verifier execution for behavior-changing edits.
 
 ## Feedback
 
@@ -139,20 +146,4 @@ Objective conditions for finishing a loop. Each is checkable, not a matter of ju
 running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
 directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At the end of a substantial run of this skill, perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`:
-
-1. **Gate on qualification & completion.** Only proceed if this run reached a meaningful wrap-up. Skip trivial/no-op runs; for an aborted run use the abort/partial rule below.
-2. **Reflect (no user input).** Review this run against this skill's declared purpose and produce a short review plus ≥1 concrete, skill-specific optimization point. If the run was clean, use exactly: `No significant optimization points identified this run.`
-3. **Scope guard.** Keep strictly to this skill's operation; do NOT produce a global/whole-project assessment (that is `/speckit.review`'s job). Entries are `scope: local`.
-4. **Dedup guard.** Use a stable `run_id`; if a parent flow already recorded feedback for this same `(unit_id, run_id)`, the engine no-ops.
-5. **Persist** via the engine:
-   ```bash
-   python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-     --unit-id "skill:improve-skills" --unit-type skill \
-     --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-     --review "<review prose>" --points-file "<points file>"
-   ```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-6. **Consolidated submission prompt(非阻塞).** If the returned `should_prompt` is `true`, append ONE non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block the wrap-up flow and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission). Below threshold, do not prompt.
-
-**Abort / partial-run rule.** If the run failed before wrap-up, either skip recording or record with `--partial` and a `## Review` beginning `**Partial run** — `.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:improve-skills" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

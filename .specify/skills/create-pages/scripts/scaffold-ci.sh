@@ -15,7 +15,8 @@
 #                        scripts/ci-templates/<name>/; registry: scripts/ci-templates/README.md.
 #   --branch <branch>    Production branch (default: main).
 #   --image <image>      Hugo build image — environment-specific, override per environment
-#                        (default: reg.docker.alibaba-inc.com/xuanji-images/hugo:latest).
+#                        (default: the shared ci-templates/hugo-image.txt, which stage 2's
+#                        local docker builds read too, so local and CI use one Hugo).
 #   --docs-dir <dir>     Docs directory name relative to project root (default: docs).
 #   --root <dir>         Target project root (default: current directory).
 #   --force              Overwrite the CI file if it already exists.
@@ -33,11 +34,22 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATES_DIR="$SCRIPT_DIR/ci-templates"
+IMAGE_FILE="$TEMPLATES_DIR/hugo-image.txt"
+
+# The build image is shared with stage 2: scaffold-hugo.py runs local builds in this
+# same image, so a local render and the CI render use one Hugo version.
+resolve_default_image() {
+  if [ -f "$IMAGE_FILE" ]; then
+    grep -v '^[[:space:]]*#' "$IMAGE_FILE" | grep -v '^[[:space:]]*$' | head -n 1
+  else
+    printf '%s' "reg.docker.alibaba-inc.com/xuanji-images/hugo:latest"
+  fi
+}
 
 SITE_NAME=""
 BRANCH="main"
 PLATFORM="aoneci"
-IMAGE="reg.docker.alibaba-inc.com/xuanji-images/hugo:latest"
+IMAGE="$(resolve_default_image)"
 DOCS_DIR="docs"
 ROOT="$(pwd)"
 FORCE=0

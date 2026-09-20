@@ -140,7 +140,7 @@ provenance: 由 workspace-cluster(2026-07 十仓 IaC 集群真实运营:组建 �
 1. 与用户共建 `projects` 登记清单:每项目给出路径、harness 锚点(该项目的 constitution/instructions 文件)、协作焦点。`.code-workspace` 文件的 `folders` 可作为登记种子,登记后以清单为准。
 2. 与用户确认 `coordination_surfaces`:要在哪些面上跨项目协调一致(设计理念/接口定义/代码规范/依赖版本)。缺省为空即纯自治推进+巡检;面之外的差异合法,不置评。
 3. 用 `<projects>` / `<cadence>` 替换 Goal Skeleton 的占位,写入 `goal` 与 `## Goal`;N 不写死进 goal,roster 每 cycle 按登记重算。
-4. 落 `.specify/teams/<slug>/team.md`,frontmatter 加 `preset: project-cluster`。
+4. 落 `.specify/teams/<slug>/team.md`,frontmatter 加 `preset: project-cluster`，并按 `create-mode.md` schema 写入 `## Self-Improvement Contract`。
 5. 生成 `constraints.md`:写入 `authority_rules` + 下方 Constraints 全部硬规则 + 各项目写边界(含子模块/上游流程)。
 6. 初始化 `STATE.md`(首轮 roster 快照 + 空的漂移清单)与空 `run-log.jsonl`;从 `maturity: L1` 起步,先积累若干 cycle 的误报率数据再考虑晋级。
 7. 明确 cadence 与每日 cycle 上限,避免集群运营本身消耗超过被推进的项目。

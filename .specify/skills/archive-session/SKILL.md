@@ -122,16 +122,8 @@ exit $LASTEXITCODE
 
 ## Feedback
 
-**Runtime-mode gate.** If `${SKILL_WORKDIR}/.specify/` does not exist, this skill is running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills directory) — skip this entire Feedback step: no engine call, no feedback entry.
+**Runtime-mode gate.** If `${SKILL_WORKDIR}/.specify/` does not exist, this skill is
+running in standalone mode (a non–Spec Kit deployment, e.g. a global agent skills
+directory) — skip this entire Feedback step: no engine call, no feedback entry.
 
-At the end of a substantial run of this skill, perform an agent self-reflection step (never solicit feedback content from the user), following the canonical convention in `.specify/shared/workflow/feedback-step.md`: gate on qualification & completion, reflect with ≥1 concrete optimization point, keep scope local, dedup by a stable `run_id`, then persist:
-
-```bash
-python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-  --unit-id "skill:archive-session" --unit-type skill \
-  --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-  --review "<review prose>" --points-file "<points file>"
-```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-
-If the returned `should_prompt` is `true`, surface one consolidated submission prompt; on confirmation run `--action mark-submitted`.
+At wrap-up, run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this skill's scope; persist one entry via `feedback-utils.py --action record --unit-id "skill:archive-session" --unit-type skill`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.

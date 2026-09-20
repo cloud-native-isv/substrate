@@ -175,7 +175,8 @@ def _scalar(value: str) -> Any:
 def dump_frontmatter(meta: Dict[str, Any]) -> str:
     order = ["id", "unit_id", "unit_type", "run_id", "scope",
              "probe", "kind", "slice",
-             "feature", "feature_id", "disposition", "migrated_from", "partial", "created", "summary"]
+             "feature", "feature_id", "disposition", "migrated_from", "partial", "created", "summary",
+             "introspection_ref", "disposition_reason"]
     lines = ["---"]
     for key in order:
         if key not in meta:
@@ -239,6 +240,7 @@ def empty_index() -> Dict[str, Any]:
         "count_since_submission": 0,
         "submitted_at": None,
         "entries": [],
+        "introspections": [],
     }
 
 
@@ -282,10 +284,242 @@ def entry_meta(meta: Dict[str, Any], filename: str) -> Dict[str, Any]:
         "feature": meta.get("feature", ""),
         "feature_id": meta.get("feature_id", ""),
         "disposition": meta.get("disposition", ""),
+        "introspection_ref": meta.get("introspection_ref", ""),
+        "disposition_reason": meta.get("disposition_reason", ""),
         "partial": bool(meta.get("partial", False)),
         "created": meta.get("created", ""),
         "summary": meta.get("summary", ""),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Introspection reports (requirement 047)
+# --------------------------------------------------------------------------- #
+INTROSPECTION_DIRNAME = "introspection"
+_REPORT_ID_RE = re.compile(r"^introspection-[0-9TZ-]+$")
+_REPORT_FIELDS = ("id", "created", "status", "scope_filter", "scope_entries",
+                  "supersedes", "confirmed_at")
+_REPORT_STATUSES = ("draft", "confirmed", "superseded")
+_FINDING_HEAD_RE = re.compile(r"^### (F-\d{2,}): (.+)$")
+_FINDING_FIELD_RES = {
+    "root_cause": re.compile(r"^- \*\*根因\*\*: (.+)$"),
+    "evidence": re.compile(r"^- \*\*证据锚点\*\*: (.+)$"),
+    "members": re.compile(r"^- \*\*成员条目\*\*: (.+)$"),
+    "routing": re.compile(r"^- \*\*分流决定\*\*: (local-sink|upstream-bound)\(([^)]+)\)\s*$"),
+    "proposal": re.compile(r"^- \*\*优化方案\*\*: (.+)$"),
+    "override": re.compile(r"^- \*\*用户覆盖\*\*: (.+)$"),
+    "suggestions": re.compile(r"^- \*\*建议处置\*\*: (.+)$"),
+}
+_MEMBER_RE = re.compile(r"([0-9A-Za-z-]+)\((成立|部分成立|已过时|不成立)\)")
+_SUGGESTION_RE = re.compile(r"([0-9A-Za-z-]+):(processed|ignored)")
+_EXCLUDED_RE = re.compile(r"^- ([0-9A-Za-z-]+) — (.+)$")
+_INTROSPECTION_REF_RE = re.compile(r"^introspection-[0-9TZ-]+#F-\d{2,}$")
+
+
+def _list_value(raw: Any) -> List[str]:
+    """Parse a scope_entries value: JSON list preferred, ast.literal_eval as
+    fallback for hand-written single-quoted lists."""
+    import ast
+    if isinstance(raw, list):
+        items = raw
+    else:
+        text = str(raw).strip()
+        try:
+            items = json.loads(text)
+        except ValueError:
+            try:
+                items = ast.literal_eval(text)
+            except (ValueError, SyntaxError):
+                raise FeedbackError(
+                    f"scope_entries is not a list: {text[:60]!r}")
+    if not isinstance(items, list) or not all(isinstance(i, str) for i in items):
+        raise FeedbackError("scope_entries must be a list of entry-id strings")
+    return items
+
+
+def _parse_finding_block(block: str) -> Dict[str, Any]:
+    lines = block.splitlines()
+    head = _FINDING_HEAD_RE.match(lines[0].strip())
+    finding: Dict[str, Any] = {
+        "finding_id": head.group(1), "statement": head.group(2).strip(),
+        "root_cause": None, "evidence": None, "members": [],
+        "routing": None, "proposal": None, "override": None,
+        "suggestions": {},
+    }
+    seen: set = set()
+    for line in lines[1:]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        for key, rx in _FINDING_FIELD_RES.items():
+            m = rx.match(stripped)
+            if not m:
+                continue
+            if key in seen:
+                raise FeedbackError(
+                    f"duplicate field {key} in finding {finding['finding_id']} (C-7)")
+            seen.add(key)
+            if key == "members":
+                finding["members"] = _MEMBER_RE.findall(m.group(1))
+                if not finding["members"]:
+                    raise FeedbackError(
+                        f"no parseable members in finding {finding['finding_id']} (C-7)")
+            elif key == "routing":
+                finding["routing"] = (m.group(1), m.group(2).strip())
+            elif key == "suggestions":
+                finding["suggestions"] = dict(_SUGGESTION_RE.findall(m.group(1)))
+            else:
+                finding[key] = m.group(1).strip()
+            break
+        else:
+            raise FeedbackError(
+                f"unknown finding field line in {finding['finding_id']}: "
+                f"{stripped[:60]!r} (C-7)")
+    for key, label in (("root_cause", "根因"), ("evidence", "证据锚点"),
+                       ("routing", "分流决定"), ("proposal", "优化方案")):
+        if not finding[key]:
+            raise FeedbackError(
+                f"finding {finding['finding_id']} missing {label} (C-9/V-2)")
+    if not finding["members"]:
+        raise FeedbackError(
+            f"finding {finding['finding_id']} missing 成员条目 (C-7)")
+    return finding
+
+
+def parse_report(path: Path) -> Dict[str, Any]:
+    """Parse + structurally validate an introspection report (C-1..C-9).
+
+    Raises FeedbackError on any structural violation.
+    """
+    path = Path(path)
+    if path.parent.name != INTROSPECTION_DIRNAME:
+        raise FeedbackError(
+            f"report must live under {INTROSPECTION_DIRNAME}/ (C-1/C-2): {path}")
+    stem = path.stem
+    if not _REPORT_ID_RE.match(stem):
+        raise FeedbackError(f"invalid report filename (C-1): {path.name}")
+    meta, body = parse_frontmatter(path.read_text(encoding="utf-8"))
+    missing = [f for f in _REPORT_FIELDS if f not in meta]
+    unknown = [f for f in meta if f not in _REPORT_FIELDS]
+    if missing:
+        raise FeedbackError(f"report frontmatter missing fields (C-4): {missing}")
+    if unknown:
+        raise FeedbackError(f"report frontmatter unknown fields (C-4): {unknown}")
+    if meta["id"] != stem:
+        raise FeedbackError(
+            f"report id {meta['id']!r} != filename stem {stem!r} (C-5)")
+    if meta["status"] not in _REPORT_STATUSES:
+        raise FeedbackError(f"invalid report status (C-4): {meta['status']!r}")
+    scope_entries = _list_value(meta["scope_entries"])
+    if len(scope_entries) != len(set(scope_entries)):
+        raise FeedbackError("scope_entries contains duplicates (C-5)")
+    meta["scope_entries"] = scope_entries
+
+    marker_f = body.find("## Findings")
+    marker_e = body.find("## Excluded")
+    if not body.lstrip().startswith(f"# Introspection Report: {stem}"):
+        raise FeedbackError("missing/mismatched H1 title (C-6)")
+    if marker_f < 0 or marker_e < 0 or marker_f > marker_e:
+        raise FeedbackError("sections must be: H1 → ## Findings → ## Excluded (C-6)")
+
+    findings_text = body[marker_f + len("## Findings"):marker_e]
+    blocks: List[str] = []
+    current: List[str] = []
+    for line in findings_text.splitlines():
+        if _FINDING_HEAD_RE.match(line.strip()):
+            if current:
+                blocks.append("\n".join(current))
+            current = [line.strip()]
+        elif current:
+            current.append(line)
+    if current:
+        blocks.append("\n".join(current))
+    if not blocks:
+        raise FeedbackError("report has no findings (C-6)")
+    findings = [_parse_finding_block(b) for b in blocks]
+    expected_ids = [f"F-{i + 1:02d}" for i in range(len(findings))]
+    actual_ids = [f["finding_id"] for f in findings]
+    if actual_ids != expected_ids:
+        raise FeedbackError(
+            f"finding ids must be sequential from F-01 (C-7): {actual_ids}")
+
+    excluded: List[Tuple[str, str]] = []
+    excluded_text = body[marker_e + len("## Excluded"):]
+    for line in excluded_text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped == "无":
+            continue
+        m = _EXCLUDED_RE.match(stripped)
+        if not m:
+            raise FeedbackError(f"malformed Excluded row (C-8): {stripped[:60]!r}")
+        excluded.append((m.group(1), m.group(2).strip()))
+
+    return {"meta": meta, "findings": findings, "excluded": excluded,
+            "path": path}
+
+
+def validate_report(workspace_root: Path, report: Dict[str, Any]) -> List[str]:
+    """Semantic validation against the store: V-1 coverage, V-3 existence,
+    V-4 external constraint, C-10 supersession. Returns violation strings."""
+    workspace_root = Path(workspace_root).resolve()
+    violations: List[str] = []
+    index = load_index(workspace_root)
+    known = {e.get("id"): e for e in index.get("entries", [])}
+    meta = report["meta"]
+    scope = set(meta["scope_entries"])
+
+    members: List[str] = []
+    for finding in report["findings"]:
+        members.extend(eid for eid, _verdict in finding["members"])
+    excluded_ids = [eid for eid, _reason in report["excluded"]]
+    covered = set(members) | set(excluded_ids)
+    if covered != scope:
+        violations.append(
+            f"V-1 coverage mismatch: uncovered={sorted(scope - covered)}, "
+            f"out_of_scope={sorted(covered - scope)}")
+    if len(members) != len(set(members)):
+        violations.append("V-1 duplicate membership across findings")
+
+    for eid in sorted(scope):
+        if eid not in known:
+            violations.append(f"V-3 unknown entry id: {eid}")
+
+    for finding in report["findings"]:
+        direction, _channel = finding["routing"]
+        if direction == "upstream-bound":
+            external_members = [eid for eid, _v in finding["members"]
+                                if known.get(eid, {}).get("kind") == "external"]
+            if external_members:
+                violations.append(
+                    f"V-4 external entries in upstream-bound finding "
+                    f"{finding['finding_id']}: {external_members}")
+
+    supersedes = meta.get("supersedes")
+    if supersedes:
+        prior = (feedback_dir(workspace_root) / INTROSPECTION_DIRNAME
+                 / f"{supersedes}.md")
+        known_reports = {r.get("id") for r in index.get("introspections", [])}
+        if not prior.is_file() and supersedes not in known_reports:
+            violations.append(f"C-10 supersedes target not found: {supersedes}")
+    return violations
+
+
+def _dump_report(meta: Dict[str, Any]) -> str:
+    """Frontmatter dump with the report field order; CJK unescaped (C-3)."""
+    lines = ["---"]
+    for key in _REPORT_FIELDS:
+        lines.append(f"{key}: {json.dumps(meta.get(key), ensure_ascii=False)}")
+    lines.append("---")
+    return "\n".join(lines)
+
+
+def write_report(path: Path, report: Dict[str, Any]) -> None:
+    """Rewrite a report file's frontmatter (status transitions); body untouched."""
+    path = Path(path)
+    _meta, body = parse_frontmatter(path.read_text(encoding="utf-8"))
+    path.write_text(
+        _dump_report(report["meta"]) + "\n\n" + body.strip() + "\n",
+        encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #
@@ -482,15 +716,28 @@ def action_dispose(args: argparse.Namespace) -> Dict[str, Any]:
     entry_id = (getattr(args, "id", None) or "").strip()
     if not entry_id:
         raise FeedbackError("--id is required.")
+    reason = (getattr(args, "reason", None) or "").strip()
+    ref = (getattr(args, "ref", None) or "").strip()
+    if ref and not _INTROSPECTION_REF_RE.match(ref):
+        raise FeedbackError(
+            "--ref must match introspection-<ts>#F-<nn> (engine-cli C-8).")
     index = load_index(workspace_root)
     for entry in index.get("entries", []):
         if entry.get("id") != entry_id:
             continue
         entry["disposition"] = target_state
+        if reason:
+            entry["disposition_reason"] = reason
+        if ref:
+            entry["introspection_ref"] = ref
         entry_file = feedback_dir(workspace_root) / entry.get("file", "")
         if entry_file.is_file():
             meta, body = parse_frontmatter(entry_file.read_text(encoding="utf-8"))
             meta["disposition"] = target_state
+            if reason:
+                meta["disposition_reason"] = reason
+            if ref:
+                meta["introspection_ref"] = ref
             entry_file.write_text(
                 dump_frontmatter(meta) + "\n\n" + body.strip() + "\n",
                 encoding="utf-8",
@@ -639,11 +886,15 @@ def write_package(
     index: Dict[str, Any],
     selected: List[Dict[str, Any]],
     notes: Optional[str] = None,
+    include_introspection: bool = False,
 ) -> Dict[str, Any]:
     """Zip ``selected`` entries into ``packages/``; source files are never touched.
 
     When ``notes`` is given, a ``SUBMISSION-NOTES.md`` disposition record is
     added to the archive so every counter reset leaves auditable context.
+    When ``include_introspection`` is set, introspection reports referenced by
+    the selected entries ride along under ``introspection/`` and are listed in
+    a MANIFEST section (engine-cli C-9..C-12).
     """
     upstream = detect_upstream(index)
     if not selected:
@@ -694,6 +945,32 @@ def write_package(
                 f"| {entry.get('partial', False)} | {entry.get('probe', '-') or '-'} "
                 f"| {entry.get('slice', '-') or '-'} | {summary} |"
             )
+        report_ids: List[str] = []
+        if include_introspection:
+            for entry in selected:
+                ref = entry.get("introspection_ref", "") or ""
+                rid = ref.split("#", 1)[0]
+                if rid and rid not in report_ids:
+                    report_ids.append(rid)
+            if report_ids:
+                report_status = {r.get("id"): r.get("status", "?")
+                                 for r in index.get("introspections", [])}
+                manifest_lines += ["", "## Introspection Reports", "",
+                                   "| Report | Linked Entries | Status |",
+                                   "|--------|----------------|--------|"]
+                for rid in report_ids:
+                    rfile = store_dir / INTROSPECTION_DIRNAME / f"{rid}.md"
+                    linked_n = sum(
+                        1 for e in selected
+                        if (e.get("introspection_ref") or "").startswith(rid + "#"))
+                    if rfile.is_file():
+                        zf.write(rfile,
+                                 arcname=f"{INTROSPECTION_DIRNAME}/{rid}.md")
+                        status = report_status.get(rid, "?")
+                    else:
+                        status = f"{report_status.get(rid, '?')} (missing)"
+                    manifest_lines.append(
+                        f"| {rid} | {linked_n} | {status} |")
         zf.writestr("MANIFEST.md", "\n".join(manifest_lines) + "\n")
         if notes and notes.strip():
             zf.writestr(
@@ -726,7 +1003,9 @@ def action_package(args: argparse.Namespace) -> Dict[str, Any]:
     excluded_external = sum(1 for e in selected if e.get("kind") == "external")
     selected = [e for e in selected if e.get("kind") != "external"]
 
-    result = write_package(workspace_root, index, selected)
+    result = write_package(workspace_root, index, selected,
+                           include_introspection=bool(
+                               getattr(args, "include_introspection", False)))
     result["excluded_external"] = excluded_external
     if not result.get("zip"):
         result["upstream"] = detect_upstream(index)
@@ -1091,8 +1370,9 @@ CLEANUP_LOG_NAME = "cleanup-log.md"
 
 
 def action_cleanup(args: argparse.Namespace) -> Dict[str, Any]:
-    """Post-package cleanup (req 041 Mode 2): remove entries that a package
-    already archived — the zip is the record; the active store converges.
+    """Post-package cleanup (req 041; /speckit.feedback Path B): remove entries
+    that a package already archived — the zip is the record; the active store
+    converges.
 
     Scope is strictly the packaged batch (engine-cli C-5): only entry files
     actually inside the named zip are removed, never un-packaged entries.
@@ -1257,8 +1537,9 @@ def action_migrate_legacy(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def action_probe_inject(args: argparse.Namespace) -> Dict[str, Any]:
-    """Mode 3 (req 041, engine-cli C-6): inject an external probe for a
-    host-project custom unit into the project-side registry."""
+    """/speckit.feedback § Probe Injection (req 041, engine-cli C-6): inject an
+    external probe for a client-project custom unit into the project-side
+    registry."""
     workspace_root = resolve_workspace_root(args.workspace_root)
     unit = ((getattr(args, "unit", None) or getattr(args, "unit_id", None) or "")).strip()
     if not _CUSTOM_UNIT_RE.match(unit):
@@ -1318,6 +1599,114 @@ def action_probe_inject(args: argparse.Namespace) -> Dict[str, Any]:
     }
 
 
+def _apply_disposition(workspace_root: Path, index: Dict[str, Any],
+                       entry: Dict[str, Any], state: str,
+                       reason: str, ref: str) -> None:
+    """dispose-equivalent write used by introspect-register --confirm (C-3)."""
+    entry["disposition"] = state
+    if reason:
+        entry["disposition_reason"] = reason
+    if ref:
+        entry["introspection_ref"] = ref
+    entry_file = feedback_dir(workspace_root) / entry.get("file", "")
+    if entry_file.is_file():
+        meta, body = parse_frontmatter(entry_file.read_text(encoding="utf-8"))
+        meta["disposition"] = state
+        if reason:
+            meta["disposition_reason"] = reason
+        if ref:
+            meta["introspection_ref"] = ref
+        entry_file.write_text(
+            dump_frontmatter(meta) + "\n\n" + body.strip() + "\n",
+            encoding="utf-8")
+
+
+def action_introspect_register(args: argparse.Namespace) -> Dict[str, Any]:
+    """Register an introspection report: validate → link entries → index.
+
+    With --confirm (user ratified in-session): flip the report to confirmed and
+    apply each finding's 建议处置 rows as batch dispositions (engine-cli C-3).
+    """
+    workspace_root = resolve_workspace_root(args.workspace_root)
+    report_file = (getattr(args, "report_file", None) or "").strip()
+    if not report_file:
+        raise FeedbackError("--report-file is required.")
+    report_path = Path(report_file)
+    if not report_path.is_absolute():
+        report_path = Path.cwd() / report_path
+    report = parse_report(report_path)
+    violations = validate_report(workspace_root, report)
+    if violations:
+        raise FeedbackError("report validation failed:\n- "
+                            + "\n- ".join(violations))
+
+    index = load_index(workspace_root)
+    meta = report["meta"]
+    report_id = meta["id"]
+    by_id = {e.get("id"): e for e in index.get("entries", [])}
+
+    linked = 0
+    for finding in report["findings"]:
+        ref = f"{report_id}#{finding['finding_id']}"
+        for eid, _verdict in finding["members"]:
+            entry = by_id.get(eid)
+            if entry is None:
+                continue
+            _apply_disposition(workspace_root, index, entry,
+                               entry.get("disposition", "") or "",
+                               "", ref)
+            linked += 1
+
+    disposed = 0
+    if getattr(args, "confirm", False):
+        for finding in report["findings"]:
+            ref = f"{report_id}#{finding['finding_id']}"
+            for eid, state in finding["suggestions"].items():
+                entry = by_id.get(eid)
+                if entry is None:
+                    continue
+                _apply_disposition(workspace_root, index, entry, state,
+                                   f"introspection:{ref}", ref)
+                disposed += 1
+        meta["status"] = "confirmed"
+        meta["confirmed_at"] = now_iso()
+        write_report(report_path, report)
+
+    superseded = meta.get("supersedes") or None
+    if superseded:
+        prior_path = (feedback_dir(workspace_root) / INTROSPECTION_DIRNAME
+                      / f"{superseded}.md")
+        if prior_path.is_file():
+            prior = parse_report(prior_path)
+            if prior["meta"]["status"] != "superseded":
+                prior["meta"]["status"] = "superseded"
+                write_report(prior_path, prior)
+
+    introspections = index.setdefault("introspections", [])
+    record = {"id": report_id,
+              "file": f"{INTROSPECTION_DIRNAME}/{report_id}.md",
+              "created": meta["created"], "status": meta["status"],
+              "supersedes": meta.get("supersedes") or None,
+              "entries": list(meta["scope_entries"])}
+    for i, existing in enumerate(introspections):
+        if existing.get("id") == report_id:
+            # re-register without --confirm never reopens a confirmed report
+            if existing.get("status") == "confirmed" and not getattr(
+                    args, "confirm", False):
+                record["status"] = "confirmed"
+                record["confirmed_at"] = existing.get("confirmed_at")
+            introspections[i] = {**existing, **record}
+            break
+    else:
+        introspections.append(record)
+    for r in introspections:
+        if r.get("id") == superseded:
+            r["status"] = "superseded"
+    save_index(workspace_root, index)
+    return {"report_id": report_id, "linked": linked, "disposed": disposed,
+            "superseded": superseded}
+
+
 # --------------------------------------------------------------------------- #
 # Rendering / CLI
 # --------------------------------------------------------------------------- #
@@ -1362,7 +1751,7 @@ def render_text(action: str, payload: Dict[str, Any]) -> str:
                             f"  - {o.get('object_id')}   ({o.get('unit')} @ "
                             f"{o.get('lifecycle_point')})")
                 else:
-                    lines.append("  - (0 objects — 尚无实例;外部类经模式三注入)")
+                    lines.append("  - (0 objects — 尚无实例;外部类经 /speckit.feedback § Probe Injection 注入)")
             lines.append("")
         return "\n".join(lines).rstrip()
     if action == "package":
@@ -1410,11 +1799,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--action",
         required=True,
         choices=["record", "status", "list", "dispose", "mark-submitted", "reindex",
-                 "package", "cleanup", "upstream", "probes", "map", "migrate-legacy", "probe-inject"],
+                 "package", "cleanup", "upstream", "probes", "map", "migrate-legacy", "probe-inject",
+                 "introspect-register"],
     )
     parser.add_argument("--package", default=None,
                         help="cleanup: path to the package zip (workspace-"
                              "relative or absolute), or 'latest'")
+    parser.add_argument("--report-file", default=None,
+                        help="introspect-register: path to the introspection "
+                             "report file")
+    parser.add_argument("--include-introspection", action="store_true",
+                        help="package: include introspection reports covering "
+                             "the packaged entries (introspection/ payload + "
+                             "MANIFEST section)")
+    parser.add_argument("--confirm", action="store_true",
+                        help="introspect-register: user has ratified the "
+                             "report; flip to confirmed and apply batch "
+                             "dispositions from 建议处置 rows")
     parser.add_argument("--unit", default=None,
                         help="probe-inject: target custom unit custom:<owner>/<name>")
     parser.add_argument("--lifecycle-point", default=None,
@@ -1442,6 +1843,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--to", default=None,
                         help="dispose: target disposition state "
                              "(processed|ignored)")
+    parser.add_argument("--reason", default=None,
+                        help="dispose: optional disposition reason text")
+    parser.add_argument("--ref", default=None,
+                        help="dispose: optional introspection ref "
+                             "(introspection-<ts>#F-<nn>)")
     parser.add_argument("--validate", action="store_true",
                         help="probes: structurally validate the merged probe "
                              "registry (exit 2 listing every violation)")
@@ -1497,11 +1903,12 @@ _ACTIONS = {
     "cleanup": action_cleanup,
     "migrate-legacy": action_migrate_legacy,
     "probe-inject": action_probe_inject,
+    "introspect-register": action_introspect_register,
 }
 
 
 _DESTRUCTIVE_ACTIONS = {"package", "cleanup", "migrate-legacy",
-                        "mark-submitted", "dispose"}
+                        "mark-submitted", "dispose", "introspect-register"}
 
 
 def _cwd_project_root() -> Optional[Path]:

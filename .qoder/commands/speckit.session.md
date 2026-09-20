@@ -77,17 +77,7 @@ Unknown intent → report the capability list (only `export` today); do not gues
 
 ## Feedback
 
-At wrap-up, perform an agent self-reflection step (never solicit feedback content from the user) per `.specify/shared/workflow/feedback-step.md`: gate on completion, reflect with ≥1 concrete optimization point, keep scope local, dedup by a stable `run_id`, then persist:
-
-```bash
-python3 "${SKILL_WORKDIR:-.}/.specify/scripts/python/feedback-utils.py" --action record \
-  --unit-id "/speckit.session" --unit-type command \
-  --run-id "<stable-run-id>" --feature "<feature-key-if-any>" \
-  --review "<review prose>" --points-file "<points file>"
-```
-   Probe attribution: the engine resolves the unit to its probe object automatically — the entry inherits kind/slice from the probe registry. External custom units record via `--unit-id custom:<owner>/<name> --unit-type custom-unit`; their entries stay host-project-local and never enter upstream packages.
-
-If the returned `should_prompt` is `true`, append one non-blocking line to the wrap-up report inviting submission (point the user to the `/speckit.feedback package` command — the user-facing path; never paste the raw `feedback-utils.py` engine call into the user-facing line); it MUST NOT block wrap-up and MUST NOT trigger any 自动传输 (manual delivery only; `--action mark-submitted` runs only if the user initiates submission).
+At wrap-up (the same lifecycle point where this command prompts for a Git commit), run the feedback self-reflection step per the canonical convention in `.specify/shared/workflow/feedback-step.md`: agent self-reflection only — **never** solicit feedback content from the user; skip trivial or no-op runs; keep strictly to this command's scope; persist one entry via `feedback-utils.py --action record --unit-id "/speckit.session" --unit-type command`. Non-blocking (非阻塞) and never any 自动传输 — delivery stays manual. That file owns every rule of this step — reflection, scope, dedup, persistence, the submission prompt, the abort and nesting clauses; do not restate any of them here.
 
 ## Documentation
 

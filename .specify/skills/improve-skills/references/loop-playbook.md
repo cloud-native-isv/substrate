@@ -160,8 +160,7 @@ entry point), not a pitfall entry.
 
 ### Legacy path idioms
 
-Flag these as migration candidates and apply the Migration Mapping table from
-`templates/commands/skills.md` (`## Migration Mapping`):
+Flag these as migration candidates and apply this Migration Mapping table:
 
 | Legacy idiom | Rewrite as |
 |--------------|-----------|
@@ -172,18 +171,23 @@ Flag these as migration candidates and apply the Migration Mapping table from
 ### Feedback-section conformance
 
 Verify the Skill carries a `## Feedback` section as its final workflow section, beginning with
-the **runtime-mode gate** (`.specify/shared/workflow/runtime-mode.md`).
+the **runtime-mode gate** (`.specify/shared/workflow/runtime-mode.md`), and that the rest of
+the section is the **skill reference form** owned by
+`.specify/shared/workflow/feedback-step.md` § *Embedded reference forms* — a pointer plus
+this Skill's unit id, never a copy of the rules.
 
-- **Missing** → append the canonical block from `.specify/shared/workflow/feedback-step.md`,
-  substituting `skill:<name>` / `--unit-type skill`.
-- **Malformed** → realign to the canonical block. Malformed means any of: missing runtime-mode
-  gate, missing qualification/completion gate, missing no-user-input reflection rule, missing
-  scope guard vs `/speckit.review`, missing stable-`run_id` dedup guard, missing
-  `feedback-utils.py --action record` invocation, or missing consolidated threshold-prompt
-  behavior.
+- **Missing** → append the skill reference form from
+  `.specify/shared/workflow/feedback-step.md` § *Embedded reference forms*, substituting
+  only `skill:<name>`.
+- **Malformed** → realign to that form. Malformed means any of: missing runtime-mode gate,
+  missing pointer to `feedback-step.md`, wrong or missing `--unit-id "skill:<name>"` /
+  `--unit-type skill`, or a section that **restates** the owner's rules (the reflection
+  steps, submission-prompt semantics, abort/partial rule, nesting rule, token-efficiency
+  self-assessment) instead of pointing at them. A restatement is drift in waiting: repair it
+  by deleting the copy and leaving the pointer, never by re-wording the copy to agree.
 - Apply the fix to **both** `skills/<name>/SKILL.md` and `.specify/skills/<name>/SKILL.md`.
 - **Standalone-mode exception** — for a Skill in a standalone (non–Spec Kit) skills directory
-  (no `.specify/` at the working-directory root) the engine-backed block is NOT required: a
+  (no `.specify/` at the working-directory root) the engine-backed section is NOT required: a
   self-contained gated reflection section is conformant, the dual-copy rule does not apply,
   and no registry/agent propagation repair should be attempted.
 
@@ -299,6 +303,29 @@ missing checks individually before concluding validation passed.
 **Metadata validation detail**: when `skill_id` is added or corrected, ensure the directory
 name and frontmatter `name` agree and no other skill directory carries the same `name`
 (there is no registration table — see `.specify/skills.md`).
+
+### Recorded exception (shape gate)
+
+Hard Constraint 3 owns the rule; this is the mechanics. `skill-shape.py` exits `10` when a
+body is over the L1 budget or trips a blocking shape rule. Finishing a loop on a red gate is
+legitimate under exactly two cases:
+
+- **Contract-mandated inline section** — a feature spec or contract test requires a section to
+  stay inline in `SKILL.md` (grep `.specify/specs/**` and `tests/contract/**` before claiming
+  this case), and keeping it inline pushes the controllable body past budget. The report names
+  the mandating file.
+- **Pre-existing over-budget baseline** — the step-2 gate run already exited `10` before this
+  loop's first edit, and delete-and-absorb within this loop's scope cannot clear the debt. A
+  loop that touches one line of an over-budget file need not repay the whole debt — but it
+  must not add to it.
+
+Both cases require the numbers: `est_tokens_controllable` from the step-2 baseline run and the
+step-8 final run, plus the delta (`--json` exposes the exact field; the estimate is built to be
+stable enough for this comparison — see the script's docstring). A positive delta on an
+already-over-budget file fails the exception unless the added tokens are themselves the
+mandated content or the same loop delete-and-absorbs an offsetting amount: quantifying the
+growth is the price of finishing red. The exception lives in the step-9 loop report — a reason
+stated only in conversation or a commit message was never recorded.
 
 ---
 
