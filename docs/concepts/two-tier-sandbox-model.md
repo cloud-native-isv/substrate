@@ -1,6 +1,7 @@
 # 两层沙箱模型：Worker Pod 面 + Actor 工作负载面（概念文档）
 
 > 配套决策：[ADR 0002](../decisions/0002-two-tier-supervisor-worker-sandbox.md)（Proposed，2026-09-17 术语归一）。
+> **上框全景**：本文的两层（Tier-1/Tier-2）已收进 [trust-domain-panorama.md](trust-domain-panorama.md) 的四层信任域（I/P/S/Agent）——worker pod = S 信任域、wasm 沙箱 = Agent 信任域。**该文并更新本文 §1 的密度模型**：xuanji 自研版打破「每 RUNNING actor 一个 worker pod」，改为「每数字员工一个 worker pod、内含多并发 active agent 沙箱」（空间复用，fork delta）；§1「密度换隔离」段据此读。
 > 本文定义实体、生命周期、capability 模型与 API 映射的目标语义；实现 schema 以后续 feature 为准。
 > 术语一律采用上游 substrate 词汇（`docs/architecture.md` @85ce8ed5）；两层（Tier-1/Tier-2）仅作平面分工描述。
 > 启示来源：AgentForce 数字员工沙箱运维会话档案（2026-09-16，kata container 主体 + 请求级进程隔离）。
