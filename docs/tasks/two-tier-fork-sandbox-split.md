@@ -2,7 +2,7 @@
 
 > 状态：规划报告（待用户裁决 upstream 化范围与执行顺序）
 > 日期：2026-09-18
-> 依据：[ADR 0002 两层沙箱模型](../decisions/0002-two-tier-supervisor-worker-sandbox.md) + [ADR 0003 Wasm Host Function 安全模型](../decisions/0003-wasm-host-function-security.md)
+> 依据：[ADR 0002 两层沙箱模型](../decisions/0002-two-tier-supervisor-worker-sandbox.md) + [ADR 0003 Wasm Host Function 安全模型](../decisions/0003-wasm-host-function-security.md) + [ADR 0004 runc 硬化](../decisions/0004-runc-worker-pod-hardening.md)/[0005 Rust 执行体](../decisions/0005-rust-agent-execution-body.md)/[0006 安全光谱](../decisions/0006-security-spectrum-model.md) + [四层信任域全景图](../concepts/trust-domain-panorama.md)（2026-09-20，I/P/S/Agent + S 层 MCP 能力后端 → §8 增量分解）
 > 配套：[substrate 回归开源评估](substrate-upstream-regression.md)（现状 A/B/C 分类，本文是其**前向延伸**：目标两层架构落地需要的 fork delta 与 sandbox 分解）
 > 代码基线：xuanji @ 6d931cdc（schema 事实经 `pkg/api/v1alpha1/{workerpool,actortemplate}_types.go`、`internal/proto/ateompb/ateom.proto`、`cmd/atecontroller/.../workerpool_apply.go` 核实）
 
@@ -112,3 +112,49 @@
 6. **F6 控制面租户/capability 状态** + **S6 e2bgw 请求面**（含 ate-target-actor 注入 + 请求级通道）；
 7. **F1/F4 enum 缝收口 + upstream PR**；**S8 Ring 2 Tetragon**（按 runc/rund 分置，单节点验证）；
 8. **集群 e2e**（cluster-msaFE8）：runc 基线 + rund 对照，跑 actor 级全链路（resume 注入 → 请求执行 → 出口 allowlist → 三环审计事件 → suspend/resume）。
+
+## 8. 全景图增量分解（四层信任域 / 多 active actor / MCP 能力后端）
+
+> 依据：[四层信任域全景图](../concepts/trust-domain-panorama.md)（2026-09-20，I/P/S/Agent + S 层 MCP 能力后端）。本节把全景图相对 §2/§3 既有 **F1–F8 / S1–S9** 的**新增项**按分工分解；既有项不重复。
+> 信任域定位：**F9–F12** 落 P 层（平台）+ S 层 worker pod 的**集群侧**；**S10–S13** 落 S 层 worker pod **内（ateom）+ S↔Agent / S↔MCP 边界**（详见 sandbox 仓 `two-tier-sandbox-layer-design.md` §6）。
+
+### 8.1 新增 substrate fork delta（F9–F12）
+
+| # | 改动 | 信任域 | upstream 文件 | upstream 化 |
+|---|---|---|---|---|
+| **F9** | **多 active actor / worker pod（空间复用调度）**：打破「1 worker pod = 1 active actor」，ateapi/scheduler 允许 N 个 actor 并发绑定同一 worker（actor→worker **N:1**），消费 ateom `SetWorkerCapacity(actors=N)`（S12 申报）；WorkerPool 容量模型 1→N + per-actor 资源核算。与既有 suspend/resume **时序复用并存**（N:1 = 空间复用） | S（worker pod）+ P（调度） | `cmd/ateapi/...`（scheduler/store 容量绑定）+ 可能 `workerpool_types.go` 容量字段 | 中：多路复用是 substrate「many actors→fewer workers」意图的延伸，但 1:1→N:1 容量语义偏 xuanji；可泛化提 PR |
+| **F10** | **MCP 共享池编排/路由层（P 层新组件，自洽条件 C2）**：cross-S 共享 MCP 池的编排/路由 = P 层**可信、硬化、自身被审计**组件——调度 per-tenant 执行单元、把 ateom 的 MCP 调用路由到对应执行单元、持池侧 allowlist + 审计。形态可复用 WorkerPool/actor 机制（一个 microvm-class WorkerPool，其 actor = MCP server 实例）或新控制器/服务 | P | 新 `cmd/` 组件或 `cmd/atecontroller` 扩展 + CRD | 弱：MCP 能力后端是 xuanji 概念 |
+| **F11** | **per-tenant MCP 执行单元（microvm）+ MCP server 运行时（自洽条件 C1）**：cross-S 执行单元 = 强隔离 **microvm**（复用既有 microvm sandbox class kata+cloud-hypervisor），内跑 MCP server（原生工具执行器：编译/git/browser/任意原生），一次性用完即毁；within-S 形态 = worker pod 本地 VM/sidecar（OS 账号/容器隔离即可）。**OS 多用户仅限 within-S；cross-S 必须 microvm/gvisor**（OS 账号隔离不足以做跨租户边界）。后端出口须白名单（I-4，R5） | S（执行单元） | 复用 microvm class（`workerpool_apply.go` microvm 形态已有）+ 新 MCP server 镜像/组件 | 弱-中：microvm 复用既有；MCP server 是 xuanji |
+| **F12** | **跨域审计 + 白名单统一（P↔S、S↔S、I↔P）**：把 ADR 0003 D1 白名单 + D7 审计推广到全信任域跨越——P↔S（控制面 API + actorlog）、S↔S（**默认拒绝** + MCP 池侧 per-tenant allowlist + 审计）、I↔P（k8s RBAC/NetworkPolicy）；统一审计事件扩展 `src_domain`/`dst_domain`，归集 Tier-2 自研管控。**零信任身份**：复用 podcertcontroller(SPIFFE) 给 MCP 池执行单元 + ateom↔池 mTLS（多为既有基础设施 wiring，并入 F10/F11） | I/P/S | `internal/actorlog`（已有）+ 池侧审计 + `manifests/xuanji/` NetworkPolicy | 中：actorlog/NetworkPolicy 通用；跨域审计 schema 偏 xuanji |
+
+### 8.2 新增 sandbox 仓项（S10–S13，归属 sandbox，详见其 §6）
+
+| # | 组件 | 内容 | 信任域 | 来源 |
+|---|---|---|---|---|
+| **S10** | ateom MCP 客户端 / 可信中介 | ateom-wasmd 增 MCP 传输客户端：翻译 host function 调用为 MCP 协议、连后端（within-S 本地 / cross-S 池）、mTLS、按工具 (a)/(b) 标注路由、(b) 类 per-call 注入短时效 scoped token（D6 MCP 版，用后即弃不落后端）；**强制点在 ateom（D1 白名单/D2 入参校验/D3 capability，fail-closed）** | S（ateom） | 全景图 §3.4/§3.5 |
+| **S11** | host function `mcp_call` + agent MCP 语义客户端 + 输出净化 | host_functions.rs 增 `mcp_call(tool,args)`（Agent→S 穿越点，过 D2/D3）；S4 Rust agent 作 MCP 语义客户端经此调工具（无裸 socket）；ateom 把后端输出当**敌意输入（I-2）**净化/标注后返回 | S↔Agent | 全景图 §3.4 |
+| **S12** | 多 active actor 并发（ateom-wasmd） | 从 1 活跃 actor 改为承载 N 并发 actor 沙箱（每 actor 内核池 + capability 表 + MCP 账号映射）；`SetWorkerCapacity(actors=N)` 申报（F9 消费）；intra-pod 隔离 ride on wasm per-context fuel/mem 限额（D2） | S | 全景图 §2.1 |
+| **S13** | MCP 后端审计（Ring 0/1 扩展）+ MCP 工具契约 | 每次 MCP 调用一条审计事件（tool/args 截断/target/allowed/status/字节/耗时 + src/dst domain）；policy.blocked WARN；**MCP 工具契约/schema**（agent 可见工具面 = S5 注册表扩展到 MCP-backed 工具，是 F11 MCP server 的实现契约） | S↔MCP | 全景图 §3.4/§5 |
+
+### 8.3 新增跨仓缝（契约）
+
+| 缝 | fork 侧 | sandbox 侧 | 同步约定 |
+|---|---|---|---|
+| **MCP 工具契约/schema** | F11 MCP server 实现工具 | S13/S5 定义 agent 可见工具面 | 工具名/参数 schema/capability 绑定/(a)/(b) 标注 = 单一事实源，类比 Ateom proto seam |
+| **MCP 协议/传输 + 执行单元镜像** | F10 池路由 + F11 microvm 执行单元镜像 | S10 ateom MCP 客户端 | MCP 传输契约 + mTLS 身份（SPIFFE）两侧对齐 |
+| **多 active actor 容量** | F9 scheduler 消费容量 | S12 `SetWorkerCapacity(actors=N)` 申报 | 容量申报/消费契约 |
+
+### 8.4 自洽条件 C1–C3 与残留张力 R1–R5 的归属（全景图 §6）
+
+| 条件/张力 | 内容 | 归属 |
+|---|---|---|
+| **C1** | cross-S 共享基础设施+编排，**执行单元强隔离 microvm/gvisor**；OS 多用户仅 within-S | **F11**（microvm class） |
+| **C2** | 共享池编排/路由层 = P 可信 + 硬化 + 自身被审计 | **F10** |
+| **C3** | 零信任不留秘密 + 跨域审计白名单 + 输出敌意 = cross-S 共享补偿控制 | F10/F12（身份+池审计）+ **S10**（token 注入）/**S11**（输出净化）/**S13**（审计） |
+| R1 | OS 多用户非跨租户边界 | → C1 / **F11** |
+| R2 | 编排层跨租户 blast radius | → C2 / **F10** |
+| R3 | 跨租户 confused-deputy | **S10** per-tenant capability scoping + **F12** 池侧 allowlist |
+| R4 | 多 actor 争用 pod CPU/mem | **S12** fuel/mem 限额 + **F9** pod sizing |
+| R5 | 后端出口绕 wasm 白名单（I-4） | **F11** 后端出口白名单 |
+
+> **执行顺序补充**（接 §7）：F9/S12（多 active actor）是 MCP「公用」语义的前提，宜先于 F10/F11/S10；F10/F11（共享池+执行单元）与 S10/S11/S13（ateom 中介链）成对推进；F12 跨域审计随各层落地增量补齐。MCP 工具契约（8.3）须先于 F11 server 与 S13 审计定稿。
