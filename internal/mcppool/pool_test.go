@@ -216,3 +216,35 @@ func TestRouteReturnsUnitCopyNotConfigAlias(t *testing.T) {
 		t.Fatalf("config aliasing: second route saw mutated unit %+v", again.Unit)
 	}
 }
+
+// ResolveUnitForTenant is the tool-agnostic activation-time resolution used to
+// deliver a tenant's cross-S endpoint to its (single-tenant) worker pod: an
+// admitted tenant resolves to its own unit; an unadmitted tenant (R3) or one with
+// no unit resolves to nil (fail-closed); the result is a copy (no config alias).
+func TestResolveUnitForTenant(t *testing.T) {
+	cfg := PoolConfig{
+		AllowedTenants: []string{"team-a", "team-b"},
+		Units: []ExecutionUnit{
+			{Tenant: "team-a", Name: "unit-a", Endpoint: "mcp://unit-a", Tools: []string{"git.clone"}},
+			{Tenant: "team-b", Name: "unit-b", Endpoint: "mcp://unit-b", Tools: []string{"git.clone"}},
+		},
+	}
+
+	if u := cfg.ResolveUnitForTenant("team-a"); u == nil || u.Name != "unit-a" || u.Endpoint != "mcp://unit-a" {
+		t.Fatalf("team-a -> %+v, want unit-a/mcp://unit-a", u)
+	}
+	// R3: unadmitted tenant -> nil (deny-by-default), never another tenant's unit.
+	if u := cfg.ResolveUnitForTenant("team-c"); u != nil {
+		t.Fatalf("team-c not admitted; got %+v, want nil", u)
+	}
+	// Admitted but no unit registered -> nil (fail-closed).
+	if u := (PoolConfig{AllowedTenants: []string{"team-z"}}).ResolveUnitForTenant("team-z"); u != nil {
+		t.Fatalf("team-z has no unit; got %+v, want nil", u)
+	}
+	// Copy semantics: mutating the result must not corrupt the routing table.
+	u := cfg.ResolveUnitForTenant("team-a")
+	u.Endpoint = "mcp://evil"
+	if again := cfg.ResolveUnitForTenant("team-a"); again.Endpoint != "mcp://unit-a" {
+		t.Fatalf("config aliased: second resolve saw mutated endpoint %+v", again)
+	}
+}

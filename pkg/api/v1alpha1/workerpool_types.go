@@ -102,6 +102,28 @@ type WorkerPoolSpec struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	ActorCapacity int32 `json:"actorCapacity,omitempty"`
+
+	// McpPoolRef names a cluster-scoped McpPool whose cross-S shared MCP capability
+	// pool this worker pool's actors may borrow native capabilities from (xuanji
+	// F10 Stage B). When set together with McpAtespace, the controller resolves the
+	// tenant's per-tenant execution-unit endpoint from that McpPool and projects it
+	// onto worker pods as the `WASM_MCP_BACKEND` env (`tls://<endpoint>`, consumed by
+	// ateom-wasmd / sandbox S10) so the worker's ateom mediator reaches the shared
+	// pool over mTLS (I-3 boundary). Empty means no controller-projected cross-S MCP
+	// backend. The mTLS client material (WASM_MCP_TLS_*_FILE) comes from the worker's
+	// SPIFFE/podcert identity mount (cert-source integration), not from this field.
+	//
+	// +optional
+	McpPoolRef string `json:"mcpPoolRef,omitempty"`
+
+	// McpAtespace is the tenant (atespace) this worker pool serves, used to resolve
+	// the per-tenant execution unit from the referenced McpPool. An S domain is one
+	// digital employee = one worker pool = one tenant (trust-domain-panorama §2), so
+	// every actor co-hosted on a worker (F9/S12 N:1) shares this tenant's endpoint.
+	// Required when McpPoolRef is set; ignored otherwise.
+	//
+	// +optional
+	McpAtespace string `json:"mcpAtespace,omitempty"`
 }
 
 type WorkerPoolStatus struct {

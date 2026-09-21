@@ -159,6 +159,36 @@ func (r *Router) resolveUnit(tenant, tool string) *ExecutionUnit {
 	return nil
 }
 
+// ResolveUnitForTenant returns a copy of the execution unit serving atespace,
+// gated by the tenant allowlist (R3), or nil if the tenant is not admitted or has
+// no unit (fail-closed, ADR 0003 D9).
+//
+// This is the **tool-agnostic** counterpart to Route, used at actor-activation
+// time to deliver a tenant's cross-S endpoint to its worker pod. The trust model
+// makes this well-defined: an S domain is one digital employee = one worker pod =
+// one tenant (trust-domain-panorama §2 — "多租户从 S 层起，多个数字员工 = 多个独立
+// S 域"), so every actor co-hosted on a worker (F9/S12 N:1) belongs to the same
+// atespace and shares that one endpoint. Per-tool enforcement is NOT lost — it
+// stays at the S-layer mediator (contract D1 + R3 CapabilityScope) and the unit's
+// own Tools allowlist; Route remains the audited per-call decision primitive.
+//
+// It is a pure resolution (no audit emission): the audited cross-domain events
+// are the per-call Route decisions (P) and the mediator's mcp.call/mcp.blocked
+// (S, sandbox S13). Endpoint delivery at activation is config projection, not a
+// capability invocation.
+func (c PoolConfig) ResolveUnitForTenant(atespace string) *ExecutionUnit {
+	if !slices.Contains(c.AllowedTenants, atespace) {
+		return nil
+	}
+	for _, u := range c.Units {
+		if u.Tenant == atespace {
+			unit := u
+			return &unit
+		}
+	}
+	return nil
+}
+
 func (r *Router) deny(ref resources.ActorRef, actorUID, actorTemplateNamespace, actorTemplateName, tool, reason string) Decision {
 	r.emit(ref, actorUID, actorTemplateNamespace, actorTemplateName, tool, false, reason, nil)
 	return Decision{Allowed: false, Reason: reason}

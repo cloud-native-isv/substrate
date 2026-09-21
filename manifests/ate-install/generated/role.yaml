@@ -81,6 +81,14 @@ rules:
   - patch
   - update
 - apiGroups:
+  - ate.dev
+  resources:
+  - mcppools
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
   - networkpolicies

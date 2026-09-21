@@ -101,8 +101,10 @@ const (
 // Deployment managed by a WorkerPool. Only fields owned by this controller
 // are declared here. otel, when it carries an endpoint, is propagated to the
 // ateom container so it pushes telemetry to that collector. certSource
-// selects the volume sources for the worker's TLS material.
-func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettings, certSource WorkerCertSource) *appsv1ac.DeploymentApplyConfiguration {
+// selects the volume sources for the worker's TLS material. mcpBackend, when
+// non-empty, is the resolved cross-S MCP execution-unit endpoint projected as
+// WASM_MCP_BACKEND (F10 Stage B).
+func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettings, certSource WorkerCertSource, mcpBackend string) *appsv1ac.DeploymentApplyConfiguration {
 	containerAC := corev1ac.Container().
 		WithName("ateom").
 		WithImage(wp.Spec.AteomImage).
@@ -119,7 +121,7 @@ func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettin
 			WithContainerPort(443).
 			WithProtocol(corev1.ProtocolTCP)).
 		WithSecurityContext(ateomSecurityContext(wp.Spec.SandboxClass)).
-		WithEnv(ateomContainerEnv(otel, wp)...).
+		WithEnv(ateomContainerEnv(otel, wp, mcpBackend)...).
 		WithVolumeMounts(
 			corev1ac.VolumeMount().
 				WithName("run-ateom").
@@ -275,8 +277,10 @@ func atunnelEgressTrustSources(certSource WorkerCertSource) []*corev1ac.VolumePr
 // ateomContainerEnv adds the OTLP endpoint and resource identity only when
 // telemetry is configured. POD_* refs precede OTEL_RESOURCE_ATTRIBUTES so its
 // $(POD_*) substitutions resolve. It also projects the pool's actor capacity as
-// WASM_MAX_ACTORS for the wasm class (F9 Stage B).
-func ateomContainerEnv(otel ateomOTelSettings, wp *atev1alpha1.WorkerPool) []*corev1ac.EnvVarApplyConfiguration {
+// WASM_MAX_ACTORS for the wasm class (F9 Stage B) and, when mcpBackend is
+// non-empty, the cross-S shared MCP execution-unit endpoint as WASM_MCP_BACKEND
+// (F10 Stage B).
+func ateomContainerEnv(otel ateomOTelSettings, wp *atev1alpha1.WorkerPool, mcpBackend string) []*corev1ac.EnvVarApplyConfiguration {
 	envs := []*corev1ac.EnvVarApplyConfiguration{
 		fieldRefEnv("POD_UID", "metadata.uid"),
 	}
@@ -286,6 +290,17 @@ func ateomContainerEnv(otel ateomOTelSettings, wp *atev1alpha1.WorkerPool) []*co
 	// capacity <= 1 is the upstream default and needs no env.
 	if multiActorCap := actorCapacityProjection(wp); multiActorCap != "" {
 		envs = append(envs, corev1ac.EnvVar().WithName("WASM_MAX_ACTORS").WithValue(multiActorCap))
+	}
+	// F10 Stage B: the cross-S shared MCP capability backend endpoint, resolved by
+	// the controller from the referenced McpPool for this pool's tenant (single
+	// tenant per worker = one S domain = one digital employee). Consumed by
+	// ateom-wasmd (sandbox S10) as the mediator's remote execution-unit backend
+	// (`tls://<endpoint>` = cross-S mTLS, I-3). Empty = no controller-projected MCP
+	// backend (workers keep any statically-set WASM_MCP_BACKEND, or none). The mTLS
+	// client material (WASM_MCP_TLS_*_FILE) comes from the worker's SPIFFE/podcert
+	// identity mount, not projected here.
+	if mcpBackend != "" {
+		envs = append(envs, corev1ac.EnvVar().WithName("WASM_MCP_BACKEND").WithValue(mcpBackend))
 	}
 	if otel.Endpoint == "" {
 		return envs

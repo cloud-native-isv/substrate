@@ -17,6 +17,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/agent-substrate/substrate/internal/mcppool"
 	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
 )
 
@@ -57,6 +59,7 @@ type WorkerPoolReconciler struct {
 //+kubebuilder:rbac:groups=ate.dev,resources=workerpools,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ate.dev,resources=workerpools/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=ate.dev,resources=workerpools/finalizers,verbs=update
+//+kubebuilder:rbac:groups=ate.dev,resources=mcppools,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -111,17 +114,59 @@ func (r *WorkerPoolReconciler) applyDeployment(ctx context.Context, wp *atev1alp
 	if certSource == "" {
 		certSource = WorkerCertSourcePodCertificate
 	}
+	mcpBackend := r.resolveMcpBackend(ctx, wp)
 	depAC := buildDeploymentApplyConfig(wp, ateomOTelSettings{
 		Endpoint:             r.OTelEndpoint,
 		MetricExportInterval: r.OTelMetricExportInterval,
 		MetricExportTimeout:  r.OTelMetricExportTimeout,
 		TracesSampler:        r.OTelTracesSampler,
 		TracesSamplerArg:     r.OTelTracesSamplerArg,
-	}, certSource)
+	}, certSource, mcpBackend)
 	if err := r.Apply(ctx, depAC, client.FieldOwner(workerPoolFieldOwner), client.ForceOwnership); err != nil {
 		return fmt.Errorf("failed to apply Deployment: %w", err)
 	}
 	return nil
+}
+
+// resolveMcpBackend resolves the cross-S shared MCP execution-unit endpoint for
+// this worker pool's tenant from the referenced McpPool (F10 Stage B P-side
+// delivery). Returns "" — projecting no MCP backend, fail-closed — when no
+// McpPoolRef is set, the McpPool is missing, or the tenant has no admitted unit
+// (R3 allowlist / no unit). A worker pod is single-tenant (one S domain = one
+// digital employee = one atespace, trust-domain-panorama §2), so every actor it
+// hosts shares this one endpoint; per-tool enforcement stays at the S-layer
+// mediator (contract + R3 scope) and the unit's Tools allowlist.
+func (r *WorkerPoolReconciler) resolveMcpBackend(ctx context.Context, wp *atev1alpha1.WorkerPool) string {
+	if wp.Spec.McpPoolRef == "" {
+		return ""
+	}
+	log := log.FromContext(ctx)
+	pool := &atev1alpha1.McpPool{}
+	// McpPool is cluster-scoped, so only Name is set.
+	if err := r.Get(ctx, types.NamespacedName{Name: wp.Spec.McpPoolRef}, pool); err != nil {
+		log.Error(err, "cannot get McpPool for worker MCP backend; projecting none (fail-closed)",
+			"mcpPool", wp.Spec.McpPoolRef)
+		return ""
+	}
+	cfg := mcppool.PoolConfigFromSpec(&pool.Spec)
+	unit := cfg.ResolveUnitForTenant(wp.Spec.McpAtespace)
+	if unit == nil {
+		log.Info("no admitted MCP execution unit for tenant; projecting no MCP backend (fail-closed)",
+			"atespace", wp.Spec.McpAtespace, "mcpPool", wp.Spec.McpPoolRef)
+		return ""
+	}
+	return mcpBackendURL(unit.Endpoint)
+}
+
+// mcpBackendURL renders an execution-unit endpoint as the WASM_MCP_BACKEND value
+// consumed by ateom-wasmd (sandbox S10). cross-S pool units are reached over mTLS
+// (I-3 mandatory), so a bare host:port becomes tls://host:port; an endpoint that
+// already carries a scheme is passed through unchanged.
+func mcpBackendURL(endpoint string) string {
+	if strings.Contains(endpoint, "://") {
+		return endpoint
+	}
+	return "tls://" + endpoint
 }
 
 func (r *WorkerPoolReconciler) syncStatus(ctx context.Context, wp *atev1alpha1.WorkerPool, dep *appsv1.Deployment) error {
