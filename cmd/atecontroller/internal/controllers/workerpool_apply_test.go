@@ -26,6 +26,7 @@ import (
 	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
 
 	"github.com/agent-substrate/substrate/internal/ateompath"
+	"github.com/agent-substrate/substrate/internal/resources"
 	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
 )
 
@@ -448,6 +449,59 @@ func TestBuildDeploymentApplyConfigOTelEndpoint(t *testing.T) {
 				if env[ref].index > raIdx {
 					t.Errorf("%s (index %d) must precede OTEL_RESOURCE_ATTRIBUTES (index %d)", ref, env[ref].index, raIdx)
 				}
+			}
+		})
+	}
+}
+
+// TestActorCapacityProjection covers F9 Stage B: a wasm-class pool with
+// actorCapacity > 1 projects the capacity onto worker pods as BOTH the
+// ate.dev/actor-capacity annotation (read by the ateapi syncer → Worker
+// .actor_capacity → scheduler) and the WASM_MAX_ACTORS env (read by ateom-wasmd,
+// sandbox S12), so the scheduler and the in-pod runtime agree on the same N.
+// Non-wasm classes and capacity <= 1 project nothing (upstream single-actor
+// default; other classes have no in-pod multi-actor support).
+func TestActorCapacityProjection(t *testing.T) {
+	tests := []struct {
+		name          string
+		sandboxClass  atev1alpha1.SandboxClass
+		capacity      int32
+		wantProjected bool
+		wantValue     string
+	}{
+		{"wasm capacity 4 projects", atev1alpha1.SandboxClassWasm, 4, true, "4"},
+		{"wasm capacity 1 is default", atev1alpha1.SandboxClassWasm, 1, false, ""},
+		{"wasm capacity 0 is default", atev1alpha1.SandboxClassWasm, 0, false, ""},
+		{"gvisor capacity 4 ignored", atev1alpha1.SandboxClassGvisor, 4, false, ""},
+		{"microvm capacity 4 ignored", atev1alpha1.SandboxClassMicroVM, 4, false, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wp := testWorkerPoolApplyConfig(nil)
+			wp.Spec.SandboxClass = tt.sandboxClass
+			wp.Spec.ActorCapacity = tt.capacity
+
+			dep := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate)
+			ann := dep.Spec.Template.Annotations
+			env := envByName(dep.Spec.Template.Spec.Containers[0].Env)
+
+			gotAnn, hasAnn := ann[resources.WorkerActorCapacityAnnotation]
+			gotEnv, hasEnv := env["WASM_MAX_ACTORS"]
+
+			if !tt.wantProjected {
+				if hasAnn {
+					t.Errorf("annotation %q must be absent, got %q", resources.WorkerActorCapacityAnnotation, gotAnn)
+				}
+				if hasEnv {
+					t.Errorf("WASM_MAX_ACTORS must be absent, got %q", gotEnv.value)
+				}
+				return
+			}
+			if !hasAnn || gotAnn != tt.wantValue {
+				t.Errorf("annotation %q = %q, want %q", resources.WorkerActorCapacityAnnotation, gotAnn, tt.wantValue)
+			}
+			if !hasEnv || gotEnv.value != tt.wantValue {
+				t.Errorf("WASM_MAX_ACTORS = %q, want %q", gotEnv.value, tt.wantValue)
 			}
 		})
 	}

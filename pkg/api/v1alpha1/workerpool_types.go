@@ -86,6 +86,22 @@ type WorkerPoolSpec struct {
 	// SandboxClass is used.
 	// +optional
 	SandboxConfigName string `json:"sandboxConfigName,omitempty"`
+
+	// ActorCapacity is the maximum number of concurrent actors a single worker pod
+	// in this pool may host (xuanji F9 — multi active actor / N:1 spatial
+	// multiplexing, breaking upstream's "1 worker pod = 1 active actor"). Zero or
+	// unset means 1, reproducing upstream behavior exactly.
+	//
+	// Only effective for the wasm sandbox class today: the controller projects a
+	// positive value onto worker pods as the `ate.dev/actor-capacity` annotation
+	// (consumed by the ateapi scheduler → Worker.actor_capacity) and the
+	// `WASM_MAX_ACTORS` env (consumed by ateom-wasmd, sandbox S12), so the
+	// scheduler and the in-pod runtime agree on the same N. Other sandbox classes
+	// host a single active actor and ignore this field.
+	//
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	ActorCapacity int32 `json:"actorCapacity,omitempty"`
 }
 
 type WorkerPoolStatus struct {

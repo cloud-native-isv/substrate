@@ -18,6 +18,16 @@ import (
 	"github.com/agent-substrate/substrate/pkg/proto/ateapipb"
 )
 
+// WorkerActorCapacityAnnotation is the worker-pod annotation carrying the number
+// of concurrent actors the pod's ateom runtime hosts (F9). It is the contract
+// between three parties, all of which reference this single constant to prevent
+// drift: the atecontroller projects WorkerPool.Spec.ActorCapacity onto the worker
+// pod as this annotation (and as the WASM_MAX_ACTORS env); the ateapi syncer
+// reads the annotation into Worker.actor_capacity; and the in-pod ateom-wasmd
+// runtime reads WASM_MAX_ACTORS to enforce the same N (sandbox S12). Absent or
+// invalid means 0 → effective capacity 1 (upstream single-actor behavior).
+const WorkerActorCapacityAnnotation = "ate.dev/actor-capacity"
+
 // Worker assignment helpers (xuanji F9 — multi active actor per worker pod).
 //
 // Upstream modeled a worker as hosting at most one active actor (a singular

@@ -339,17 +339,12 @@ func (s *WorkerPoolSyncer) enqueueStoredWorkers(ctx context.Context) {
 // was still running when the pod disappeared is moved to STATUS_CRASHED and its
 // pod pointers are cleared.
 //
-// ActorCapacityAnnotation is the worker-pod annotation carrying the number of
-// concurrent actors the pod's ateom runtime can host (sandbox S12
-// SetWorkerCapacity / WASM_MAX_ACTORS, projected onto the pod). F9 reads it into
-// Worker.actor_capacity; absent or invalid means 0, which the scheduler treats as
-// the upstream default of 1 (so N:1 multiplexing stays opt-in).
-const ActorCapacityAnnotation = "ate.dev/actor-capacity"
-
-// actorCapacityFromPod parses ActorCapacityAnnotation, returning 0 (→ effective
-// capacity 1) when absent, malformed, or negative.
+// actorCapacityFromPod parses the worker-pod capacity annotation
+// (resources.WorkerActorCapacityAnnotation, projected by the atecontroller from
+// WorkerPool.Spec.ActorCapacity in F9 Stage B), returning 0 (→ effective capacity
+// 1) when absent, malformed, or negative.
 func actorCapacityFromPod(pod *corev1.Pod) int64 {
-	v := pod.GetAnnotations()[ActorCapacityAnnotation]
+	v := pod.GetAnnotations()[resources.WorkerActorCapacityAnnotation]
 	if v == "" {
 		return 0
 	}

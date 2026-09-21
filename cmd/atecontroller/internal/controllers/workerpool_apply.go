@@ -15,12 +15,15 @@
 package controllers
 
 import (
+	"strconv"
+
 	corev1 "k8s.io/api/core/v1"
 	appsv1ac "k8s.io/client-go/applyconfigurations/apps/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
 
 	"github.com/agent-substrate/substrate/internal/ateompath"
+	"github.com/agent-substrate/substrate/internal/resources"
 	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
 )
 
@@ -116,7 +119,7 @@ func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettin
 			WithContainerPort(443).
 			WithProtocol(corev1.ProtocolTCP)).
 		WithSecurityContext(ateomSecurityContext(wp.Spec.SandboxClass)).
-		WithEnv(ateomContainerEnv(otel)...).
+		WithEnv(ateomContainerEnv(otel, wp)...).
 		WithVolumeMounts(
 			corev1ac.VolumeMount().
 				WithName("run-ateom").
@@ -159,6 +162,18 @@ func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettin
 	podSpecAC.WithContainers(containerAC)
 	podSpecAC.WithTerminationGracePeriodSeconds(workerTerminationGracePeriodSeconds)
 
+	podTemplateAC := corev1ac.PodTemplateSpec().
+		WithLabels(map[string]string{
+			"ate.dev/worker-pool": wp.Name,
+		}).
+		WithSpec(podSpecAC)
+	// F9 Stage B: project the actor capacity onto the pod as an annotation so the
+	// ateapi syncer reads it into Worker.actor_capacity (the scheduler side of
+	// N:1), mirroring the WASM_MAX_ACTORS env (the in-pod runtime side).
+	if ann := actorCapacityAnnotations(wp); ann != nil {
+		podTemplateAC.WithAnnotations(ann)
+	}
+
 	return appsv1ac.Deployment(wp.Name, wp.Namespace).
 		WithOwnerReferences(metav1ac.OwnerReference().
 			WithAPIVersion(atev1alpha1.GroupVersion.String()).
@@ -171,11 +186,31 @@ func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettin
 			WithReplicas(wp.Spec.Replicas).
 			WithSelector(metav1ac.LabelSelector().
 				WithMatchLabels(map[string]string{"ate.dev/worker-pool": wp.Name})).
-			WithTemplate(corev1ac.PodTemplateSpec().
-				WithLabels(map[string]string{
-					"ate.dev/worker-pool": wp.Name,
-				}).
-				WithSpec(podSpecAC)))
+			WithTemplate(podTemplateAC))
+}
+
+// actorCapacityProjection returns the pool's actor capacity as a string when it
+// should be projected onto worker pods — wasm class with capacity > 1 — or ""
+// when the upstream single-actor default applies (no projection). Only the wasm
+// class hosts multiple actors in-pod today (sandbox S12); a positive capacity on
+// another class is ignored so the scheduler never places actors a worker cannot
+// host. F9 Stage B.
+func actorCapacityProjection(wp *atev1alpha1.WorkerPool) string {
+	if wp.Spec.SandboxClass != atev1alpha1.SandboxClassWasm || wp.Spec.ActorCapacity <= 1 {
+		return ""
+	}
+	return strconv.Itoa(int(wp.Spec.ActorCapacity))
+}
+
+// actorCapacityAnnotations returns the worker-pod annotation carrying the actor
+// capacity to the ateapi syncer (→ Worker.actor_capacity → scheduler), or nil
+// when not applicable. Shares the gate with the WASM_MAX_ACTORS env so both sides
+// agree on N.
+func actorCapacityAnnotations(wp *atev1alpha1.WorkerPool) map[string]string {
+	if c := actorCapacityProjection(wp); c != "" {
+		return map[string]string{resources.WorkerActorCapacityAnnotation: c}
+	}
+	return nil
 }
 
 // atunnelIdentitySources returns the projected volume sources for the
@@ -239,10 +274,18 @@ func atunnelEgressTrustSources(certSource WorkerCertSource) []*corev1ac.VolumePr
 
 // ateomContainerEnv adds the OTLP endpoint and resource identity only when
 // telemetry is configured. POD_* refs precede OTEL_RESOURCE_ATTRIBUTES so its
-// $(POD_*) substitutions resolve.
-func ateomContainerEnv(otel ateomOTelSettings) []*corev1ac.EnvVarApplyConfiguration {
+// $(POD_*) substitutions resolve. It also projects the pool's actor capacity as
+// WASM_MAX_ACTORS for the wasm class (F9 Stage B).
+func ateomContainerEnv(otel ateomOTelSettings, wp *atev1alpha1.WorkerPool) []*corev1ac.EnvVarApplyConfiguration {
 	envs := []*corev1ac.EnvVarApplyConfiguration{
 		fieldRefEnv("POD_UID", "metadata.uid"),
+	}
+	// F9 Stage B: tell the in-pod runtime (ateom-wasmd, sandbox S12) how many
+	// actors it may host, so it agrees with the N the scheduler places via the
+	// matching pod annotation. Only the wasm class supports multi-actor in-pod;
+	// capacity <= 1 is the upstream default and needs no env.
+	if multiActorCap := actorCapacityProjection(wp); multiActorCap != "" {
+		envs = append(envs, corev1ac.EnvVar().WithName("WASM_MAX_ACTORS").WithValue(multiActorCap))
 	}
 	if otel.Endpoint == "" {
 		return envs
