@@ -245,14 +245,13 @@ func (s *FinalizeSuspendedStep) Execute(ctx context.Context, input *SuspendInput
 			}
 			slog.WarnContext(ctx, "Worker already gone during finalize suspend, skipping release", "worker", workerPod)
 		} else {
-			// Only free it if it still belongs to us
-			if wass := worker.Assignment; wass != nil {
-				if resources.ActorRefFromObjectRef(wass.Actor) == input.ActorRef {
-					worker.Assignment = nil
-					err = s.store.UpdateWorker(ctx, worker, worker.Version)
-					if err != nil {
-						return err
-					}
+			// Only free OUR assignment if it still belongs to us; any co-hosted
+			// actors stay bound to the worker (F9 N:1).
+			if resources.WorkerHostsActor(worker, input.ActorRef) {
+				resources.RemoveWorkerAssignment(worker, input.ActorRef)
+				err = s.store.UpdateWorker(ctx, worker, worker.Version)
+				if err != nil {
+					return err
 				}
 			}
 		}

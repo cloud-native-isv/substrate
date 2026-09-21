@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"strconv"
 	"time"
 
 	"github.com/agent-substrate/substrate/cmd/ateapi/internal/store"
@@ -216,6 +217,10 @@ func (s *WorkerPoolSyncer) createOrUpdateWorker(ctx context.Context, key workerK
 			SandboxClass:    string(pool.Spec.SandboxClass),
 			Labels:          pool.GetLabels(),
 			State:           ateapipb.Worker_STATE_ACTIVE,
+			// F9: project the pod's declared actor capacity (S12 SetWorkerCapacity /
+			// WASM_MAX_ACTORS) so the scheduler may place up to N actors here.
+			// Absent/invalid → 0 → effective capacity 1 (upstream behavior).
+			ActorCapacity: actorCapacityFromPod(pod),
 		}
 		// TODO(thockin): for now this is the only place Workers are
 		// created.  If/when this becomes a regular API, validation should
@@ -334,6 +339,27 @@ func (s *WorkerPoolSyncer) enqueueStoredWorkers(ctx context.Context) {
 // was still running when the pod disappeared is moved to STATUS_CRASHED and its
 // pod pointers are cleared.
 //
+// ActorCapacityAnnotation is the worker-pod annotation carrying the number of
+// concurrent actors the pod's ateom runtime can host (sandbox S12
+// SetWorkerCapacity / WASM_MAX_ACTORS, projected onto the pod). F9 reads it into
+// Worker.actor_capacity; absent or invalid means 0, which the scheduler treats as
+// the upstream default of 1 (so N:1 multiplexing stays opt-in).
+const ActorCapacityAnnotation = "ate.dev/actor-capacity"
+
+// actorCapacityFromPod parses ActorCapacityAnnotation, returning 0 (→ effective
+// capacity 1) when absent, malformed, or negative.
+func actorCapacityFromPod(pod *corev1.Pod) int64 {
+	v := pod.GetAnnotations()[ActorCapacityAnnotation]
+	if v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return int64(n)
+}
+
 // UpdateActor uses optimistic version checking. A concurrent SuspendActor
 // or ResumeActor wins; we fail this attempt so it can be retried with the
 // updated state.
@@ -345,49 +371,57 @@ func (s *WorkerPoolSyncer) releaseActorOnDeadWorker(ctx context.Context, namespa
 		}
 		return err
 	}
-	if worker.Assignment == nil {
+	assignments := worker.GetAssignments()
+	if len(assignments) == 0 {
 		return nil
 	}
-	actor, err := s.persistence.GetActor(ctx, resources.ActorRefFromObjectRef(worker.Assignment.Actor))
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return nil
+	// F9: a dead worker pod may have hosted several actors; crash each one still
+	// bound to it. The worker row itself is deleted by the caller.
+	var errs []error
+	for _, wa := range assignments {
+		actor, err := s.persistence.GetActor(ctx, resources.ActorRefFromObjectRef(wa.GetActor()))
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				continue
+			}
+			errs = append(errs, err)
+			continue
 		}
-		return err
+		// Skip if a concurrent SuspendActor already cleared the pointer.
+		assignment := actor.GetWorkerAssignment()
+		if assignment.GetWorkerNamespace() != namespace || assignment.GetWorkerPod() != podName {
+			continue
+		}
+		// If the actor is suspended, it's already been released.
+		if actor.Status == ateapipb.Actor_STATUS_SUSPENDED {
+			continue
+		}
+		opName := ateattr.OperationUnknown
+		switch actor.GetStatus() {
+		case ateapipb.Actor_STATUS_RESUMING:
+			opName = ateattr.OperationResume
+		case ateapipb.Actor_STATUS_SUSPENDING:
+			opName = ateattr.OperationSuspend
+		case ateapipb.Actor_STATUS_PAUSING:
+			opName = ateattr.OperationPause
+		}
+
+		wasAlreadyCrashed := actor.GetStatus() == ateapipb.Actor_STATUS_CRASHED
+
+		// Snapshot crash attributes before pod and pool pointers are cleared on actor.
+		crashAttrs := ateattr.ActorMetricAttributes(actor, worker.GetSandboxClass(), opName, ateattr.ReasonWorkerPodGone)
+
+		actor.Status = ateapipb.Actor_STATUS_CRASHED
+		actor.WorkerAssignment = nil
+		actor.InProgressSnapshot = ""
+
+		if _, err := s.persistence.UpdateActor(ctx, actor, actor.GetMetadata().GetVersion()); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if !wasAlreadyCrashed {
+			recordActorCrash(ctx, crashAttrs)
+		}
 	}
-	// Skip if a concurrent SuspendActor already cleared the pointer.
-	assignment := actor.GetWorkerAssignment()
-	if assignment.GetWorkerNamespace() != namespace || assignment.GetWorkerPod() != podName {
-		return nil
-	}
-	// If the actor is suspended, it's already been released.
-	if actor.Status == ateapipb.Actor_STATUS_SUSPENDED {
-		return nil
-	}
-	opName := ateattr.OperationUnknown
-	switch actor.GetStatus() {
-	case ateapipb.Actor_STATUS_RESUMING:
-		opName = ateattr.OperationResume
-	case ateapipb.Actor_STATUS_SUSPENDING:
-		opName = ateattr.OperationSuspend
-	case ateapipb.Actor_STATUS_PAUSING:
-		opName = ateattr.OperationPause
-	}
-
-	wasAlreadyCrashed := actor.GetStatus() == ateapipb.Actor_STATUS_CRASHED
-
-	// Snapshot crash attributes before pod and pool pointers are cleared on actor.
-	crashAttrs := ateattr.ActorMetricAttributes(actor, worker.GetSandboxClass(), opName, ateattr.ReasonWorkerPodGone)
-
-	actor.Status = ateapipb.Actor_STATUS_CRASHED
-	actor.WorkerAssignment = nil
-	actor.InProgressSnapshot = ""
-
-	_, err = s.persistence.UpdateActor(ctx, actor, actor.GetMetadata().GetVersion())
-
-	if err == nil && !wasAlreadyCrashed {
-		recordActorCrash(ctx, crashAttrs)
-	}
-	return err
-
+	return errors.Join(errs...)
 }

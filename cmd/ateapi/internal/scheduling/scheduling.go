@@ -22,6 +22,7 @@ import (
 	"math/rand"
 	"slices"
 
+	"github.com/agent-substrate/substrate/internal/resources"
 	"github.com/agent-substrate/substrate/pkg/proto/ateapipb"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -94,7 +95,11 @@ func (s *scheduler) Schedule(ctx context.Context, constraints Constraints) (*ate
 
 	var candidates []*ateapipb.Worker
 	for _, worker := range workers {
-		if worker.GetAssignment() == nil && s.Applies(worker, constraints) {
+		// F9: a worker is a candidate while it can host one more actor
+		// (len(assignments) < effective capacity). With the default capacity of 1
+		// this is exactly the upstream "free worker" check; a worker whose
+		// capacity was raised can be picked again until full (N:1 multiplexing).
+		if resources.WorkerHasCapacity(worker) && s.Applies(worker, constraints) {
 			candidates = append(candidates, worker)
 		}
 	}

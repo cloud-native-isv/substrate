@@ -268,7 +268,7 @@ func TestSyncer_DeleteBoundWorker_ClearsActor(t *testing.T) {
 		t.Fatalf("create actor: %v", err)
 	}
 	w, _ := persistence.GetWorker(ctx, ns, pool, pod)
-	w.Assignment = &ateapipb.Assignment{
+	w.Assignments = []*ateapipb.Assignment{{
 		ActorTemplate: &ateapipb.KubeNamespacedObjectRef{
 			Namespace: ns,
 			Name:      "tmpl",
@@ -277,7 +277,7 @@ func TestSyncer_DeleteBoundWorker_ClearsActor(t *testing.T) {
 			Name:     actorName,
 			Atespace: "team-orphan",
 		},
-	}
+	}}
 	if err := persistence.UpdateWorker(ctx, w, w.Version); err != nil {
 		t.Fatalf("update worker: %v", err)
 	}
@@ -573,10 +573,10 @@ func TestReconcileDeadWorker(t *testing.T) {
 		WorkerNamespace: ns, WorkerPool: pool, WorkerPod: pod, Ip: "10.0.0.5",
 		WorkerPodUid: "11111111-1111-1111-1111-111111111111", NodeName: "node1",
 		State: ateapipb.Worker_STATE_DRAINING,
-		Assignment: &ateapipb.Assignment{
+		Assignments: []*ateapipb.Assignment{{
 			ActorTemplate: &ateapipb.KubeNamespacedObjectRef{Namespace: ns, Name: "tmpl"},
 			Actor:         &ateapipb.ObjectRef{Name: actorID, Atespace: atespace},
-		},
+		}},
 	}); err != nil {
 		t.Fatalf("create worker: %v", err)
 	}
@@ -653,10 +653,10 @@ func TestSyncer_ReconcileOrphanedWorkers(t *testing.T) {
 		WorkerNamespace: ns, WorkerPool: pool, WorkerPod: "worker-orphan", Ip: "10.0.0.10",
 		WorkerPodUid: "22222222-2222-2222-2222-222222222222", NodeName: "node1",
 		State: ateapipb.Worker_STATE_DRAINING,
-		Assignment: &ateapipb.Assignment{
+		Assignments: []*ateapipb.Assignment{{
 			ActorTemplate: &ateapipb.KubeNamespacedObjectRef{Namespace: ns, Name: "tmpl"},
 			Actor:         &ateapipb.ObjectRef{Name: actorID, Atespace: atespace},
-		},
+		}},
 	}); err != nil {
 		t.Fatalf("create orphan worker: %v", err)
 	}
@@ -735,10 +735,10 @@ func TestReleaseActorOnDeadWorker_StatusTransitions(t *testing.T) {
 				WorkerPodUid: "08675309-4a65-6e6e-7973-6e756d626572", NodeName: "node1",
 				SandboxClass: "gvisor",
 				State:        ateapipb.Worker_STATE_ACTIVE,
-				Assignment: &ateapipb.Assignment{
+				Assignments: []*ateapipb.Assignment{{
 					ActorTemplate: &ateapipb.KubeNamespacedObjectRef{Namespace: ns, Name: "tmpl"},
 					Actor:         &ateapipb.ObjectRef{Name: actorID, Atespace: atespace},
-				},
+				}},
 			}); err != nil {
 				t.Fatalf("create worker: %v", err)
 			}

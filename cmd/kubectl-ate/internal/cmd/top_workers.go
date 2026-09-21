@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/agent-substrate/substrate/cmd/kubectl-ate/internal/printer"
 	"github.com/agent-substrate/substrate/internal/ateclient"
@@ -113,21 +114,29 @@ func (r *TopWorkersRunner) Run(ctx context.Context) error {
 
 		status := "FREE"
 		assignedActor := "<none>"
-		if wass := w.GetAssignment(); wass != nil && wass.GetActor() != nil {
-			status = "ASSIGNED"
+		// F9: a worker may host several actors; list them all.
+		var parts []string
+		for _, wass := range w.GetAssignments() {
+			if wass.GetActor() == nil {
+				continue
+			}
 			if tpl := wass.GetActorTemplate(); tpl != nil && tpl.GetNamespace() != "" {
-				assignedActor = fmt.Sprintf("%s/%s/%s/%s",
+				parts = append(parts, fmt.Sprintf("%s/%s/%s/%s",
 					tpl.GetNamespace(),
 					tpl.GetName(),
 					wass.GetActor().GetAtespace(),
 					wass.GetActor().GetName(),
-				)
+				))
 			} else {
-				assignedActor = fmt.Sprintf("%s/%s",
+				parts = append(parts, fmt.Sprintf("%s/%s",
 					wass.GetActor().GetAtespace(),
 					wass.GetActor().GetName(),
-				)
+				))
 			}
+		}
+		if len(parts) > 0 {
+			status = "ASSIGNED"
+			assignedActor = strings.Join(parts, ",")
 		}
 
 		cpuStr := "metrics unavailable"

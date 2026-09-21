@@ -73,9 +73,9 @@ func TestAssignWorkerStep_SkipsWorkerAssignedInOtherAtespace(t *testing.T) {
 		WorkerPod:       "pod-1",
 		SandboxClass:    "gvisor",
 		State:           ateapipb.Worker_STATE_ACTIVE,
-		Assignment: &ateapipb.Assignment{
+		Assignments: []*ateapipb.Assignment{{
 			Actor: &ateapipb.ObjectRef{Atespace: "team-b", Name: "shared"},
-		},
+		}},
 	}
 	if err := persistence.CreateWorker(ctx, worker); err != nil {
 		t.Fatalf("CreateWorker: %v", err)
@@ -106,8 +106,8 @@ func TestAssignWorkerStep_SkipsWorkerAssignedInOtherAtespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWorker: %v", err)
 	}
-	if got := stored.GetAssignment().GetActor().GetAtespace(); got != "team-b" {
-		t.Errorf("worker assignment atespace = %q, want %q (assignment: %v)", got, "team-b", stored.GetAssignment())
+	if got := soleAssignment(stored).GetActor().GetAtespace(); got != "team-b" {
+		t.Errorf("worker assignment atespace = %q, want %q (assignment: %v)", got, "team-b", soleAssignment(stored))
 	}
 }
 
@@ -127,9 +127,9 @@ func TestAssignWorkerStep_ReleasesIneligibleStaleWorkerInBackground(t *testing.T
 		WorkerPod:       "stale-pod",
 		SandboxClass:    "microvm",
 		State:           ateapipb.Worker_STATE_ACTIVE,
-		Assignment: &ateapipb.Assignment{
+		Assignments: []*ateapipb.Assignment{{
 			Actor: &ateapipb.ObjectRef{Atespace: "team-a", Name: "id1"},
-		},
+		}},
 	}
 	free := &ateapipb.Worker{
 		WorkerNamespace: "worker-ns",
@@ -182,11 +182,11 @@ func TestAssignWorkerStep_ReleasesIneligibleStaleWorkerInBackground(t *testing.T
 		if err != nil {
 			t.Fatalf("GetWorker: %v", err)
 		}
-		if stored.GetAssignment() == nil {
+		if soleAssignment(stored) == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("stale worker still assigned after %v: %v", 5*time.Second, stored.GetAssignment())
+			t.Fatalf("stale worker still assigned after %v: %v", 5*time.Second, soleAssignment(stored))
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -230,9 +230,9 @@ func TestAssignWorkerStep_RetryAfterConflictPicksFreshWorker(t *testing.T) {
 	// A concurrent resume of another actor wins the contested worker, bumping
 	// its stored version past the failed attempt's snapshot.
 	claimed := proto.Clone(beforeClaim).(*ateapipb.Worker)
-	claimed.Assignment = &ateapipb.Assignment{
+	claimed.Assignments = []*ateapipb.Assignment{{
 		Actor: &ateapipb.ObjectRef{Atespace: "team-a", Name: "other"},
-	}
+	}}
 	if err := persistence.UpdateWorker(ctx, claimed, claimed.GetVersion()); err != nil {
 		t.Fatalf("UpdateWorker (concurrent claim): %v", err)
 	}
@@ -255,9 +255,9 @@ func TestAssignWorkerStep_RetryAfterConflictPicksFreshWorker(t *testing.T) {
 	// state.Worker is exactly what the conflicted attempt left behind: the
 	// contested worker mutated with our assignment, at the pre-claim version.
 	stale := proto.Clone(beforeClaim).(*ateapipb.Worker)
-	stale.Assignment = &ateapipb.Assignment{
+	stale.Assignments = []*ateapipb.Assignment{{
 		Actor: &ateapipb.ObjectRef{Atespace: "team-a", Name: "id1"},
-	}
+	}}
 	step := &AssignWorkerStep{store: persistence, workerCache: wc, scheduler: scheduling.New(wc)}
 	state := &ResumeState{
 		Actor:  actor,
@@ -277,15 +277,15 @@ func TestAssignWorkerStep_RetryAfterConflictPicksFreshWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWorker(contested-pod): %v", err)
 	}
-	if got := storedContested.GetAssignment().GetActor().GetName(); got != "other" {
-		t.Errorf("contested worker assignment = %v, want to remain with actor %q", storedContested.GetAssignment(), "other")
+	if got := soleAssignment(storedContested).GetActor().GetName(); got != "other" {
+		t.Errorf("contested worker assignment = %v, want to remain with actor %q", soleAssignment(storedContested), "other")
 	}
 	storedFallback, err := persistence.GetWorker(ctx, "worker-ns", "pool", "fallback-pod")
 	if err != nil {
 		t.Fatalf("GetWorker(fallback-pod): %v", err)
 	}
-	if got := storedFallback.GetAssignment().GetActor().GetName(); got != "id1" {
-		t.Errorf("fallback worker assignment = %v, want actor %q", storedFallback.GetAssignment(), "id1")
+	if got := soleAssignment(storedFallback).GetActor().GetName(); got != "id1" {
+		t.Errorf("fallback worker assignment = %v, want actor %q", soleAssignment(storedFallback), "id1")
 	}
 
 	storedActor, err := persistence.GetActor(ctx, resources.ActorRef{Atespace: "team-a", Name: "id1"})
@@ -570,7 +570,7 @@ func TestResumeSteps_CheckPrerequisite(t *testing.T) {
 					Worker: &ateapipb.Worker{
 						SandboxClass: string(atev1alpha1.SandboxClassGvisor),
 						State:        ateapipb.Worker_STATE_ACTIVE,
-						Assignment:   &ateapipb.Assignment{Actor: &ateapipb.ObjectRef{Name: "id1"}},
+						Assignments:  []*ateapipb.Assignment{{Actor: &ateapipb.ObjectRef{Name: "id1"}}},
 					},
 					ActorTemplate: &atev1alpha1.ActorTemplate{Spec: atev1alpha1.ActorTemplateSpec{SandboxClass: atev1alpha1.SandboxClassGvisor}},
 				}
@@ -656,6 +656,16 @@ func TestResumeActor_CrashesOnMissingWorkerAssignment(t *testing.T) {
 	}
 }
 
+// soleAssignment returns w's only assignment, or nil if it hosts none. F9 made
+// Worker.assignments repeated; these controlapi tests exercise single-actor
+// workers, so this preserves the former GetAssignment() read semantics.
+func soleAssignment(w *ateapipb.Worker) *ateapipb.Assignment {
+	if as := w.GetAssignments(); len(as) > 0 {
+		return as[0]
+	}
+	return nil
+}
+
 // TestCallAteletRestoreStep_CheckPrerequisite_WorkerOwnership verifies that
 // the restore prerequisite only proceeds on a worker whose assignment still
 // names this actor: the recovery path loads the worker by pod name only, so
@@ -723,13 +733,17 @@ func TestCallAteletRestoreStep_CheckPrerequisite_WorkerOwnership(t *testing.T) {
 			ctx := context.Background()
 			persistence := newTestPersistence(t)
 
+			var seedAssignments []*ateapipb.Assignment
+			if tt.assignment != nil {
+				seedAssignments = []*ateapipb.Assignment{tt.assignment}
+			}
 			if err := persistence.CreateWorker(ctx, &ateapipb.Worker{
 				WorkerNamespace: "worker-ns",
 				WorkerPool:      "pool",
 				WorkerPod:       "pod-1",
 				SandboxClass:    tt.sandboxClass,
 				State:           ateapipb.Worker_STATE_ACTIVE,
-				Assignment:      tt.assignment,
+				Assignments:     seedAssignments,
 			}); err != nil {
 				t.Fatalf("CreateWorker: %v", err)
 			}
@@ -768,8 +782,14 @@ func TestCallAteletRestoreStep_CheckPrerequisite_WorkerOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetWorker: %v", err)
 			}
-			if !proto.Equal(stored.GetAssignment(), tt.wantAssignment) {
-				t.Errorf("stored worker assignment = %v, want %v", stored.GetAssignment(), tt.wantAssignment)
+			// F9: each case seeds at most one assignment, so compare the sole
+			// entry (nil when the worker should end up with none).
+			var gotAssignment *ateapipb.Assignment
+			if as := stored.GetAssignments(); len(as) > 0 {
+				gotAssignment = as[0]
+			}
+			if !proto.Equal(gotAssignment, tt.wantAssignment) {
+				t.Errorf("stored worker assignment = %v, want %v", gotAssignment, tt.wantAssignment)
 			}
 			if !tt.wantWorkerWrite && stored.GetVersion() != seeded.GetVersion() {
 				t.Errorf("worker version moved %d -> %d, want no write", seeded.GetVersion(), stored.GetVersion())

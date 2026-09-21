@@ -1739,7 +1739,7 @@ func TestResumeActor(t *testing.T) {
 		WorkerNamespace: ns,
 		WorkerPool:      "pool1",
 		WorkerPod:       "worker-1",
-		Assignment: &ateapipb.Assignment{
+		Assignments: []*ateapipb.Assignment{{
 			ActorTemplate: &ateapipb.KubeNamespacedObjectRef{
 				Namespace: ns,
 				Name:      "tmpl1",
@@ -1748,7 +1748,7 @@ func TestResumeActor(t *testing.T) {
 				Name:     name,
 				Atespace: testAtespace,
 			},
-		},
+		}},
 		Ip:           "127.0.0.1",
 		NodeName:     "node1",
 		SandboxClass: "gvisor",
@@ -2728,18 +2728,18 @@ func TestResumeActor_ReleasesStaleWorkerWhenPoolBecomesIneligible(t *testing.T) 
 		}
 		switch w.GetWorkerPool() {
 		case "pool-a":
-			if wass := w.Assignment; wass != nil {
+			if as := w.GetAssignments(); len(as) > 0 {
 				got := "<nil-actor>"
-				if wass.Actor != nil {
-					got = wass.Actor.Name
+				if as[0].GetActor() != nil {
+					got = as[0].GetActor().GetName()
 				}
 				t.Errorf("expected worker-a (now-ineligible pool-a) to be released, got actor name=%q", got)
 			}
 		case "pool-b":
-			if wass := w.Assignment; wass != nil {
+			if as := w.GetAssignments(); len(as) > 0 {
 				got := "<nil-actor>"
-				if wass.Actor != nil {
-					got = wass.Actor.Name
+				if as[0].GetActor() != nil {
+					got = as[0].GetActor().GetName()
 				}
 				t.Errorf("expected worker-b to stay free (actor crashed, not migrated), got actor name=%q", got)
 			}
@@ -2851,8 +2851,8 @@ func TestResumeActor_CrashesIfAssignedWorkerIsDraining(t *testing.T) {
 			continue
 		}
 		if w.GetWorkerPod() == assignedPod {
-			if w.GetAssignment() != nil {
-				t.Errorf("expected draining worker %q to be released, still assigned to %q", assignedPod, w.GetAssignment().GetActor().GetName())
+			if soleAssignment(w) != nil {
+				t.Errorf("expected draining worker %q to be released, still assigned to %q", assignedPod, soleAssignment(w).GetActor().GetName())
 			}
 		}
 	}

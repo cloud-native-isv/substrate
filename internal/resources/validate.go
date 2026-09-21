@@ -233,8 +233,13 @@ func ValidateWorker(worker *ateapipb.Worker, fldPath *field.Path) field.ErrorLis
 		}
 	}
 
-	if val := worker.Assignment; val != nil {
-		errs = append(errs, ValidateAssignment(val, fldPath.Child("assignment"))...)
+	// F9: a worker may host N actors; validate each assignment.
+	for i, val := range worker.GetAssignments() {
+		errs = append(errs, ValidateAssignment(val, fldPath.Child("assignments").Index(i))...)
+	}
+	// actor_capacity < 0 is invalid; 0/unset means the upstream default of 1.
+	if val, fp := worker.GetActorCapacity(), fldPath.Child("actor_capacity"); val < 0 {
+		errs = append(errs, field.Invalid(fp, val, "must be non-negative"))
 	}
 
 	if val, fldPath := worker.Ip, fldPath.Child("ip"); val == "" {

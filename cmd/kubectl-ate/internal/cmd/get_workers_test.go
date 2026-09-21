@@ -29,10 +29,10 @@ func TestGetWorkersRunner_Filters(t *testing.T) {
 			WorkerNamespace: "ns-1",
 			WorkerPool:      "counter",
 			WorkerPod:       "pod-1",
-			Assignment: &ateapipb.Assignment{
+			Assignments: []*ateapipb.Assignment{{
 				ActorTemplate: &ateapipb.KubeNamespacedObjectRef{Namespace: "ns-1", Name: "counter"},
 				Actor:         &ateapipb.ObjectRef{Atespace: "space-a", Name: "actor-a"},
-			},
+			}},
 			Labels: map[string]string{"ate.dev/worker-pool": "counter"},
 		},
 		{
@@ -45,10 +45,10 @@ func TestGetWorkersRunner_Filters(t *testing.T) {
 			WorkerNamespace: "ns-2",
 			WorkerPool:      "counter",
 			WorkerPod:       "pod-3",
-			Assignment: &ateapipb.Assignment{
+			Assignments: []*ateapipb.Assignment{{
 				ActorTemplate: &ateapipb.KubeNamespacedObjectRef{Namespace: "ns-2", Name: "counter"},
 				Actor:         &ateapipb.ObjectRef{Atespace: "space-b", Name: "actor-b"},
-			},
+			}},
 			Labels: map[string]string{"ate.dev/worker-pool": "counter"},
 		},
 	}

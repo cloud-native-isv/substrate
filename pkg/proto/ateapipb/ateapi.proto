@@ -454,7 +454,14 @@ message Worker {
   string worker_pool = 2;
   string worker_pod = 3;
 
-  Assignment assignment = 4;
+  // assignments are the actors currently hosted on this worker. Upstream modeled
+  // this as a singular `assignment` (1 worker pod = 1 active actor); xuanji F9
+  // makes it repeated so a worker may host N concurrent actors (spatial
+  // multiplexing, docs/concepts/trust-domain-panorama.md §2.1). Field number 4 is
+  // unchanged and a singular message field and a repeated message field of the
+  // same type are wire-identical, so state persisted before this change still
+  // decodes (as a one-element list).
+  repeated Assignment assignments = 4;
 
   string ip = 5;
   int64 version = 6;
@@ -468,6 +475,14 @@ message Worker {
     STATE_DRAINING = 2;
   }
   State state = 11;
+
+  // actor_capacity is the maximum number of concurrent actors this worker may
+  // host (F9). Zero or unset means 1, which reproduces the upstream
+  // "1 worker pod = 1 active actor" behavior exactly — N:1 multiplexing is
+  // opt-in. The scheduler treats resources.WorkerEffectiveCapacity(worker) as the
+  // binding limit; the syncer populates this from the worker pod's projected
+  // capacity (S12 SetWorkerCapacity / WASM_MAX_ACTORS).
+  int64 actor_capacity = 12;
 }
 
 message Assignment {

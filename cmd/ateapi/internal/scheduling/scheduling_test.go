@@ -259,11 +259,85 @@ func withState(state ateapipb.Worker_State) func(*ateapipb.Worker) {
 
 func assigned(atespace, name string) func(*ateapipb.Worker) {
 	return func(w *ateapipb.Worker) {
-		w.Assignment = &ateapipb.Assignment{
+		w.Assignments = []*ateapipb.Assignment{{
 			Actor: &ateapipb.ObjectRef{Atespace: atespace, Name: name},
-		}
+		}}
 	}
 }
 
 // firstIntn always picks the first candidate, making Schedule deterministic.
 func firstIntn(int) int { return 0 }
+
+// withCapacity raises a worker's actor capacity above the default of 1 (F9).
+func withCapacity(n int64) func(*ateapipb.Worker) {
+	return func(w *ateapipb.Worker) { w.ActorCapacity = n }
+}
+
+// alsoAssigned appends an additional actor to a worker. Used after assigned() to
+// build a worker hosting several actors (N:1 spatial multiplexing).
+func alsoAssigned(atespace, name string) func(*ateapipb.Worker) {
+	return func(w *ateapipb.Worker) {
+		w.Assignments = append(w.Assignments, &ateapipb.Assignment{
+			Actor: &ateapipb.ObjectRef{Atespace: atespace, Name: name},
+		})
+	}
+}
+
+// TestScheduleWorkerCapacity covers F9: a worker stays schedulable until it hosts
+// actor_capacity actors. The default capacity of 1 reproduces upstream 1:1 (a
+// worker holding one actor is full); a raised capacity admits N (N:1).
+func TestScheduleWorkerCapacity(t *testing.T) {
+	tests := []struct {
+		name    string
+		fleet   fleet
+		wantPod string // "" means ErrNoCapacity expected
+	}{
+		{
+			name: "default-capacity worker holding one actor is full",
+			fleet: fleet{
+				worker("w-1", "gvisor", "node-a", nil, assigned("demo", "act-1")),
+			},
+			wantPod: "",
+		},
+		{
+			name: "capacity-3 worker holding one actor is still schedulable",
+			fleet: fleet{
+				worker("w-1", "gvisor", "node-a", nil, withCapacity(3), assigned("demo", "act-1")),
+			},
+			wantPod: "w-1",
+		},
+		{
+			name: "capacity-2 worker holding two actors is full",
+			fleet: fleet{
+				worker("w-1", "gvisor", "node-a", nil, withCapacity(2), assigned("demo", "act-1"), alsoAssigned("demo", "act-2")),
+			},
+			wantPod: "",
+		},
+		{
+			name: "full default worker is skipped; capacitated worker with room is picked",
+			fleet: fleet{
+				worker("w-full", "gvisor", "node-a", nil, assigned("demo", "act-1")),
+				worker("w-shared", "gvisor", "node-a", nil, withCapacity(4), assigned("demo", "act-2")),
+			},
+			wantPod: "w-shared",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := New(tt.fleet, WithIntn(firstIntn))
+			got, err := s.Schedule(context.Background(), Constraints{SandboxClass: "gvisor"})
+			if tt.wantPod == "" {
+				if !errors.Is(err, ErrNoCapacity) {
+					t.Fatalf("Schedule = %v, %v; want ErrNoCapacity", got, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Schedule error = %v, want pod %q", err, tt.wantPod)
+			}
+			if got.GetWorkerPod() != tt.wantPod {
+				t.Errorf("Schedule picked %q, want %q", got.GetWorkerPod(), tt.wantPod)
+			}
+		})
+	}
+}

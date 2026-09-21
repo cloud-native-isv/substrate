@@ -62,9 +62,9 @@ func seedWorker(t *testing.T, ctx context.Context, st store.Interface, actorRef 
 		WorkerPod:       "pod",
 	}
 	if actorRef != (resources.ActorRef{}) {
-		worker.Assignment = &ateapipb.Assignment{
+		worker.Assignments = []*ateapipb.Assignment{{
 			Actor: actorRef.ToObjectRef(),
-		}
+		}}
 	}
 	if err := st.CreateWorker(ctx, worker); err != nil {
 		t.Fatalf("seed worker: %v", err)
@@ -140,8 +140,8 @@ func TestCrashActor(t *testing.T) {
 				if gerr != nil {
 					t.Fatalf("GetWorker() = %v, want nil", gerr)
 				}
-				if worker.GetAssignment() != nil {
-					t.Errorf("worker assignment = %v, want nil", worker.GetAssignment())
+				if soleAssignment(worker) != nil {
+					t.Errorf("worker assignment = %v, want nil", soleAssignment(worker))
 				}
 			},
 		},
@@ -160,7 +160,7 @@ func TestCrashActor(t *testing.T) {
 				if gerr != nil {
 					t.Fatalf("GetWorker() = %v, want nil", gerr)
 				}
-				if got := worker.GetAssignment().GetActor().GetName(); got != "actor-2" {
+				if got := soleAssignment(worker).GetActor().GetName(); got != "actor-2" {
 					t.Errorf("worker assigned actor = %q, want %q", got, "actor-2")
 				}
 			},
@@ -184,7 +184,7 @@ func TestCrashActor(t *testing.T) {
 				if gerr != nil {
 					t.Fatalf("GetWorker() = %v, want nil", gerr)
 				}
-				if worker.GetAssignment() == nil {
+				if soleAssignment(worker) == nil {
 					t.Error("worker assignment = nil, want untouched")
 				}
 			},
@@ -368,9 +368,9 @@ func TestCrashActor_Metrics(t *testing.T) {
 		WorkerPool:      "pool-1",
 		WorkerPod:       "pod-1",
 		SandboxClass:    "gvisor",
-		Assignment: &ateapipb.Assignment{
+		Assignments: []*ateapipb.Assignment{{
 			Actor: &ateapipb.ObjectRef{Atespace: actorRef.Atespace, Name: actorRef.Name},
-		},
+		}},
 	}
 	if err := st.CreateWorker(ctx, worker); err != nil {
 		t.Fatalf("CreateWorker: %v", err)

@@ -333,7 +333,7 @@ func TestUpdateWorker_Success(t *testing.T) {
 		t.Fatalf("WatchWorkers failed: %v", err)
 	}
 
-	worker.Assignment = &ateapipb.Assignment{
+	worker.Assignments = []*ateapipb.Assignment{{
 		ActorTemplate: &ateapipb.KubeNamespacedObjectRef{
 			Namespace: "default",
 			Name:      "test-template",
@@ -341,7 +341,7 @@ func TestUpdateWorker_Success(t *testing.T) {
 		Actor: &ateapipb.ObjectRef{
 			Name: "actor-1",
 		},
-	}
+	}}
 
 	if err := s.UpdateWorker(ctx, worker, 1); err != nil {
 		t.Fatalf("UpdateWorker failed: %v", err)
@@ -691,14 +691,14 @@ func TestUpdateWorker_Conflict(t *testing.T) {
 	}
 
 	// Update instance 1
-	worker1.Assignment = &ateapipb.Assignment{Actor: &ateapipb.ObjectRef{Name: "actor-1"}}
+	worker1.Assignments = []*ateapipb.Assignment{{Actor: &ateapipb.ObjectRef{Name: "actor-1"}}}
 	err = s.UpdateWorker(ctx, worker1, worker1.Version)
 	if err != nil {
 		t.Fatalf("UpdateWorker failed: %v", err)
 	}
 
 	// Try to update instance 2
-	worker2.Assignment = &ateapipb.Assignment{Actor: &ateapipb.ObjectRef{Name: "actor-2"}}
+	worker2.Assignments = []*ateapipb.Assignment{{Actor: &ateapipb.ObjectRef{Name: "actor-2"}}}
 	err = s.UpdateWorker(ctx, worker2, worker2.Version)
 	if !errors.Is(err, store.ErrVersionConflict) {
 		t.Errorf("expected ErrVersionConflict, got %v", err)

@@ -2431,16 +2431,30 @@ type Worker struct {
 	WorkerNamespace string                 `protobuf:"bytes,1,opt,name=worker_namespace,json=workerNamespace,proto3" json:"worker_namespace,omitempty"`
 	WorkerPool      string                 `protobuf:"bytes,2,opt,name=worker_pool,json=workerPool,proto3" json:"worker_pool,omitempty"`
 	WorkerPod       string                 `protobuf:"bytes,3,opt,name=worker_pod,json=workerPod,proto3" json:"worker_pod,omitempty"`
-	Assignment      *Assignment            `protobuf:"bytes,4,opt,name=assignment,proto3" json:"assignment,omitempty"`
-	Ip              string                 `protobuf:"bytes,5,opt,name=ip,proto3" json:"ip,omitempty"`
-	Version         int64                  `protobuf:"varint,6,opt,name=version,proto3" json:"version,omitempty"`
-	WorkerPodUid    string                 `protobuf:"bytes,7,opt,name=worker_pod_uid,json=workerPodUid,proto3" json:"worker_pod_uid,omitempty"`
-	NodeName        string                 `protobuf:"bytes,8,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
-	SandboxClass    string                 `protobuf:"bytes,9,opt,name=sandbox_class,json=sandboxClass,proto3" json:"sandbox_class,omitempty"`
-	Labels          map[string]string      `protobuf:"bytes,10,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	State           Worker_State           `protobuf:"varint,11,opt,name=state,proto3,enum=ateapi.Worker_State" json:"state,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// assignments are the actors currently hosted on this worker. Upstream modeled
+	// this as a singular `assignment` (1 worker pod = 1 active actor); xuanji F9
+	// makes it repeated so a worker may host N concurrent actors (spatial
+	// multiplexing, docs/concepts/trust-domain-panorama.md §2.1). Field number 4 is
+	// unchanged and a singular message field and a repeated message field of the
+	// same type are wire-identical, so state persisted before this change still
+	// decodes (as a one-element list).
+	Assignments  []*Assignment     `protobuf:"bytes,4,rep,name=assignments,proto3" json:"assignments,omitempty"`
+	Ip           string            `protobuf:"bytes,5,opt,name=ip,proto3" json:"ip,omitempty"`
+	Version      int64             `protobuf:"varint,6,opt,name=version,proto3" json:"version,omitempty"`
+	WorkerPodUid string            `protobuf:"bytes,7,opt,name=worker_pod_uid,json=workerPodUid,proto3" json:"worker_pod_uid,omitempty"`
+	NodeName     string            `protobuf:"bytes,8,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	SandboxClass string            `protobuf:"bytes,9,opt,name=sandbox_class,json=sandboxClass,proto3" json:"sandbox_class,omitempty"`
+	Labels       map[string]string `protobuf:"bytes,10,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	State        Worker_State      `protobuf:"varint,11,opt,name=state,proto3,enum=ateapi.Worker_State" json:"state,omitempty"`
+	// actor_capacity is the maximum number of concurrent actors this worker may
+	// host (F9). Zero or unset means 1, which reproduces the upstream
+	// "1 worker pod = 1 active actor" behavior exactly — N:1 multiplexing is
+	// opt-in. The scheduler treats resources.WorkerEffectiveCapacity(worker) as the
+	// binding limit; the syncer populates this from the worker pod's projected
+	// capacity (S12 SetWorkerCapacity / WASM_MAX_ACTORS).
+	ActorCapacity int64 `protobuf:"varint,12,opt,name=actor_capacity,json=actorCapacity,proto3" json:"actor_capacity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Worker) Reset() {
@@ -2494,9 +2508,9 @@ func (x *Worker) GetWorkerPod() string {
 	return ""
 }
 
-func (x *Worker) GetAssignment() *Assignment {
+func (x *Worker) GetAssignments() []*Assignment {
 	if x != nil {
-		return x.Assignment
+		return x.Assignments
 	}
 	return nil
 }
@@ -2548,6 +2562,13 @@ func (x *Worker) GetState() Worker_State {
 		return x.State
 	}
 	return Worker_STATE_UNSPECIFIED
+}
+
+func (x *Worker) GetActorCapacity() int64 {
+	if x != nil {
+		return x.ActorCapacity
+	}
+	return 0
 }
 
 type Assignment struct {
@@ -3135,16 +3156,14 @@ const file_ateapi_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"c\n" +
 	"\x12ListActorsResponse\x12%\n" +
 	"\x06actors\x18\x01 \x03(\v2\r.ateapi.ActorR\x06actors\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x9a\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xc3\x04\n" +
 	"\x06Worker\x12)\n" +
 	"\x10worker_namespace\x18\x01 \x01(\tR\x0fworkerNamespace\x12\x1f\n" +
 	"\vworker_pool\x18\x02 \x01(\tR\n" +
 	"workerPool\x12\x1d\n" +
 	"\n" +
-	"worker_pod\x18\x03 \x01(\tR\tworkerPod\x122\n" +
-	"\n" +
-	"assignment\x18\x04 \x01(\v2\x12.ateapi.AssignmentR\n" +
-	"assignment\x12\x0e\n" +
+	"worker_pod\x18\x03 \x01(\tR\tworkerPod\x124\n" +
+	"\vassignments\x18\x04 \x03(\v2\x12.ateapi.AssignmentR\vassignments\x12\x0e\n" +
 	"\x02ip\x18\x05 \x01(\tR\x02ip\x12\x18\n" +
 	"\aversion\x18\x06 \x01(\x03R\aversion\x12$\n" +
 	"\x0eworker_pod_uid\x18\a \x01(\tR\fworkerPodUid\x12\x1b\n" +
@@ -3152,7 +3171,8 @@ const file_ateapi_proto_rawDesc = "" +
 	"\rsandbox_class\x18\t \x01(\tR\fsandboxClass\x122\n" +
 	"\x06labels\x18\n" +
 	" \x03(\v2\x1a.ateapi.Worker.LabelsEntryR\x06labels\x12*\n" +
-	"\x05state\x18\v \x01(\x0e2\x14.ateapi.Worker.StateR\x05state\x1a9\n" +
+	"\x05state\x18\v \x01(\x0e2\x14.ateapi.Worker.StateR\x05state\x12%\n" +
+	"\x0eactor_capacity\x18\f \x01(\x03R\ractorCapacity\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"D\n" +
@@ -3337,7 +3357,7 @@ var file_ateapi_proto_depIdxs = []int32{
 	14, // 42: ateapi.DeleteActorSnapshotTagRequest.tag:type_name -> ateapi.ObjectRef
 	41, // 43: ateapi.ListWorkersResponse.workers:type_name -> ateapi.Worker
 	9,  // 44: ateapi.ListActorsResponse.actors:type_name -> ateapi.Actor
-	42, // 45: ateapi.Worker.assignment:type_name -> ateapi.Assignment
+	42, // 45: ateapi.Worker.assignments:type_name -> ateapi.Assignment
 	51, // 46: ateapi.Worker.labels:type_name -> ateapi.Worker.LabelsEntry
 	4,  // 47: ateapi.Worker.state:type_name -> ateapi.Worker.State
 	43, // 48: ateapi.Assignment.actor_template:type_name -> ateapi.KubeNamespacedObjectRef

@@ -235,15 +235,13 @@ func (s *FinalizePausedStep) Execute(ctx context.Context, input *PauseInput, sta
 		} else {
 			// TODO(dberkov) - what if worker does not belong to this actor?
 			nodeName = worker.GetNodeName()
-			// Only free it if it still belongs to us
+			// Only free our own assignment; co-hosted actors stay bound (F9).
 
-			if wass := worker.Assignment; wass != nil {
-				if resources.ActorRefFromObjectRef(wass.Actor) == input.ActorRef {
-					worker.Assignment = nil
-					err = s.store.UpdateWorker(ctx, worker, worker.Version)
-					if err != nil {
-						return err
-					}
+			if resources.WorkerHostsActor(worker, input.ActorRef) {
+				resources.RemoveWorkerAssignment(worker, input.ActorRef)
+				err = s.store.UpdateWorker(ctx, worker, worker.Version)
+				if err != nil {
+					return err
 				}
 			}
 		}

@@ -117,18 +117,15 @@ func releaseWorker(ctx context.Context, st store.Interface, actor *ateapipb.Acto
 	}
 
 	sandboxClass := worker.GetSandboxClass()
-	wass := worker.GetAssignment()
-	if wass == nil {
-		slog.WarnContext(ctx, "Worker's assignment is already nil, skipping release", slog.String("worker", podUid))
-		return sandboxClass, nil
-	}
-	// Only free it if it still belongs to us
-	if resources.ActorRefFromObjectRef(wass.GetActor()) != resources.ActorRefFromActor(actor) {
-		slog.WarnContext(ctx, "Worker already assigned to another Actor", slog.String("worker", podUid))
+	ref := resources.ActorRefFromActor(actor)
+	// F9: the worker may host several actors; release only if it still hosts this
+	// one, and remove only this actor's assignment (co-hosted siblings stay bound).
+	if !resources.WorkerHostsActor(worker, ref) {
+		slog.WarnContext(ctx, "Worker does not host this actor, skipping release", slog.String("worker", podUid))
 		return sandboxClass, nil
 	}
 
-	worker.Assignment = nil
+	resources.RemoveWorkerAssignment(worker, ref)
 	if err := st.UpdateWorker(ctx, worker, worker.GetVersion()); err != nil {
 		return sandboxClass, fmt.Errorf("while releasing worker: %w", err)
 	}

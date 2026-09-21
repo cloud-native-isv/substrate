@@ -224,8 +224,11 @@ func actorStatusString(s ateapipb.Actor_Status) string {
 // The UI's badgeFor() treats "running" as green; "idle" falls through
 // to the neutral badge, which is the right visual treatment.
 func workerPhase(w *ateapipb.Worker) string {
-	if w.Assignment != nil && w.Assignment.Actor != nil && w.Assignment.Actor.Name != "" {
-		return "Running"
+	// F9: a worker may host several actors; it is "Running" if it hosts any.
+	for _, a := range w.GetAssignments() {
+		if a.GetActor().GetName() != "" {
+			return "Running"
+		}
 	}
 	return "Idle"
 }
@@ -378,15 +381,27 @@ func handlePods(w http.ResponseWriter, r *http.Request) {
 	for _, wk := range resp.GetWorkers() {
 		// Filter to the demo namespace when set — workers may live
 		// in their own pool namespace (worker_namespace) so we
-		// compare against actor_namespace too.
-		if wk.Assignment != nil && wk.Assignment.ActorTemplate != nil {
-			if ns, wkns := namespace, wk.Assignment.ActorTemplate.Namespace; ns != "" && wkns != "" && wkns != ns {
+		// compare against actor_namespace too. F9: a worker may host
+		// several actors; keep it if any assignment matches (idle
+		// workers are always kept).
+		if namespace != "" && len(wk.GetAssignments()) > 0 {
+			match := false
+			for _, a := range wk.GetAssignments() {
+				if wkns := a.GetActorTemplate().GetNamespace(); wkns == "" || wkns == namespace {
+					match = true
+					break
+				}
+			}
+			if !match {
 				continue
 			}
 		}
 		ready := false
-		if wk.Assignment != nil && wk.Assignment.Actor != nil && wk.Assignment.Actor.Name != "" {
-			ready = true
+		for _, a := range wk.GetAssignments() {
+			if a.GetActor().GetName() != "" {
+				ready = true
+				break
+			}
 		}
 		pods = append(pods, podSummary{
 			Name:      wk.GetWorkerPod(),

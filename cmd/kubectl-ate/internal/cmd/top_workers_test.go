@@ -59,12 +59,12 @@ func TestTopWorkersRunner_Success(t *testing.T) {
 			WorkerNamespace: "ate-demo-counter",
 			WorkerPool:      "counter",
 			WorkerPod:       "counter-worker-pool-7b9f8-x123",
-			Assignment: &ateapipb.Assignment{
+			Assignments: []*ateapipb.Assignment{{
 				Actor: &ateapipb.ObjectRef{
 					Atespace: "ate-demo-counter",
 					Name:     "my-counter-1",
 				},
-			},
+			}},
 			Labels: map[string]string{"ate.dev/worker-pool": "counter"},
 		},
 		{
@@ -170,17 +170,17 @@ func TestTopWorkersRunner_FilterAtespace(t *testing.T) {
 			WorkerNamespace: "ns-1",
 			WorkerPool:      "pool-1",
 			WorkerPod:       "pod-1",
-			Assignment: &ateapipb.Assignment{
+			Assignments: []*ateapipb.Assignment{{
 				Actor: &ateapipb.ObjectRef{Atespace: "space-a", Name: "actor-a"},
-			},
+			}},
 		},
 		{
 			WorkerNamespace: "ns-1",
 			WorkerPool:      "pool-1",
 			WorkerPod:       "pod-2",
-			Assignment: &ateapipb.Assignment{
+			Assignments: []*ateapipb.Assignment{{
 				Actor: &ateapipb.ObjectRef{Atespace: "space-b", Name: "actor-b"},
-			},
+			}},
 		},
 	}
 

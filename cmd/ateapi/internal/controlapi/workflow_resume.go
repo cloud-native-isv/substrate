@@ -316,10 +316,9 @@ func (s *AssignWorkerStep) Execute(ctx context.Context, input *ResumeInput, stat
 	// This can happen if ateapi crashed after updating worker with actor assignment,
 	// but has not yet updated the actor.
 	for _, worker := range workers {
-		if worker.Assignment == nil {
-			continue
-		}
-		if resources.ActorRefFromObjectRef(worker.Assignment.Actor) != input.ActorRef {
+		// F9: a worker may host several actors; we only care whether it already
+		// hosts THIS one (recovery from a previous failed attempt).
+		if !resources.WorkerHostsActor(worker, input.ActorRef) {
 			continue
 		}
 		if s.scheduler.Applies(worker, constraints) {
@@ -329,7 +328,8 @@ func (s *AssignWorkerStep) Execute(ctx context.Context, input *ResumeInput, stat
 		// Workers() returns pointers directly from the cache so we need to clone before
 		// mutating so that the cache is not corrupted if UpdateWorker fails.
 		releaseWorker := proto.Clone(worker).(*ateapipb.Worker)
-		releaseWorker.Assignment = nil
+		// Release only this actor's assignment; co-hosted siblings stay bound (F9).
+		resources.RemoveWorkerAssignment(releaseWorker, input.ActorRef)
 		// The claimed worker is no longer eligible (e.g. the actor's
 		// worker_selector changed after the failed attempt); release it back
 		// to the free pool — nothing else reclaims a healthy worker whose
@@ -361,13 +361,15 @@ func (s *AssignWorkerStep) Execute(ctx context.Context, input *ResumeInput, stat
 	// Workers() returns pointers directly from the cache so we need to clone before
 	// mutating so that the cache is not corrupted if UpdateWorker fails.
 	assignedWorker = proto.Clone(assignedWorker).(*ateapipb.Worker)
-	assignedWorker.Assignment = &ateapipb.Assignment{
+	// F9: upsert by actor ref (idempotent) so any actors already co-hosted on
+	// this worker are preserved rather than overwritten.
+	resources.UpsertWorkerAssignment(assignedWorker, &ateapipb.Assignment{
 		ActorTemplate: &ateapipb.KubeNamespacedObjectRef{
 			Namespace: state.Actor.GetActorTemplateNamespace(),
 			Name:      state.Actor.GetActorTemplateName(),
 		},
 		Actor: input.ActorRef.ToObjectRef(),
-	}
+	})
 
 	if err := s.store.UpdateWorker(ctx, assignedWorker, assignedWorker.Version); err != nil {
 		return err
@@ -503,12 +505,12 @@ func (s *CallAteletRestoreStep) CheckPrerequisite(ctx context.Context, input *Re
 	if state.Worker == nil {
 		return status.Errorf(codes.FailedPrecondition, "Assigned worker is nil")
 	}
-	// Verify if the worker is still assigned to the same Actor.
-	assigned := state.Worker.GetAssignment().GetActor()
-	if resources.ActorRefFromObjectRef(assigned) != input.ActorRef {
-		slog.ErrorContext(ctx, "crashing actor because its assigned worker no longer belongs to it",
+	// Verify the worker still hosts this Actor (F9: it may host others too, so
+	// the check is membership, not exclusive ownership).
+	if !resources.WorkerHostsActor(state.Worker, input.ActorRef) {
+		slog.ErrorContext(ctx, "crashing actor because its assigned worker no longer hosts it",
 			slog.String("worker", state.Worker.GetWorkerPod()),
-			slog.Any("assignment", state.Worker.GetAssignment()))
+			slog.Any("assignments", state.Worker.GetAssignments()))
 		if cerr := crashActor(ctx, s.store, input.ActorRef, ateattr.OperationResume, ateattr.ReasonWorkerReassigned); cerr != nil {
 			return fmt.Errorf("while crashing actor: %w", cerr)
 		}
@@ -521,7 +523,8 @@ func (s *CallAteletRestoreStep) CheckPrerequisite(ctx context.Context, input *Re
 	if !s.scheduler.Applies(state.Worker, constraints) {
 		slog.ErrorContext(ctx, "crashing actor because previously assigned worker is not eligible anymore")
 		release := proto.Clone(state.Worker).(*ateapipb.Worker)
-		release.Assignment = nil
+		// Release only this actor; co-hosted siblings stay bound (F9).
+		resources.RemoveWorkerAssignment(release, input.ActorRef)
 		// If that worker's pool is no longer eligible (e.g. the actor's
 		// worker_selector was updated after the failed attempt), release it back
 		// to the free pool instead of leaving it claimed forever — nothing else

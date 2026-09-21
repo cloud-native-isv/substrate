@@ -219,10 +219,10 @@ func seedActor(t *testing.T, ctx context.Context, st store.Interface, f actorFix
 		WorkerPodUid:    "worker-uid",
 		NodeName:        f.workerNode,
 		State:           ateapipb.Worker_STATE_ACTIVE,
-		Assignment:      &ateapipb.Assignment{Actor: assigned.ToObjectRef()},
+		Assignments:     []*ateapipb.Assignment{{Actor: assigned.ToObjectRef()}},
 	}
 	if f.unassigned {
-		worker.Assignment = nil
+		worker.Assignments = nil
 	}
 	if err := st.CreateWorker(ctx, worker); err != nil {
 		t.Fatalf("seed worker: %v", err)

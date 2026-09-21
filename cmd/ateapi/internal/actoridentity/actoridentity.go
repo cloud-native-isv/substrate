@@ -383,10 +383,11 @@ func (s *Server) authorizeActor(ctx context.Context, caller *ateletCaller, actor
 		return nil, deny("actor is hosted on a different node", slog.String("actorNode", worker.GetNodeName()))
 	}
 
-	// The worker must still agree that it is hosting this actor.
-	if assigned := worker.GetAssignment().GetActor(); resources.ActorRefFromObjectRef(assigned) != actorRef {
+	// The worker must still agree that it is hosting this actor (F9: it may host
+	// other actors too, so this is a membership check, not exclusive ownership).
+	if !resources.WorkerHostsActor(worker, actorRef) {
 		return nil, deny("worker is no longer assigned to the actor",
-			slog.String("workerAssignment", assigned.GetAtespace()+"/"+assigned.GetName()))
+			slog.String("actor", actorRef.String()))
 	}
 
 	return actor, nil

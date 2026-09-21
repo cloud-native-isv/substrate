@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -126,10 +127,16 @@ func PrintWorkersTo(out io.Writer, workers []*ateapipb.Worker, format string) er
 
 			status := "FREE"
 			assignedActor := "<none>"
-			if wass := worker.Assignment; wass != nil {
+			// F9: a worker may host several actors; list them all (nil-safe accessors).
+			if as := worker.GetAssignments(); len(as) > 0 {
 				status = "ASSIGNED"
-				assignedActor = fmt.Sprintf("%s/%s/%s/%s",
-					wass.ActorTemplate.Namespace, wass.ActorTemplate.Name, wass.Actor.Atespace, wass.Actor.Name)
+				parts := make([]string, 0, len(as))
+				for _, wass := range as {
+					parts = append(parts, fmt.Sprintf("%s/%s/%s/%s",
+						wass.GetActorTemplate().GetNamespace(), wass.GetActorTemplate().GetName(),
+						wass.GetActor().GetAtespace(), wass.GetActor().GetName()))
+				}
+				assignedActor = strings.Join(parts, ",")
 			}
 
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", ns, pool, pod, status, assignedActor)
