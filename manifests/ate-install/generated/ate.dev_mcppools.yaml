@@ -1,0 +1,132 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: mcppools.ate.dev
+spec:
+  group: ate.dev
+  names:
+    kind: McpPool
+    listKind: McpPoolList
+    plural: mcppools
+    shortNames:
+    - mcppool
+    singular: mcppool
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          McpPool is cluster-scoped configuration declaring the cross-S shared MCP
+          capability pool — the P-trusted control point of the four-trust-domain design
+          (docs/concepts/trust-domain-panorama.md §3.4/§3.5, ADR 0007 D4, condition C2).
+          An agent (Agent domain) invokes a native capability through the mcp_call host
+          function, mediated by ateom in the worker pod (S domain, the enforcement
+          point); when the capability is served by a cross-S shared pool rather than a
+          within-S local unit, this declaration feeds the deny-by-default, audited
+          routing decision in internal/mcppool. Cluster-scoped and name-referenced like
+          SandboxConfig (a pool spans tenants, so it is not namespaced to one).
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of McpPool
+            properties:
+              allowedTenants:
+                description: |-
+                  AllowedTenants is the cross-S pool allowlist: which atespaces may use the
+                  shared pool at all. Empty denies everyone (fail-closed, ADR 0003 D9). This
+                  is the R3 defense — a tenant's actor is never routed unless its tenant is
+                  explicitly admitted, which prevents a cross-tenant confused-deputy. It is
+                  the pool-side counterpart to the S-layer per-tenant capability scoping (S10).
+                items:
+                  type: string
+                type: array
+              units:
+                description: |-
+                  Units are the registered execution units (F11 provisions and deregisters
+                  them; a one-shot unit is removed after use).
+                items:
+                  description: |-
+                    McpExecutionUnit declares one registered MCP execution unit in the cross-S
+                    shared capability pool: the disposable, untrusted MCP server instance (F11)
+                    that actually runs a native capability on behalf of exactly one tenant. It is
+                    the declarative (CRD) counterpart of mcppool.ExecutionUnit; the projection in
+                    internal/mcppool maps it 1:1 into the router's routing table.
+                  properties:
+                    endpoint:
+                      description: |-
+                        Endpoint is where the unit's MCP server listens, reached over mTLS by the
+                        S-layer ateom mediator (I-3 boundary). The P router returns it but never
+                        dials it itself.
+                      minLength: 1
+                      type: string
+                    name:
+                      description: Name identifies the unit within the pool (audit
+                        + routing diagnostics).
+                      minLength: 1
+                      type: string
+                    tenant:
+                      description: |-
+                        Tenant is the atespace this unit is provisioned for. A unit never serves a
+                        tenant other than its own (per-tenant isolation, C1 / R3): OS multi-user is
+                        NOT a cross-tenant boundary, a per-tenant microvm/gvisor unit is.
+                      minLength: 1
+                      type: string
+                    tools:
+                      description: |-
+                        Tools is the allowlist of MCP tool names this unit serves. A tool not
+                        listed here is not routable to this unit (deny-by-default, ADR 0007 D7:
+                        narrow, parameterized tools; capability scoping per tenant).
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - endpoint
+                  - name
+                  - tenant
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}

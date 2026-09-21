@@ -30,6 +30,10 @@ func (c *FakeApiV1alpha1) ActorTemplates(namespace string) v1alpha1.ActorTemplat
 	return newFakeActorTemplates(c, namespace)
 }
 
+func (c *FakeApiV1alpha1) McpPools() v1alpha1.McpPoolInterface {
+	return newFakeMcpPools(c)
+}
+
 func (c *FakeApiV1alpha1) SandboxConfigs() v1alpha1.SandboxConfigInterface {
 	return newFakeSandboxConfigs(c)
 }

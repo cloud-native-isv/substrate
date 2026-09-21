@@ -18,6 +18,8 @@ package v1alpha1
 
 type ActorTemplateExpansion interface{}
 
+type McpPoolExpansion interface{}
+
 type SandboxConfigExpansion interface{}
 
 type WorkerPoolExpansion interface{}

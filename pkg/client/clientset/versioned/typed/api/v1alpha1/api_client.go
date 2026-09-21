@@ -27,6 +27,7 @@ import (
 type ApiV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ActorTemplatesGetter
+	McpPoolsGetter
 	SandboxConfigsGetter
 	WorkerPoolsGetter
 }
@@ -38,6 +39,10 @@ type ApiV1alpha1Client struct {
 
 func (c *ApiV1alpha1Client) ActorTemplates(namespace string) ActorTemplateInterface {
 	return newActorTemplates(c, namespace)
+}
+
+func (c *ApiV1alpha1Client) McpPools() McpPoolInterface {
+	return newMcpPools(c)
 }
 
 func (c *ApiV1alpha1Client) SandboxConfigs() SandboxConfigInterface {
