@@ -116,31 +116,33 @@ func (r *WorkerPoolReconciler) applyDeployment(ctx context.Context, wp *atev1alp
 	if certSource == "" {
 		certSource = WorkerCertSourcePodCertificate
 	}
-	mcpBackend := r.resolveMcpBackend(ctx, wp)
+	mcp := r.resolveMcpProjection(ctx, wp)
 	depAC := buildDeploymentApplyConfig(wp, ateomOTelSettings{
 		Endpoint:             r.OTelEndpoint,
 		MetricExportInterval: r.OTelMetricExportInterval,
 		MetricExportTimeout:  r.OTelMetricExportTimeout,
 		TracesSampler:        r.OTelTracesSampler,
 		TracesSamplerArg:     r.OTelTracesSamplerArg,
-	}, certSource, mcpBackend)
+	}, certSource, mcp)
 	if err := r.Apply(ctx, depAC, client.FieldOwner(workerPoolFieldOwner), client.ForceOwnership); err != nil {
 		return fmt.Errorf("failed to apply Deployment: %w", err)
 	}
 	return nil
 }
 
-// resolveMcpBackend resolves the cross-S shared MCP execution-unit endpoint for
-// this worker pool's tenant from the referenced McpPool (F10 Stage B P-side
-// delivery). Returns "" — projecting no MCP backend, fail-closed — when no
+// resolveMcpProjection resolves the cross-S shared MCP config for this worker
+// pool's tenant from the referenced McpPool (F10 Stage B P-side delivery): the
+// per-tenant execution-unit endpoint (WASM_MCP_BACKEND) and the unit's Tools
+// allowlist as the tenant's R3 capability scope (WASM_MCP_CAPABILITY_SCOPE, D7).
+// Returns the zero projection — projecting nothing, fail-closed — when no
 // McpPoolRef is set, the McpPool is missing, or the tenant has no admitted unit
 // (R3 allowlist / no unit). A worker pod is single-tenant (one S domain = one
 // digital employee = one atespace, trust-domain-panorama §2), so every actor it
-// hosts shares this one endpoint; per-tool enforcement stays at the S-layer
-// mediator (contract + R3 scope) and the unit's Tools allowlist.
-func (r *WorkerPoolReconciler) resolveMcpBackend(ctx context.Context, wp *atev1alpha1.WorkerPool) string {
+// hosts shares this one projection; the S-layer mediator enforces the delivered
+// per-tenant scope on top of its tool contract (D1).
+func (r *WorkerPoolReconciler) resolveMcpProjection(ctx context.Context, wp *atev1alpha1.WorkerPool) mcpProjection {
 	if wp.Spec.McpPoolRef == "" {
-		return ""
+		return mcpProjection{}
 	}
 	log := log.FromContext(ctx)
 	pool := &atev1alpha1.McpPool{}
@@ -148,16 +150,24 @@ func (r *WorkerPoolReconciler) resolveMcpBackend(ctx context.Context, wp *atev1a
 	if err := r.Get(ctx, types.NamespacedName{Name: wp.Spec.McpPoolRef}, pool); err != nil {
 		log.Error(err, "cannot get McpPool for worker MCP backend; projecting none (fail-closed)",
 			"mcpPool", wp.Spec.McpPoolRef)
-		return ""
+		return mcpProjection{}
 	}
 	cfg := mcppool.PoolConfigFromSpec(&pool.Spec)
 	unit := cfg.ResolveUnitForTenant(wp.Spec.McpAtespace)
 	if unit == nil {
 		log.Info("no admitted MCP execution unit for tenant; projecting no MCP backend (fail-closed)",
 			"atespace", wp.Spec.McpAtespace, "mcpPool", wp.Spec.McpPoolRef)
-		return ""
+		return mcpProjection{}
 	}
-	return mcpBackendURL(unit.Endpoint)
+	proj := mcpProjection{Backend: mcpBackendURL(unit.Endpoint)}
+	// Deliver the unit's Tools allowlist (D7) as this tenant's R3 capability scope,
+	// so the P-declared tools are exactly what the S mediator grants. A unit with no
+	// tools projects no scope (ateom-wasmd's parse_capability_scope skips empty-tool
+	// entries), leaving the mediator contract-bounded (D1).
+	if len(unit.Tools) > 0 {
+		proj.CapabilityScope = wp.Spec.McpAtespace + "=" + strings.Join(unit.Tools, ",")
+	}
+	return proj
 }
 
 // mcpBackendURL renders an execution-unit endpoint as the WASM_MCP_BACKEND value

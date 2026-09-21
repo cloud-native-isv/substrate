@@ -97,14 +97,32 @@ const (
 	trustBundleKey               = "trust-bundle.pem"
 )
 
+// mcpProjection carries the cross-S shared MCP configuration the controller
+// resolves from a WorkerPool's referenced McpPool and projects onto the worker
+// pod's ateom container (F10 Stage B). The zero value projects nothing — the
+// fail-closed outcome when the pool is absent, the tenant is not admitted (R3),
+// or the tenant has no execution unit. A worker pod is single-tenant (one S
+// domain = one digital employee = one atespace), so one projection covers every
+// actor the worker hosts (F9/S12).
+type mcpProjection struct {
+	// Backend is the WASM_MCP_BACKEND value: the resolved per-tenant execution-unit
+	// endpoint as `tls://<endpoint>` (cross-S mTLS, I-3). Empty projects no backend.
+	Backend string
+	// CapabilityScope is the WASM_MCP_CAPABILITY_SCOPE value: the unit's Tools
+	// allowlist (D7) as `<atespace>=<tool,tool>`, feeding the S-layer mediator's R3
+	// per-tenant CapabilityScope. Empty projects no scope (mediator unscoped, bounded
+	// only by its tool contract D1).
+	CapabilityScope string
+}
+
 // buildDeploymentApplyConfig constructs the SSA apply configuration for the
 // Deployment managed by a WorkerPool. Only fields owned by this controller
 // are declared here. otel, when it carries an endpoint, is propagated to the
 // ateom container so it pushes telemetry to that collector. certSource
-// selects the volume sources for the worker's TLS material. mcpBackend, when
-// non-empty, is the resolved cross-S MCP execution-unit endpoint projected as
-// WASM_MCP_BACKEND (F10 Stage B).
-func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettings, certSource WorkerCertSource, mcpBackend string) *appsv1ac.DeploymentApplyConfiguration {
+// selects the volume sources for the worker's TLS material. mcp carries the
+// resolved cross-S MCP projection (backend endpoint + per-tenant capability
+// scope) for this pool's tenant; its zero value projects nothing (F10 Stage B).
+func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettings, certSource WorkerCertSource, mcp mcpProjection) *appsv1ac.DeploymentApplyConfiguration {
 	containerAC := corev1ac.Container().
 		WithName("ateom").
 		WithImage(wp.Spec.AteomImage).
@@ -121,7 +139,7 @@ func buildDeploymentApplyConfig(wp *atev1alpha1.WorkerPool, otel ateomOTelSettin
 			WithContainerPort(443).
 			WithProtocol(corev1.ProtocolTCP)).
 		WithSecurityContext(ateomSecurityContext(wp.Spec.SandboxClass)).
-		WithEnv(ateomContainerEnv(otel, wp, mcpBackend)...).
+		WithEnv(ateomContainerEnv(otel, wp, mcp)...).
 		WithVolumeMounts(
 			corev1ac.VolumeMount().
 				WithName("run-ateom").
@@ -277,10 +295,11 @@ func atunnelEgressTrustSources(certSource WorkerCertSource) []*corev1ac.VolumePr
 // ateomContainerEnv adds the OTLP endpoint and resource identity only when
 // telemetry is configured. POD_* refs precede OTEL_RESOURCE_ATTRIBUTES so its
 // $(POD_*) substitutions resolve. It also projects the pool's actor capacity as
-// WASM_MAX_ACTORS for the wasm class (F9 Stage B) and, when mcpBackend is
-// non-empty, the cross-S shared MCP execution-unit endpoint as WASM_MCP_BACKEND
-// (F10 Stage B).
-func ateomContainerEnv(otel ateomOTelSettings, wp *atev1alpha1.WorkerPool, mcpBackend string) []*corev1ac.EnvVarApplyConfiguration {
+// WASM_MAX_ACTORS for the wasm class (F9 Stage B) and, when mcp carries a
+// resolved cross-S MCP projection, the execution-unit endpoint as
+// WASM_MCP_BACKEND and the per-tenant tool allowlist as
+// WASM_MCP_CAPABILITY_SCOPE (F10 Stage B).
+func ateomContainerEnv(otel ateomOTelSettings, wp *atev1alpha1.WorkerPool, mcp mcpProjection) []*corev1ac.EnvVarApplyConfiguration {
 	envs := []*corev1ac.EnvVarApplyConfiguration{
 		fieldRefEnv("POD_UID", "metadata.uid"),
 	}
@@ -299,8 +318,17 @@ func ateomContainerEnv(otel ateomOTelSettings, wp *atev1alpha1.WorkerPool, mcpBa
 	// backend (workers keep any statically-set WASM_MCP_BACKEND, or none). The mTLS
 	// client material (WASM_MCP_TLS_*_FILE) comes from the worker's SPIFFE/podcert
 	// identity mount, not projected here.
-	if mcpBackend != "" {
-		envs = append(envs, corev1ac.EnvVar().WithName("WASM_MCP_BACKEND").WithValue(mcpBackend))
+	if mcp.Backend != "" {
+		envs = append(envs, corev1ac.EnvVar().WithName("WASM_MCP_BACKEND").WithValue(mcp.Backend))
+	}
+	// F10 Stage B: the per-tenant MCP tool allowlist (the resolved McpPool unit's
+	// Tools, D7) fed to the S-layer mediator's R3 CapabilityScope, so the P-declared
+	// tools are the ones the agent may actually call (deny-by-default at S). Format
+	// `<atespace>=<tool,tool>` matches ateom-wasmd's parse_capability_scope (sandbox
+	// S10). Empty = project none: the mediator stays unscoped, bounded only by its
+	// tool contract (D1) — used when the unit declares no tools.
+	if mcp.CapabilityScope != "" {
+		envs = append(envs, corev1ac.EnvVar().WithName("WASM_MCP_CAPABILITY_SCOPE").WithValue(mcp.CapabilityScope))
 	}
 	if otel.Endpoint == "" {
 		return envs

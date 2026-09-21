@@ -202,7 +202,7 @@ func TestBuildDeploymentApplyConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildDeploymentApplyConfig(tt.wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, "")
+			got := buildDeploymentApplyConfig(tt.wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, mcpProjection{})
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Fatalf("buildDeploymentApplyConfig() mismatch (-want +got):\n%s", diff)
 			}
@@ -228,7 +228,7 @@ func TestMicroVMPodShape(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			wp := testWorkerPoolApplyConfig(nil)
 			wp.Spec.SandboxClass = tt.class
-			ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, "").Spec.Template.Spec
+			ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, mcpProjection{}).Spec.Template.Spec
 
 			hasVol := false
 			for _, v := range ps.Volumes {
@@ -332,7 +332,7 @@ func TestAteomSecurityContextByClass(t *testing.T) {
 // TestTerminationGracePeriodSeconds asserts the pod's grace period is hardcoded to 3600s.
 func TestTerminationGracePeriodSeconds(t *testing.T) {
 	wp := testWorkerPoolApplyConfig(nil)
-	ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, "").Spec.Template.Spec
+	ps := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, mcpProjection{}).Spec.Template.Spec
 	if ps.TerminationGracePeriodSeconds == nil {
 		t.Fatalf("TerminationGracePeriodSeconds not set")
 	}
@@ -358,7 +358,7 @@ func TestWorkerCertSourceVolumes(t *testing.T) {
 	}
 
 	t.Run("pod-certificate", func(t *testing.T) {
-		ps := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{}, WorkerCertSourcePodCertificate, "").Spec.Template.Spec
+		ps := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{}, WorkerCertSourcePodCertificate, mcpProjection{}).Spec.Template.Spec
 
 		identity := findVolume(t, ps, atunnelIdentityVolume)
 		if len(identity.Projected.Sources) != 2 ||
@@ -373,7 +373,7 @@ func TestWorkerCertSourceVolumes(t *testing.T) {
 	})
 
 	t.Run("cert-manager", func(t *testing.T) {
-		ps := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{}, WorkerCertSourceCertManager, "").Spec.Template.Spec
+		ps := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{}, WorkerCertSourceCertManager, mcpProjection{}).Spec.Template.Spec
 
 		identity := findVolume(t, ps, atunnelIdentityVolume)
 		if len(identity.Projected.Sources) != 2 {
@@ -417,7 +417,7 @@ func TestBuildDeploymentApplyConfigOTelEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{Endpoint: tt.endpoint}, WorkerCertSourcePodCertificate, "").
+			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), ateomOTelSettings{Endpoint: tt.endpoint}, WorkerCertSourcePodCertificate, mcpProjection{}).
 				Spec.Template.Spec.Containers[0]
 			env := envByName(c.Env)
 
@@ -481,7 +481,7 @@ func TestActorCapacityProjection(t *testing.T) {
 			wp.Spec.SandboxClass = tt.sandboxClass
 			wp.Spec.ActorCapacity = tt.capacity
 
-			dep := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, "")
+			dep := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, mcpProjection{})
 			ann := dep.Spec.Template.Annotations
 			env := envByName(dep.Spec.Template.Spec.Containers[0].Env)
 
@@ -507,36 +507,60 @@ func TestActorCapacityProjection(t *testing.T) {
 	}
 }
 
-// TestMcpBackendProjection asserts the resolved cross-S MCP execution-unit
-// endpoint (F10 Stage B P-side delivery) reaches the ateom container as
-// WASM_MCP_BACKEND, and is absent when no endpoint is resolved (fail-closed: no
-// projected MCP backend → ateom-wasmd has no remote unit and mcp_* stays closed).
-func TestMcpBackendProjection(t *testing.T) {
+// TestMcpProjection asserts the resolved cross-S MCP projection (F10 Stage B
+// P-side delivery) reaches the ateom container: the execution-unit endpoint as
+// WASM_MCP_BACKEND and the per-tenant tool allowlist (the McpPool unit's Tools,
+// D7) as WASM_MCP_CAPABILITY_SCOPE — which feeds the S-layer mediator's R3
+// capability scope. Each env is absent when its projection field is empty
+// (fail-closed: no backend → mcp_* stays closed; no scope → mediator unscoped,
+// bounded only by its tool contract D1).
+func TestMcpProjection(t *testing.T) {
 	tests := []struct {
-		name          string
-		mcpBackend    string
-		wantProjected bool
+		name        string
+		mcp         mcpProjection
+		wantBackend string // "" = expect absent
+		wantScope   string // "" = expect absent
 	}{
-		{"resolved tls endpoint projects", "tls://mcp-unit-team-a.svc:8443", true},
-		{"empty projects nothing", "", false},
+		{
+			name:        "backend and scope project",
+			mcp:         mcpProjection{Backend: "tls://mcp-unit-team-a.svc:8443", CapabilityScope: "team-a=host.ident,vault.balance"},
+			wantBackend: "tls://mcp-unit-team-a.svc:8443",
+			wantScope:   "team-a=host.ident,vault.balance",
+		},
+		{
+			name:        "backend only (unit declares no tools) projects no scope",
+			mcp:         mcpProjection{Backend: "tls://mcp-unit.svc:8443"},
+			wantBackend: "tls://mcp-unit.svc:8443",
+		},
+		{
+			name: "zero projection projects nothing",
+			mcp:  mcpProjection{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wp := testWorkerPoolApplyConfig(nil)
 			wp.Spec.SandboxClass = atev1alpha1.SandboxClassWasm
 
-			dep := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, tt.mcpBackend)
+			dep := buildDeploymentApplyConfig(wp, ateomOTelSettings{}, WorkerCertSourcePodCertificate, tt.mcp)
 			env := envByName(dep.Spec.Template.Spec.Containers[0].Env)
-			got, has := env["WASM_MCP_BACKEND"]
 
-			if !tt.wantProjected {
-				if has {
-					t.Errorf("WASM_MCP_BACKEND must be absent, got %q", got.value)
+			gotBackend, hasBackend := env["WASM_MCP_BACKEND"]
+			if tt.wantBackend == "" {
+				if hasBackend {
+					t.Errorf("WASM_MCP_BACKEND must be absent, got %q", gotBackend.value)
 				}
-				return
+			} else if !hasBackend || gotBackend.value != tt.wantBackend {
+				t.Errorf("WASM_MCP_BACKEND = %q (present=%v), want %q", gotBackend.value, hasBackend, tt.wantBackend)
 			}
-			if !has || got.value != tt.mcpBackend {
-				t.Errorf("WASM_MCP_BACKEND = %q (present=%v), want %q", got.value, has, tt.mcpBackend)
+
+			gotScope, hasScope := env["WASM_MCP_CAPABILITY_SCOPE"]
+			if tt.wantScope == "" {
+				if hasScope {
+					t.Errorf("WASM_MCP_CAPABILITY_SCOPE must be absent, got %q", gotScope.value)
+				}
+			} else if !hasScope || gotScope.value != tt.wantScope {
+				t.Errorf("WASM_MCP_CAPABILITY_SCOPE = %q (present=%v), want %q", gotScope.value, hasScope, tt.wantScope)
 			}
 		})
 	}
@@ -595,7 +619,7 @@ func TestBuildDeploymentApplyConfigMetricExportTuning(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel, WorkerCertSourcePodCertificate, "").
+			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel, WorkerCertSourcePodCertificate, mcpProjection{}).
 				Spec.Template.Spec.Containers[0]
 			env := envByName(c.Env)
 			for _, k := range []string{"OTEL_METRIC_EXPORT_INTERVAL", "OTEL_METRIC_EXPORT_TIMEOUT"} {
@@ -652,7 +676,7 @@ func TestBuildDeploymentApplyConfigTracesSamplerPropagation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel, WorkerCertSourcePodCertificate, "").
+			c := buildDeploymentApplyConfig(testWorkerPoolApplyConfig(nil), tt.otel, WorkerCertSourcePodCertificate, mcpProjection{}).
 				Spec.Template.Spec.Containers[0]
 			env := envByName(c.Env)
 			for _, k := range []string{"OTEL_TRACES_SAMPLER", "OTEL_TRACES_SAMPLER_ARG"} {

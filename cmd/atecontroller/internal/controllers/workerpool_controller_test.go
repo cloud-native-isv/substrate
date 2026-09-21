@@ -608,14 +608,20 @@ func TestMcpPoolChangeReprojectsBackend(t *testing.T) {
 	}
 	deleteOnCleanup(t, wp)
 
-	// Initial projection: the controller resolves team-a's unit -> tls://<endpoint>.
+	// Initial projection: the controller resolves team-a's unit -> tls://<endpoint>,
+	// and projects the unit's Tools allowlist as the tenant's R3 capability scope
+	// (D7 -> WASM_MCP_CAPABILITY_SCOPE, consumed by the S mediator).
 	eventually(t, func(ctx context.Context) (bool, error) {
 		dep, err := getDeployment(ctx, wp)
 		if err != nil {
 			return false, nil
 		}
-		got, ok := deploymentEnvValue(dep, "WASM_MCP_BACKEND")
-		return ok && got == "tls://mcp-a.example:8443", nil
+		backend, ok := deploymentEnvValue(dep, "WASM_MCP_BACKEND")
+		if !ok || backend != "tls://mcp-a.example:8443" {
+			return false, nil
+		}
+		scope, ok := deploymentEnvValue(dep, "WASM_MCP_CAPABILITY_SCOPE")
+		return ok && scope == "team-a=host.ident", nil
 	})
 
 	// Operator changes the unit endpoint. The McpPool watch must re-reconcile the
