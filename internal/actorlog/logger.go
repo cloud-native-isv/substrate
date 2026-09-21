@@ -86,6 +86,92 @@ func (al *ActorLogger) EmitLifecycleLog(msg string, actorRef resources.ActorRef,
 	}
 }
 
+// TrustDomain 标识四层信任域全景图（docs/concepts/trust-domain-panorama.md §0）中的
+// 一个信任域，外加 MCP 能力后端（S 层对外的原生能力面，ADR 0007）。信任级自外向内
+// 递减 I > P > S > Agent；MCP 执行单元是不可信、可抛弃的（一次性）。
+type TrustDomain string
+
+const (
+	// DomainInfrastructure = I 层：ECS / ACK / k8s / node / 云账号。
+	DomainInfrastructure TrustDomain = "I"
+	// DomainPlatform = P 层：substrate 控制面（ateapi/atelet/atecontroller）+ MCP 池编排。
+	DomainPlatform TrustDomain = "P"
+	// DomainService = S 层：worker pod（一个数字员工的身份/配置/能力表 + ateom 中介）。
+	DomainService TrustDomain = "S"
+	// DomainAgent = Agent 层：wasm 沙箱内由 LLM 驱动的 agent（最低信任）。
+	DomainAgent TrustDomain = "Agent"
+	// DomainMCP = MCP 能力后端（执行单元）：S 层经中介触达的原生能力面。
+	DomainMCP TrustDomain = "MCP"
+)
+
+// CrossDomainAudit 是一次**跨信任域操作**的统一审计事件（全景图 §5「每次跨域操作皆
+// 白名单 + 审计」的 P 侧落地，F12）。字段名刻意与 sandbox 仓 `src/runtime/src/audit.rs`
+// 的 `mcp.call` 事件对齐（`event` / `src_domain` / `dst_domain` / `allowed` / `reason`），
+// 使 substrate 侧的 P↔S / S↔S / I↔P 跨越与 sandbox 侧的 S↔Agent / S↔MCP 跨越归集到
+// **同一审计平面**（跨仓统一审计模型，split doc §8.3 F12）。
+type CrossDomainAudit struct {
+	// Event 是稳定事件名（如 "actor.assign" / "worker.drain" / "rbac.check" /
+	// "mcp.pool.route"），供日志归集与告警按名筛选。
+	Event string
+	// SrcDomain / DstDomain 标注本次跨越的方向（信任域边界 = 审计点，全景图 §5）。
+	SrcDomain TrustDomain
+	DstDomain TrustDomain
+	// Operation 是人类可读的具体操作描述。
+	Operation string
+	// Allowed 是白名单裁决结果；false 表示被拒（deny-by-default，ADR 0003 D1）。
+	Allowed bool
+	// Reason 仅在 Allowed=false 时填充拒绝原因。
+	Reason string
+	// Fields 是事件特定的结构化字段（如 worker_pod / tool / target）。调用方负责
+	// 截断敏感/超长值——审计绝不记录秘密原值（与 sandbox token 只记指纹一致，I-1）。
+	// 保留键（time/event/src_domain/dst_domain/operation/allowed/reason/labels）不会被覆盖。
+	Fields map[string]any
+}
+
+// reservedAuditKeys 是 envelope 的固定键，Fields 不得覆盖（防止污染统一 schema）。
+var reservedAuditKeys = map[string]struct{}{
+	"time": {}, "event": {}, "src_domain": {}, "dst_domain": {},
+	"operation": {}, "allowed": {}, "reason": {},
+}
+
+// EmitCrossDomainAudit 发出一条跨信任域审计事件（统一 schema），带 actor 身份标签。
+// 这是 F12 的发射点：control-plane（P 层）在每次跨域操作（如把 actor 派到 worker =
+// P→S、MCP 池路由 = S→S、RBAC/NetworkPolicy 校验 = I→P）调用它，与 sandbox 侧 S13 的
+// S↔Agent / S↔MCP 审计共用字段名，构成全景图 §5 的统一跨域审计平面。
+func (al *ActorLogger) EmitCrossDomainAudit(a CrossDomainAudit, actorRef resources.ActorRef, actorUID, actorTemplateNamespace, actorTemplateName string) {
+	envelope := map[string]any{
+		"time":       time.Now().Format(time.RFC3339Nano),
+		"event":      a.Event,
+		"src_domain": string(a.SrcDomain),
+		"dst_domain": string(a.DstDomain),
+		"operation":  a.Operation,
+		"allowed":    a.Allowed,
+		al.labelsKey: map[string]string{
+			"ate.dev/actor_atespace":           actorRef.Atespace,
+			"ate.dev/actor_name":               actorRef.Name,
+			"ate.dev/actor_uid":                actorUID,
+			"ate.dev/actor_template_namespace": actorTemplateNamespace,
+			"ate.dev/actor_template_name":      actorTemplateName,
+		},
+	}
+	if a.Reason != "" {
+		envelope["reason"] = a.Reason
+	}
+	for k, v := range a.Fields {
+		if _, reserved := reservedAuditKeys[k]; reserved {
+			continue
+		}
+		if k == al.labelsKey {
+			continue
+		}
+		envelope[k] = v
+	}
+	if envBytes, err := json.Marshal(envelope); err == nil {
+		envBytes = append(envBytes, '\n')
+		_, _ = al.writer.Write(envBytes)
+	}
+}
+
 // StartJSONLogPipe intercepts container raw stdout/stderr streams and pipes them
 // through the logger. containerName tags every line with the originating container;
 // callers that multiplex multiple containers should give each its own pipe so the
