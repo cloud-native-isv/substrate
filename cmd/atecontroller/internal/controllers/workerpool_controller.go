@@ -27,7 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/agent-substrate/substrate/internal/mcppool"
 	atev1alpha1 "github.com/agent-substrate/substrate/pkg/api/v1alpha1"
@@ -196,5 +198,36 @@ func (r *WorkerPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&atev1alpha1.WorkerPool{}).
 		Owns(&appsv1.Deployment{}).
+		// A WorkerPool that borrows from a cross-S MCP pool (spec.mcpPoolRef)
+		// projects the resolved per-tenant endpoint as WASM_MCP_BACKEND. Watch
+		// the referenced McpPool so an operator change to a unit endpoint
+		// re-reconciles every referencing worker; without this the pods keep a
+		// stale backend until the WorkerPool itself changes.
+		Watches(&atev1alpha1.McpPool{}, handler.EnqueueRequestsFromMapFunc(r.mcpPoolToWorkerPools)).
 		Complete(r)
+}
+
+// mcpPoolToWorkerPools maps a changed McpPool to reconcile requests for every
+// WorkerPool that references it by name (spec.mcpPoolRef), across all
+// namespaces. McpPool is cluster-scoped, so referencing workers may live in any
+// namespace. A List error yields no requests (the periodic resync still
+// re-reconciles eventually); this only affects how promptly the change lands.
+func (r *WorkerPoolReconciler) mcpPoolToWorkerPools(ctx context.Context, obj client.Object) []reconcile.Request {
+	var pools atev1alpha1.WorkerPoolList
+	if err := r.List(ctx, &pools); err != nil {
+		log.FromContext(ctx).Error(err, "cannot list WorkerPools for McpPool watch; skipping re-reconcile",
+			"mcpPool", obj.GetName())
+		return nil
+	}
+	var reqs []reconcile.Request
+	for i := range pools.Items {
+		wp := &pools.Items[i]
+		if wp.Spec.McpPoolRef == obj.GetName() {
+			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{
+				Name:      wp.Name,
+				Namespace: wp.Namespace,
+			}})
+		}
+	}
+	return reqs
 }

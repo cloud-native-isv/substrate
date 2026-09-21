@@ -576,6 +576,62 @@ func TestReplicasValidationRejectsNegative(t *testing.T) {
 	}
 }
 
+// TestMcpPoolChangeReprojectsBackend verifies the McpPool watch (F10 Stage B):
+// a worker pool borrowing from a cross-S MCP pool projects the resolved
+// per-tenant endpoint as WASM_MCP_BACKEND, and an operator change to that unit's
+// endpoint re-reconciles the referencing worker — re-projecting the new backend
+// with NO change to the WorkerPool itself. Without the watch the pods would keep
+// a stale endpoint until the WorkerPool changed or the (long) periodic resync.
+func TestMcpPoolChangeReprojectsBackend(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	pool := &atev1alpha1.McpPool{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-mcp-reproject"},
+		Spec: atev1alpha1.McpPoolSpec{
+			AllowedTenants: []string{"team-a"},
+			Units: []atev1alpha1.McpExecutionUnit{
+				{Tenant: "team-a", Name: "unit-a", Endpoint: "mcp-a.example:8443", Tools: []string{"host.ident"}},
+			},
+		},
+	}
+	if err := k8sClient.Create(ctx, pool); err != nil {
+		t.Fatalf("create McpPool: %v", err)
+	}
+	deleteOnCleanup(t, pool)
+
+	wp := makeWorkerPool("test-mcp-reproject", "default", 1, "ateom:v1")
+	wp.Spec.McpPoolRef = pool.Name
+	wp.Spec.McpAtespace = "team-a"
+	if err := k8sClient.Create(ctx, wp); err != nil {
+		t.Fatalf("create WorkerPool: %v", err)
+	}
+	deleteOnCleanup(t, wp)
+
+	// Initial projection: the controller resolves team-a's unit -> tls://<endpoint>.
+	eventually(t, func(ctx context.Context) (bool, error) {
+		dep, err := getDeployment(ctx, wp)
+		if err != nil {
+			return false, nil
+		}
+		got, ok := deploymentEnvValue(dep, "WASM_MCP_BACKEND")
+		return ok && got == "tls://mcp-a.example:8443", nil
+	})
+
+	// Operator changes the unit endpoint. The McpPool watch must re-reconcile the
+	// referencing worker and re-project the new backend.
+	updateMcpPoolUnitEndpoint(t, ctx, pool.Name, "team-a", "mcp-b.example:8443")
+
+	eventually(t, func(ctx context.Context) (bool, error) {
+		dep, err := getDeployment(ctx, wp)
+		if err != nil {
+			return false, nil
+		}
+		got, ok := deploymentEnvValue(dep, "WASM_MCP_BACKEND")
+		return ok && got == "tls://mcp-b.example:8443", nil
+	})
+}
+
 // --- helpers ---
 
 func makeWorkerPool(name, ns string, replicas int32, image string) *atev1alpha1.WorkerPool {
@@ -665,5 +721,42 @@ func eventually(t *testing.T, condition func(ctx context.Context) (bool, error))
 	t.Helper()
 	if err := wait.PollUntilContextTimeout(t.Context(), 100*time.Millisecond, 15*time.Second, true, condition); err != nil {
 		t.Fatalf("condition not met within timeout: %v", err)
+	}
+}
+
+// deploymentEnvValue reads an env var off the ateom container of a Deployment
+// fetched from the cluster (real corev1.EnvVar — the apply-config envByName
+// helper in workerpool_apply_test.go does not fit a fetched object).
+func deploymentEnvValue(dep *appsv1.Deployment, name string) (string, bool) {
+	if len(dep.Spec.Template.Spec.Containers) == 0 {
+		return "", false
+	}
+	for _, e := range dep.Spec.Template.Spec.Containers[0].Env {
+		if e.Name == name {
+			return e.Value, true
+		}
+	}
+	return "", false
+}
+
+// updateMcpPoolUnitEndpoint re-fetches a cluster-scoped McpPool, sets the given
+// tenant's unit endpoint, and persists it, retrying on optimistic-concurrency
+// conflict (the controller may reconcile concurrently).
+func updateMcpPoolUnitEndpoint(t *testing.T, ctx context.Context, poolName, tenant, endpoint string) {
+	t.Helper()
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &atev1alpha1.McpPool{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: poolName}, current); err != nil {
+			return err
+		}
+		for i := range current.Spec.Units {
+			if current.Spec.Units[i].Tenant == tenant {
+				current.Spec.Units[i].Endpoint = endpoint
+			}
+		}
+		return k8sClient.Update(ctx, current)
+	})
+	if err != nil {
+		t.Fatalf("update McpPool unit endpoint: %v", err)
 	}
 }
