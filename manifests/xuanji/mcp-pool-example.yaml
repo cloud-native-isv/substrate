@@ -1,0 +1,194 @@
+# Example manifests for the cross-S shared MCP capability pool (xuanji F10/F11).
+#
+# Assembles the four-trust-domain MCP capability backend declaratively
+# (docs/concepts/trust-domain-panorama.md §3.4/§3.5, ADR 0007):
+#
+#   McpPool (P-trusted pool declaration, F10 / condition C2)
+#     -> per-tenant execution units (F11, the disposable untrusted MCP servers)
+#     -> a wasm worker pool borrows native capabilities via mcpPoolRef/mcpAtespace
+#        (F10 Stage B); the atecontroller resolves THIS worker's tenant to its
+#        own execution-unit endpoint and projects it as the WASM_MCP_BACKEND env
+#     -> ateom-wasmd's MCP mediator (sandbox S10) reaches that endpoint over mTLS
+#        (I-3 boundary), enforcing the tool contract (D1/D2), per-tenant
+#        capability scope (R3) and audit (S13) on every call.
+#
+# A worker pod is SINGLE-TENANT (one S domain = one digital employee = one
+# atespace, trust-domain-panorama §2), so the N actors it co-hosts (F9/S12) all
+# share the one tenant endpoint resolved from mcpAtespace — that is why a
+# per-pod env (not a per-activation proto field) carries the backend.
+#
+# IMPLEMENTED vs REFERENCE (be honest about what applies today):
+#   IMPLEMENTED (applyable once images/assets are filled in):
+#     - McpPool CRD (ate.dev/v1alpha1, cluster-scoped) ............ F10 Stage A
+#     - WorkerPool.spec.mcpPoolRef / .mcpAtespace + the controller
+#       projection of WASM_MCP_BACKEND ............................ F10 Stage B
+#   REFERENCE / gated (F11 packaging — image + cert-source + cluster):
+#     - the per-tenant MCP execution-unit deployment below is a DEMO stand-in
+#       (plain Deployment+Service running mcp-demo-server --tls). PRODUCTION
+#       cross-S isolation requires a per-tenant microvm/gvisor unit (condition
+#       C1: OS multi-user is NOT a cross-tenant boundary) — reuse the microvm
+#       sandbox class; that packaging is F11 and is not wired here.
+#     - the mTLS material: the execution unit's server cert and the wasm
+#       worker's client cert (WASM_MCP_TLS_{CA,CLIENT_CERT,CLIENT_KEY}_FILE,
+#       consumed by ateom-wasmd) come from a SPIFFE/podcert identity mount
+#       (cert-source integration), NOT from these manifests. The Secrets below
+#       are throwaway demo placeholders.
+#
+# Layers on top of wasm-example.yaml, which provides the wasm-default
+# SandboxConfig (python-wasm asset) and the python-interpreter ActorTemplate;
+# the team-a worker pool below reuses the `workload: wasm-python` label so that
+# ActorTemplate schedules onto it.
+#
+# Before applying, replace:
+#   - <ATEOM_WASMD_IMAGE>: pinned ateom-wasmd image (ACR EE @sha256:...)
+#   - <MCP_SERVER_IMAGE>: pinned mcp-demo-server image (sandbox repo
+#     cmd/mcp-demo-server, published to ACR EE)
+#   - the demo TLS Secrets: create out-of-band (never commit key material), e.g.
+#       kubectl -n ate-mcp create secret generic mcp-unit-team-a-tls \
+#         --from-file=ca.crt --from-file=tls.crt --from-file=tls.key
+#     (server cert SAN must include mcp-team-a.ate-mcp.svc.cluster.local)
+
+---
+# The P-trusted pool declaration (F10). Cluster-scoped: a pool spans tenants, so
+# it is name-referenced like SandboxConfig, not namespaced to one. allowedTenants
+# is the cross-S allowlist (R3 confused-deputy defense); empty denies everyone
+# (fail-closed, ADR 0003 D9). Each unit serves exactly one tenant (C1) and lists
+# the MCP tool names it may run (D7 deny-by-default tool allowlist).
+#
+# The tool names mirror the sandbox demo contract (McpContract::demo()):
+# host.ident is (a) secret-free; vault.balance is (b) secret-bearing (ateom
+# mints a per-call scoped token, injects it, and never returns it — D6/I-1).
+apiVersion: ate.dev/v1alpha1
+kind: McpPool
+metadata:
+  name: mcp-shared-pool
+spec:
+  allowedTenants:
+    - team-a
+    - team-b
+  units:
+    - tenant: team-a
+      name: mcp-unit-team-a
+      endpoint: mcp-team-a.ate-mcp.svc.cluster.local:8443
+      tools:
+        - host.ident
+        - vault.balance
+    - tenant: team-b
+      name: mcp-unit-team-b
+      endpoint: mcp-team-b.ate-mcp.svc.cluster.local:8443
+      tools:
+        - host.ident
+
+---
+# The S-domain employee worker pool for team-a (F9/S12 multi-actor wasm worker),
+# wired to the shared pool. mcpPoolRef + mcpAtespace are both set, so the
+# atecontroller resolves team-a's unit (mcp-team-a.ate-mcp.svc.cluster.local:8443)
+# from mcp-shared-pool and projects WASM_MCP_BACKEND=tls://mcp-team-a.ate-mcp.svc.cluster.local:8443
+# onto every worker pod. If team-a were absent from allowedTenants, or had no
+# unit, the controller projects NO backend (fail-closed) and mcp_* host ops
+# report "not configured" — the worker never silently reaches a shared pool it
+# is not admitted to.
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: wasm-pool-team-a
+  namespace: ate-wasm
+  labels:
+    workload: wasm-python          # selected by wasm-example.yaml's python-interpreter
+    ate.dev/tenant: team-a
+spec:
+  replicas: 2
+  sandboxClass: wasm
+  ateomImage: <ATEOM_WASMD_IMAGE>
+  # F10 Stage B: borrow native capabilities from the cross-S shared pool.
+  mcpPoolRef: mcp-shared-pool
+  mcpAtespace: team-a
+  # F9 Stage B: host up to 4 concurrent actors (same employee's agents) per pod.
+  actorCapacity: 4
+  template:
+    resources:
+      requests:
+        cpu: "2"
+        memory: 2Gi
+      limits:
+        cpu: "4"
+        memory: 2Gi
+
+---
+# ============================================================================
+# REFERENCE — F11 per-tenant MCP execution unit (DEMO stand-in, image-gated).
+#
+# This is the disposable, untrusted MCP server that actually runs team-a's
+# native capabilities. The McpPool unit endpoint above points at this Service.
+# DEMO FORM: a plain Deployment+Service running mcp-demo-server in --tls mode.
+# PRODUCTION FORM (condition C1, NOT wired here): a per-tenant microvm-class
+# WorkerPool whose actor is the MCP server, so a compromised unit cannot reach
+# another tenant — OS multi-user / a shared namespace is NOT a cross-tenant
+# boundary; a per-tenant microvm/gvisor unit is.
+# ============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ate-mcp
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-team-a
+  namespace: ate-mcp
+spec:
+  selector:
+    ate.dev/tenant: team-a
+    app: mcp-execution-unit
+  ports:
+    - name: mcp-tls
+      port: 8443
+      targetPort: 8443
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-unit-team-a
+  namespace: ate-mcp
+  labels:
+    ate.dev/tenant: team-a
+    app: mcp-execution-unit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      ate.dev/tenant: team-a
+      app: mcp-execution-unit
+  template:
+    metadata:
+      labels:
+        ate.dev/tenant: team-a
+        app: mcp-execution-unit
+    spec:
+      containers:
+        - name: mcp-server
+          image: <MCP_SERVER_IMAGE>
+          # mcp-demo-server --tls enforces mutual auth against --tls-ca, so only
+          # a worker presenting a client cert signed by that CA (team-a's ateom
+          # mediator) can connect (I-3). It prints LISTEN_ADDR= on stderr.
+          args:
+            - --tls
+            - 0.0.0.0:8443
+            - --tls-ca
+            - /etc/mcp-tls/ca.crt
+            - --tls-cert
+            - /etc/mcp-tls/tls.crt
+            - --tls-key
+            - /etc/mcp-tls/tls.key
+          ports:
+            - containerPort: 8443
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/mcp-tls
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: mcp-unit-team-a-tls   # demo placeholder; prod = SPIFFE/podcert SVID
