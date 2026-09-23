@@ -85,7 +85,7 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 
 | 环 | 位置 | 防绕过能力 | 内容 | 默认状态 |
 |---|---|---|---|---|
-| **Ring 0**（主审计面） | ateom 进程内、WASI/host function 边界 host 侧 | guest 无法绕过 | **档位 A**：消费 wasmtime-wasi upstream `#[instrument]` span（~45 个 WASI p1 syscall 入口，host 侧已插好观测点；INFO 级、仅入参、文本日志非稳定契约）；**档位 B（演进）**：WASI preview2 / Component Model + p2 公开 Host trait 结构化拦截——每个 host function 先产出结构化事件（**含返回值**）再委托内置实现，可升级为**可阻断的策略执行点**（= D3 capability 强制点的审计强化形态） | 档位 A 按需开（取证）；档位 B 常开（演进） |
+| **Ring 0**（主审计面） | ateom 进程内、WASI/host function 边界 host 侧 | guest 无法绕过 | **档位 A（CPython 兼容线）**：Wasmtime/wasmtime-wasi 49 保留 p1 adapter，消费 upstream `#[instrument]` span（WASI p1 syscall 入口；INFO 级、仅入参、文本日志非稳定契约）；**档位 B（新 Component 线）**：WASI 0.3.1 / Component Model host trait 结构化拦截——每个 host function 先产出结构化事件（**含返回值**）再委托内置实现，可升级为**可阻断的策略执行点**（= D3 capability 强制点的审计强化形态）。Wasmtime 49 的 p3 实现仍标记 experimental/unstable/incomplete，须先过 adapter/toolchain PoC，不能直接替换 p1 生产兼容线 | 档位 A 按需开（取证）；档位 B 待 p3 成熟后常开（演进） |
 | **Ring 1** | ateom 进程内（沙箱外部） | guest 无法绕过 | ① **执行前代码存档 + 静态审计**（ateom 在 guest 看到代码前先拿到，不可绕过：sha256 + 长度 + 截断原文 + 高危模式标记；定位为**信号**非防线，可被混淆绕过，运行中行为由 Ring 0 兜底）；② **出口代理审计**（= D5，每请求一条，含 allowed/blocked）；③ **资源计量**（fuel 差值 `store.get_fuel()`、epoch/OOM trap）；④ **I/O 存档**（可选开关，默认关） | 常开 |
 | **Ring 2** | ateom 进程**外**（内核 eBPF） | guest 与 ateom **均**无法绕过 | Tetragon（Cilium）DaemonSet + TracingPolicy CRD：跟踪 ateom 真实 syscall（`openat`/`unlinkat`/`renameat`/`connect`/`execve`），**即使 ateom 被攻破（wasmtime 逃逸 0day）内核侧记录不可抹除**；uprobe 扩展挂 wasmtime trap/实例化稳定符号点 = Ring 0 与 Ring 2 间的**第三独立信道**（tracing subscriber 被攻破/配错时仍由内核采集） | 第二期部署 |
 
@@ -142,7 +142,7 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 - wasmtime 升级须重跑全门禁 → 运行时版本演进有验证成本；
 - 门禁未全绿期间，runc 适用面窄、多数租户池须 rund（kata 开销）——这是「安全优先于密度」的阶段性代价；
 - **Ring 2（Tetragon）部署成本与集群兼容性**：eBPF 组件与本集群 AliSecGuard 加固/内核参数有冲突前科（gVisor `user.max_user_namespaces` 事件），须单节点先行验证；rund 池下 Ring 2 语义变化（D7.1）需 in-guest eBPF 或转 VM 边界检测，运维更复杂；
-- **审计 POC 边界**（采纳方案 §11）：一期 **audit-only 无阻断**（阻断依赖档位 B 演进）、仅 stdout 无持久化/检索/告警链路、Ring 2 一期不部署（wasmtime 逃逸兜底审计在二期前**空窗**）、档位 B 未经 PoC（官方 python.wasm 的 component adapter 可行性 + WASI 0.3/p3 接口漂移为已知债务）。
+- **审计 POC 边界**（采纳方案 §11）：一期 **audit-only 无阻断**（阻断依赖档位 B 演进）、仅 stdout 无持久化/检索/告警链路、Ring 2 一期不部署（wasmtime 逃逸兜底审计在二期前**空窗**）。宿主已升级 Wasmtime 49 / WASI 0.3.1 基线，但官方 CPython 资产仍是 `wasm32-wasip1` core module；wasi-sdk 34 的 wasip3 target 与 Wasmtime 49 p3 实现仍在实验阶段，故档位 B 的 component adapter/toolchain 仍须独立 PoC。
 
 ### 与 ADR 0002 的关系
 
@@ -157,7 +157,7 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 3. wasmtime 版本钉扎 + CVE 跟踪流程；`cargo-audit`/`cargo-deny` 入 CI；
 4. 出口代理（D5）与凭据代取（D6）实现 + 双校验；
 5. 门禁状态 → ADR 0002 runtime 判据的对接（门禁全绿的租户池方可选 runc）；
-6. **三环审计落地**（采纳方案，sandbox 仓 ateom-wasmd）：一期 Ring 0 档位 A（subscriber 改造 + actor/context id span 归属）+ Ring 1（执行前代码存档/静态审计 + 出口代理审计整合 + fuel 计量）+ 统一 `target="audit"` 出口；二期 Ring 2 Tetragon（syscall + uprobe 两套 TracingPolicy，单节点→灰度→DaemonSet，**按 runc/rund 分置**——runc 池宿主侧直采、rund 池 VM 边界/in-guest，见 D7.1）；演进 Ring 0 档位 B（adapter PoC → p2 Host trait 结构化拦截 → 可阻断策略执行点）。
+6. **三环审计落地**（采纳方案，sandbox 仓 ateom-wasmd）：一期 Ring 0 档位 A（p1 compatibility lane 的 subscriber 改造 + actor/context id span 归属）+ Ring 1（执行前代码存档/静态审计 + 出口代理审计整合 + fuel 计量）+ 统一 `target="audit"` 出口；二期 Ring 2 Tetragon（syscall + uprobe 两套 TracingPolicy，单节点→灰度→DaemonSet，**按 runc/rund 分置**——runc 池宿主侧直采、rund 池 VM 边界/in-guest，见 D7.1）；演进 Ring 0 档位 B（WASI 0.3 component adapter/toolchain PoC → p3 Host trait 结构化拦截 → 可阻断策略执行点）。
 
 ## 开放问题
 
@@ -170,5 +170,5 @@ host function 集合是**显式 allowlist**，未列出的一律不可见（与 
 - capability 令牌的具体密码学方案（MAC vs 不透明索引 + 服务端表）与吊销传播（ADR 0002 开放问题「capability 中途吊销」）；
 - **Ring 2 在 rund/kata 下的部署形态**（D7.1）：in-guest eBPF（guest 内 Tetragon，但 guest kernel 在 VM 信任域内、guest-kernel 逃逸时可能一并失守）vs 宿主侧 VM 边界审计（virtio 通道 + VM 进程 syscall）——两者覆盖与信任属性不同，需定方案；
 - **审计持久化 / 检索 / 告警链路**（采纳方案 POC 边界外）：stdout → K8s 日志采集之后的落库（类比 DE agentshell 直投安全 SLS）、检索 API、告警与阻断联动；
-- **Ring 0 档位 B 的 WASI 0.3（p3）接口漂移**：锁 wasmtime 大版本、p3 迁移列为已知债务；
+- **Ring 0 档位 B 的 WASI 0.3 component 成熟度**：WASI 0.3.1 已发布、宿主已升 Wasmtime 49，但 p3 实现仍 experimental/unstable/incomplete，wasi-sdk 34 也仅“继续推进” wasip3 target；锁定大版本并在独立 component lane 完成 adapter/toolchain PoC 后方可替换生产 p1 兼容线；
 - **统一审计事件 schema 版本管理与跨环关联**：actor/context id 在 Ring 0/1/2 的一致性（Ring 2 按路径前缀/目的地址关联 sandbox 的可靠性）。
